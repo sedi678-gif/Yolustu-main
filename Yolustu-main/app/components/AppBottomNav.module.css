@@ -1,0 +1,97 @@
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+  min-height: calc(var(--app-nav-bar, 56px) + env(safe-area-inset-bottom, 0px));
+  padding: 4px max(4px, env(safe-area-inset-left, 0px))
+    max(4px, env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-right, 0px));
+  background: var(--nav-bg, #ffffff);
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: var(--app-touch-min, 44px);
+  max-width: 100%;
+  padding: 2px 1px;
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.navItemCenter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  width: var(--app-touch-min, 44px);
+  height: var(--app-touch-min, 44px);
+  min-width: var(--app-touch-min, 44px);
+  min-height: var(--app-touch-min, 44px);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
+  text-decoration: none;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+
+.navLabel {
+  font-size: clamp(7px, 2.1vw, 10px);
+  font-weight: 600;
+  color: var(--nav-text, #64748b);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.15;
+  padding: 0 1px;
+}
+
+.navLabelActive {
+  color: #6366f1;
+  font-weight: 700;
+}
+
+.navIcon {
+  flex-shrink: 0;
+  display: block;
+}
+
+/* iPhone SE / 320px — hide labels, keep 44pt targets */
+@media (max-width: 360px) {
+  .navLabel {
+    display: none;
+  }
+}
+
+@media (max-width: 320px) {
+  .navIcon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Landscape short screens */
+@media (orientation: landscape) and (max-height: 430px) {
+  .navLabel {
+    display: none;
+  }
+
+  .bottomNav {
+    min-height: calc(48px + env(safe-area-inset-bottom, 0px));
+  }
+}
