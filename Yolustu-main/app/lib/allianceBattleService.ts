@@ -66,6 +66,7 @@ export interface AllianceAttack {
   raidClicksRemaining?: number;
   raidStatus?: 'active' | 'killed' | 'hit';
   raidEndsAt?: number;
+  status?: string;
   /** @deprecated raidDamage */
   mutantDamage?: number;
   /** @deprecated raidClicksRequired */
@@ -102,6 +103,12 @@ function attackTimestampMs(value: unknown): number {
 }
 
 function normalizeAttack(raw: Omit<AllianceAttack, 'id'> & { id: string }): AllianceAttack {
+  const raidEndsAt =
+    raw.raidEndsAt != null
+      ? attackTimestampMs(raw.raidEndsAt)
+      : raw.mutantRaidEndsAt != null
+        ? attackTimestampMs(raw.mutantRaidEndsAt)
+        : undefined;
   return {
     ...raw,
     createdAt: attackTimestampMs(raw.createdAt),
@@ -111,6 +118,8 @@ function normalizeAttack(raw: Omit<AllianceAttack, 'id'> & { id: string }): Alli
     defenderLng: typeof raw.defenderLng === 'number' ? raw.defenderLng : undefined,
     attackerLat: typeof raw.attackerLat === 'number' ? raw.attackerLat : undefined,
     attackerLng: typeof raw.attackerLng === 'number' ? raw.attackerLng : undefined,
+    raidEndsAt,
+    raidStatus: raw.raidStatus ?? raw.mutantStatus,
   };
 }
 

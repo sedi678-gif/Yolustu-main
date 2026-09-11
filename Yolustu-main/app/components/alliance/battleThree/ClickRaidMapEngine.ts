@@ -6,6 +6,8 @@ import type { ClickRaidCardId } from '@/app/lib/clickRaidLogic';
 
 import type { ClickRaidAnimState } from './clickRaidModelPaths';
 
+import type { ClickRaidMapSlot } from './clickRaidMapEngineTypes';
+
 import {
 
   createClickRaidModelAsync,
@@ -18,23 +20,7 @@ import {
 
 import { loadClickRaidPixiModule } from './clickRaidPixiRuntime';
 
-
-
-export interface ClickRaidMapSlot {
-
-  attackId: string;
-
-  cardId: ClickRaidCardId;
-
-  screenX: number;
-
-  screenY: number;
-
-  rotationY: number;
-
-  mode: ClickRaidAnimState;
-
-}
+export type { ClickRaidMapSlot } from './clickRaidMapEngineTypes';
 
 
 

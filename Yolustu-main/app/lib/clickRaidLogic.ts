@@ -101,22 +101,38 @@ export function computeClickRaidClicksRequired(
   return Math.max(cfg.minClicks, scaled);
 }
 
+function parseLegacyRaidStatus(
+  status: string | undefined
+): 'active' | 'killed' | 'hit' | undefined {
+  if (!status) return undefined;
+  if (status === 'active' || status === 'killed' || status === 'hit') return status;
+  if (status.endsWith('_killed')) return 'killed';
+  if (status.endsWith('_hit')) return 'hit';
+  if (status.endsWith('_active')) return 'active';
+  return undefined;
+}
+
 export function isClickRaidActive(attack: {
   cardId?: string;
   raidStatus?: string;
   mutantStatus?: string;
+  status?: string;
   createdAt?: number;
   raidEndsAt?: number;
   mutantRaidEndsAt?: number;
 }): boolean {
   if (!attack.cardId || !isClickRaidCard(attack.cardId as BattleCardId)) return false;
-  const status = attack.raidStatus ?? attack.mutantStatus;
-  if (status !== 'active') return false;
+  const status =
+    parseLegacyRaidStatus(attack.raidStatus) ??
+    parseLegacyRaidStatus(attack.mutantStatus) ??
+    parseLegacyRaidStatus(attack.status);
+  if (status === 'killed' || status === 'hit') return false;
   const cfg = getClickRaidConfig(attack.cardId as ClickRaidCardId);
   const endsAt =
     attack.raidEndsAt ??
     attack.mutantRaidEndsAt ??
     (attack.createdAt ? attack.createdAt + cfg.raidMs : 0);
+  if (!endsAt) return status === 'active' || status === undefined;
   return Date.now() < endsAt;
 }
 
@@ -155,10 +171,13 @@ export function readRaidClicksRemaining(attack: {
 export function readRaidStatus(attack: {
   raidStatus?: string;
   mutantStatus?: string;
+  status?: string;
 }): 'active' | 'killed' | 'hit' | undefined {
-  const s = attack.raidStatus ?? attack.mutantStatus;
-  if (s === 'active' || s === 'killed' || s === 'hit') return s;
-  return undefined;
+  return (
+    parseLegacyRaidStatus(attack.raidStatus) ??
+    parseLegacyRaidStatus(attack.mutantStatus) ??
+    parseLegacyRaidStatus(attack.status)
+  );
 }
 
 export function readRaidEndsAt(attack: {

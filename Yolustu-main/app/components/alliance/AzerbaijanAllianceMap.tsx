@@ -21,6 +21,7 @@ import {
   mergeAttackLists,
   type AllianceAttack,
 } from '@/app/lib/allianceBattleService';
+import { isClickRaidCard } from '@/app/lib/clickRaidLogic';
 import styles from './alliance.module.css';
 
 interface AzerbaijanAllianceMapProps {
@@ -43,9 +44,42 @@ export default function AzerbaijanAllianceMap({
   const [liveSiegeIds, setLiveSiegeIds] = useState<Set<string>>(() => new Set());
 
   const mapAlliances = useMemo(() => withAllianceMapCoords(alliances), [alliances]);
+  const previewAttacks = useMemo<AllianceAttack[]>(() => {
+    if (typeof window === 'undefined') return [];
+    if (!new URLSearchParams(window.location.search).has('raidPreview')) return [];
+    const defender =
+      mapAlliances.find((a) => a.id !== activeAlliance?.id) ?? mapAlliances[0];
+    const attacker = mapAlliances.find((a) => a.id !== defender?.id) ?? defender;
+    if (!defender?.lat || !defender?.lng) return [];
+    const now = Date.now();
+    const cards = ['mutant', 'standing', 'zombi', 'it'] as const;
+    return cards.map((cardId, i) => ({
+      id: `preview-${cardId}`,
+      attackerAllianceId: attacker?.id ?? 'preview-atk',
+      attackerAllianceName: attacker?.name ?? 'Hücum',
+      defenderAllianceId: defender.id,
+      defenderAllianceName: defender.name,
+      attackerUserId: 'preview',
+      attackerName: 'preview',
+      cardId,
+      cardCount: 2,
+      damage: 0,
+      createdAt: now - i * 350,
+      attackerLat: attacker?.lat,
+      attackerLng: attacker?.lng,
+      defenderLat: defender.lat,
+      defenderLng: defender.lng,
+      raidStatus: 'active',
+      raidEndsAt: now + 60_000,
+      raidDamage: 100,
+      raidClicksRequired: 5,
+      raidClicksRemaining: 5,
+    }));
+  }, [mapAlliances, activeAlliance]);
+
   const allAttacks = useMemo(
-    () => mergeAttackLists(firebaseAttacks, liveBattleAttacks),
-    [liveBattleAttacks, firebaseAttacks]
+    () => mergeAttackLists(firebaseAttacks, liveBattleAttacks, previewAttacks),
+    [liveBattleAttacks, firebaseAttacks, previewAttacks]
   );
   const latestAttack = allAttacks[0] ?? null;
   const [battleToast, setBattleToast] = useState<string | null>(null);
@@ -155,6 +189,21 @@ export default function AzerbaijanAllianceMap({
     setLiveSiegeIds(siegeIds);
   }, [allAttacks]);
 
+  const watchedRaidRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const live = allAttacks.find(
+      (attack) => isClickRaidCard(attack.cardId) && Date.now() - attack.createdAt < 4000
+    );
+    if (!live || watchedRaidRef.current === live.id) return;
+    const defender = mapAlliances.find((a) => a.id === live.defenderAllianceId);
+    const map = mapInstanceRef.current;
+    if (!map || !defender?.lat || !defender?.lng) return;
+    watchedRaidRef.current = live.id;
+    map.flyTo([defender.lat, defender.lng], Math.max(map.getZoom(), 9), { duration: 1.1 });
+  }, [allAttacks, mapReady, mapAlliances]);
+
   useEffect(() => {
     if (!mapReady || !focusAllianceId) return;
     const target = mapAlliances.find((a) => a.id === focusAllianceId);
@@ -256,7 +305,7 @@ export default function AzerbaijanAllianceMap({
       />
       <div className={styles.mapCountryBadge}>
         🇦🇿 {mapAlliances.length} qala
-        <span className={styles.mapCountryHint}>⚔️ Hücumda qoşunlar hədəf qalada görünür</span>
+        <span className={styles.mapCountryHint}>⚔️ 3D qəhrəmanlar hədəf qala ətrafında canlı hərəkət edir</span>
       </div>
       {battleToast && <div className={styles.battleToast}>{battleToast}</div>}
     </div>
