@@ -219,7 +219,7 @@ function makeDog(): HeroRig {
   addShadow(root, 10);
   const materials: THREE.MeshStandardMaterial[] = [];
   collectMats(root, materials);
-  root.scale.setScalar(1.5);
+  root.scale.setScalar(2.05);
 
   return {
     root,

@@ -163,7 +163,7 @@ export class ClickRaidThreeGltfEngine {
     const fromGltf = this.createFromGltf(slot.cardId);
     const rig = fromGltf ? null : createProceduralHero(slot.cardId);
     const root = fromGltf?.root ?? rig!.root;
-    root.rotation.x = 0.42;
+    root.rotation.x = 0.72;
 
     const inst: RaidInstance = {
       slotId: slot.slotId,

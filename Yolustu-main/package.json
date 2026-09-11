@@ -8,6 +8,7 @@
     "dev:all": "node scripts/dev-with-server.mjs",
     "dev:firebase": "npm run firebase:emulators",
     "build": "node scripts/embed-zego-config.mjs && next build",
+    "vercel-build": "npm run build",
     "zego:seed": "node scripts/seed-zego-firestore.mjs",
     "start": "next start",
     "lint": "eslint",

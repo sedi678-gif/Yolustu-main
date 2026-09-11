@@ -99,7 +99,7 @@ function attackTimestampMs(value: unknown): number {
     const sec = Number((value as { seconds: number }).seconds);
     if (Number.isFinite(sec)) return sec * 1000;
   }
-  return Date.now();
+  return 0;
 }
 
 function normalizeAttack(raw: Omit<AllianceAttack, 'id'> & { id: string }): AllianceAttack {

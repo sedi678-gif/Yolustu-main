@@ -70,7 +70,7 @@ export default function AzerbaijanAllianceMap({
       defenderLat: defender.lat,
       defenderLng: defender.lng,
       raidStatus: 'active',
-      raidEndsAt: now + 60_000,
+      raidEndsAt: now + 10 * 60_000,
       raidDamage: 100,
       raidClicksRequired: 5,
       raidClicksRemaining: 5,

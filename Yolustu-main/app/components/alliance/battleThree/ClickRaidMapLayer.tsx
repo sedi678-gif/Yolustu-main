@@ -123,11 +123,15 @@ export default function ClickRaidMapLayer({
   );
 
   const visibleRaids = useMemo(() => {
+    const now = Date.now();
     return enrichedAttacks.filter((a) => {
       if (!isClickRaidCard(a.cardId)) return false;
       const phase = phases[a.id];
       if (phase === 'done') return false;
-      if (phase === 'death' || phase === 'attack') return true;
+      if (phase === 'death' || phase === 'attack') {
+        const endsAt = readRaidEndsAt(a);
+        return now - Math.max(endsAt, a.createdAt) < 4000;
+      }
       return getActiveClickRaids([a]).length > 0;
     });
   }, [enrichedAttacks, phases]);
@@ -303,8 +307,12 @@ export default function ClickRaidMapLayer({
   }, [activeRaids, alliances, resolveRaid, frame]);
 
   useEffect(() => {
+    const now = Date.now();
     for (const attack of enrichedAttacks) {
       const status = readRaidStatus(attack);
+      const endsAt = readRaidEndsAt(attack);
+      const justEnded = now - endsAt < 2500 && endsAt > 0;
+      if (!justEnded) continue;
       if (status === 'killed') {
         setPhases((p) => (p[attack.id] === 'death' || p[attack.id] === 'done' ? p : { ...p, [attack.id]: 'death' }));
       }

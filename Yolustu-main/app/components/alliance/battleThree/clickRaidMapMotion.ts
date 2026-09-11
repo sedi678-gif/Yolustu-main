@@ -45,8 +45,8 @@ export function computeRaidHeroMotion(
 ): RaidHeroMotion {
   const elapsed = Math.max(0, now - spawnedAt);
   const approach = easeOutCubic(elapsed / RAID_APPROACH_MS);
-  const outer = 132 + (ringIndex % 3) * 10;
-  const inner = 46 + Math.min(22, ringTotal * 3);
+  const outer = 168 + (ringIndex % 3) * 14;
+  const inner = 72 + Math.min(28, ringTotal * 4);
   const radius = mode === 'death' ? inner * 0.92 : outer + (inner - outer) * approach;
   const base = (2 * Math.PI * ringIndex) / Math.max(1, ringTotal);
   const spin = mode === 'run' ? elapsed * orbitSpeed : elapsed * orbitSpeed * 0.18;
