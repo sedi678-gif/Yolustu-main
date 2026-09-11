@@ -1,14 +1,17 @@
 /**
- * Kart atılan kimi: GLTFLoader preload → SkeletonUtils.clone → qala (X,Z)
+ * Kart atılan kimi: model preload → SkeletonUtils.clone → qala (X,Z)
  * radiusunda spawn → lookAt(qala) → Attack LoopRepeat → taymer bitəndə remove+dispose.
- * Pathfinding / xəritə boyunca yerimə yoxdur.
+ *
+ * Qeyd: export olunmuş .gltf faylları armature-dir (mesh/skin yoxdur).
+ * Canlı görünüş üçün Mixamo FBX (skinned mesh + hücum klipi) yüklənir.
  */
 import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { ClickRaidCardId } from '@/app/lib/clickRaidLogic';
 import type { ClickRaidAnimState } from './clickRaidModelPaths';
-import { CLICK_RAID_GLTF } from './clickRaidModelPaths';
+import { CLICK_RAID_FBX_SOURCES, CLICK_RAID_GLTF } from './clickRaidModelPaths';
 import type { ClickRaidMapSlot } from './clickRaidMapEngineTypes';
 import { createProceduralHero, poseHeroRig, type HeroRig } from './clickRaidHeroFactory';
 import { computeRaidSpawnPoint } from './clickRaidMapMotion';
@@ -32,10 +35,15 @@ interface RaidInstance {
   bornAt: number;
 }
 
-type HeroGltf = { scene: THREE.Group; animations: THREE.AnimationClip[] };
+type HeroTemplate = {
+  scene: THREE.Group;
+  animations: THREE.AnimationClip[];
+  unitScale: number;
+};
 
-const ATTACK_CLIP_ALIASES = ['attack', 'hücum', 'hucum', 'swiping', 'slash', 'strike'];
+const ATTACK_CLIP_ALIASES = ['attack', 'hücum', 'hucum', 'swiping', 'slash', 'strike', 'magic'];
 const DEATH_CLIP_ALIASES = ['death', 'die', 'dying'];
+const MAP_FBX_BOOST = 52;
 
 export class ClickRaidThreeGltfEngine {
   private renderer: THREE.WebGLRenderer;
@@ -46,11 +54,12 @@ export class ClickRaidThreeGltfEngine {
   private width = 1;
   private height = 1;
   private raids = new Map<string, RaidInstance>();
-  private gltfData = new Map<ClickRaidCardId, HeroGltf>();
+  private templates = new Map<ClickRaidCardId, HeroTemplate>();
   private ready = false;
   private rings = new Map<string, THREE.Mesh>();
   private lookDummy = new THREE.Object3D();
   private castleTarget = new THREE.Vector3();
+  private lastSlots: ClickRaidMapSlot[] = [];
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -63,41 +72,118 @@ export class ClickRaidThreeGltfEngine {
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    this.camera = new THREE.OrthographicCamera(0, 1, 1, 0, -400, 400);
+    this.camera = new THREE.OrthographicCamera(0, 1, 1, 0, -800, 800);
     this.camera.position.set(0, 0, 120);
     this.camera.lookAt(0, 0, 0);
 
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.82));
-    const key = new THREE.DirectionalLight(0xfff7ed, 1.15);
+    this.scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+    const key = new THREE.DirectionalLight(0xfff7ed, 1.35);
     key.position.set(80, 140, 160);
     this.scene.add(key);
-    const fill = new THREE.DirectionalLight(0x93c5fd, 0.45);
+    const fill = new THREE.DirectionalLight(0x93c5fd, 0.7);
     fill.position.set(-120, 40, 80);
     this.scene.add(fill);
   }
 
   async init(): Promise<boolean> {
-    await this.preloadGltf();
     this.ready = true;
+    void this.preloadModels();
     return true;
   }
 
-  private async preloadGltf(): Promise<void> {
-    const loader = new GLTFLoader();
-    const ids: ClickRaidCardId[] = ['mutant', 'standing', 'zombi', 'it'];
-    await Promise.all(
-      ids.map(async (id) => {
-        try {
-          const gltf = await loader.loadAsync(CLICK_RAID_GLTF[id].gltf);
-          if (gltf?.scene) {
-            gltf.scene.updateMatrixWorld(true);
-            this.gltfData.set(id, { scene: gltf.scene, animations: gltf.animations ?? [] });
-          }
-        } catch {
-          /* public/models yoxdursa procedural qəhrəman işləyir */
+  private meshCount(root: THREE.Object3D): number {
+    let n = 0;
+    root.traverse((obj) => {
+      if ((obj as THREE.Mesh).isMesh) n += 1;
+    });
+    return n;
+  }
+
+  private prepareRenderable(root: THREE.Object3D): void {
+    root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.frustumCulled = false;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const mat of mats) {
+        if (!mat) continue;
+        mat.side = THREE.DoubleSide;
+        mat.transparent = false;
+        mat.opacity = 1;
+        if ('emissive' in mat && mat.emissive instanceof THREE.Color) {
+          if (mat.emissive.getHex() === 0) mat.emissive.setHex(0x1a1a1a);
         }
-      })
-    );
+        mat.needsUpdate = true;
+      }
+    });
+  }
+
+  private async preloadModels(): Promise<void> {
+    const gltfLoader = new GLTFLoader();
+    const fbxLoader = new FBXLoader();
+    const ids: ClickRaidCardId[] = ['mutant', 'standing', 'zombi', 'it'];
+    await Promise.all(ids.map((id) => this.loadHero(id, gltfLoader, fbxLoader)));
+    if (this.lastSlots.length) this.rebuildFromSlots(this.lastSlots);
+  }
+
+  private async loadHero(
+    id: ClickRaidCardId,
+    gltfLoader: GLTFLoader,
+    fbxLoader: FBXLoader
+  ): Promise<void> {
+    const gltfCfg = CLICK_RAID_GLTF[id];
+    const fbxCfg = CLICK_RAID_FBX_SOURCES[id];
+
+    try {
+      const gltf = await gltfLoader.loadAsync(gltfCfg.gltf);
+      if (gltf?.scene && this.meshCount(gltf.scene) > 0) {
+        this.templates.set(id, {
+          scene: gltf.scene,
+          animations: gltf.animations ?? [],
+          unitScale: gltfCfg.displayScale * 18,
+        });
+        return;
+      }
+    } catch {
+      /* glTF armature-only ola bilər — FBX-ə keç */
+    }
+
+    try {
+      const attackRoot = await fbxLoader.loadAsync(fbxCfg.attack);
+      const clips: THREE.AnimationClip[] = attackRoot.animations.map((c) => c.clone());
+      if (clips[0] && !this.clipByAliases(clips, ATTACK_CLIP_ALIASES)) {
+        clips[0].name = 'attack';
+      }
+      try {
+        const deathRoot = await fbxLoader.loadAsync(fbxCfg.death);
+        const deathClip = deathRoot.animations[0]?.clone() ?? null;
+        if (deathClip) {
+          deathClip.name = 'death';
+          clips.push(deathClip);
+        }
+      } catch {
+        /* death optional */
+      }
+      this.templates.set(id, {
+        scene: attackRoot,
+        animations: clips,
+        unitScale: fbxCfg.meshScale * MAP_FBX_BOOST,
+      });
+    } catch (err) {
+      console.warn(`[ClickRaid:${id}] FBX yüklənmədi:`, err);
+    }
+  }
+
+  private rebuildFromSlots(slots: ClickRaidMapSlot[]): void {
+    for (const [id, raid] of this.raids) {
+      if (raid.fromGltf) continue;
+      if (!this.templates.has(raid.cardId)) continue;
+      this.disposeRaid(raid);
+      this.raids.delete(id);
+    }
+    this.syncRaids(slots);
   }
 
   resize(w: number, h: number): void {
@@ -122,25 +208,31 @@ export class ClickRaidThreeGltfEngine {
     return null;
   }
 
-  private createFromGltf(cardId: ClickRaidCardId): Omit<
+  private createFromTemplate(cardId: ClickRaidCardId): Omit<
     RaidInstance,
     'slotId' | 'attackId' | 'castleX' | 'castleY' | 'ringIndex' | 'ringTotal' | 'bornAt'
   > | null {
-    const data = this.gltfData.get(cardId);
-    if (!data) return null;
+    const data = this.templates.get(cardId);
+    if (!data || this.meshCount(data.scene) === 0) return null;
 
     const mesh = SkeletonUtils.clone(data.scene) as THREE.Group;
-    mesh.scale.setScalar(CLICK_RAID_GLTF[cardId].displayScale * 18);
+    mesh.scale.setScalar(data.unitScale);
+    this.prepareRenderable(mesh);
 
     const mixer = new THREE.AnimationMixer(mesh);
-    const attackClip =
+    const attackSrc =
       this.clipByAliases(data.animations, ATTACK_CLIP_ALIASES) ?? data.animations[0] ?? null;
-    const deathClip = this.clipByAliases(data.animations, DEATH_CLIP_ALIASES);
+    const deathSrc = this.clipByAliases(data.animations, DEATH_CLIP_ALIASES);
+    const attackClip = attackSrc?.clone() ?? null;
+    const deathClip = deathSrc?.clone() ?? null;
 
     const attackAction = attackClip ? mixer.clipAction(attackClip) : null;
     if (attackAction) {
+      attackAction.enabled = true;
+      attackAction.setEffectiveWeight(1);
       attackAction.setLoop(THREE.LoopRepeat, Infinity);
       attackAction.play();
+      mixer.update(0);
     }
 
     const root = new THREE.Group();
@@ -160,10 +252,10 @@ export class ClickRaidThreeGltfEngine {
   }
 
   private createRaid(slot: ClickRaidMapSlot): RaidInstance {
-    const fromGltf = this.createFromGltf(slot.cardId);
-    const rig = fromGltf ? null : createProceduralHero(slot.cardId);
-    const root = fromGltf?.root ?? rig!.root;
-    const mesh = fromGltf?.mesh ?? rig!.root;
+    const fromTemplate = this.createFromTemplate(slot.cardId);
+    const rig = fromTemplate ? null : createProceduralHero(slot.cardId);
+    const root = fromTemplate?.root ?? rig!.root;
+    const mesh = fromTemplate?.mesh ?? rig!.root;
 
     const inst: RaidInstance = {
       slotId: slot.slotId,
@@ -171,12 +263,12 @@ export class ClickRaidThreeGltfEngine {
       cardId: slot.cardId,
       root,
       mesh,
-      mixer: fromGltf?.mixer ?? null,
-      attack: fromGltf?.attack ?? null,
-      death: fromGltf?.death ?? null,
+      mixer: fromTemplate?.mixer ?? null,
+      attack: fromTemplate?.attack ?? null,
+      death: fromTemplate?.death ?? null,
       mode: 'attack',
       rig,
-      fromGltf: Boolean(fromGltf),
+      fromGltf: Boolean(fromTemplate),
       castleX: slot.castleX,
       castleY: slot.castleY,
       ringIndex: slot.ringIndex,
@@ -190,7 +282,6 @@ export class ClickRaidThreeGltfEngine {
     return inst;
   }
 
-  /** Qala (X,Z) radiusunda yerləşdir + lookAt(qala) */
   private placeAroundCastle(raid: RaidInstance) {
     const spawn = computeRaidSpawnPoint(raid.castleX, raid.castleY, raid.ringIndex, raid.ringTotal);
     const y = this.height - spawn.z;
@@ -228,9 +319,7 @@ export class ClickRaidThreeGltfEngine {
     root.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
-      if (disposeSharedAssets) {
-        mesh.geometry?.dispose();
-      }
+      if (disposeSharedAssets) mesh.geometry?.dispose();
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const mat of materials) {
         if (disposeSharedAssets) mat?.dispose();
@@ -253,6 +342,7 @@ export class ClickRaidThreeGltfEngine {
 
   syncRaids(slots: ClickRaidMapSlot[]): void {
     if (!this.ready) return;
+    this.lastSlots = slots;
     const seen = new Set<string>();
     const castleSeen = new Set<string>();
 
@@ -340,15 +430,23 @@ export class ClickRaidThreeGltfEngine {
   }
 
   start(): void {
+    if (this.width <= 1 || this.height <= 1) {
+      this.resize(Math.max(1, this.canvas.clientWidth), Math.max(1, this.canvas.clientHeight));
+    }
     const tick = () => {
       this.rafId = requestAnimationFrame(tick);
-      const d = this.clock.getDelta();
+      const d = Math.min(this.clock.getDelta(), 0.05);
       const time = this.clock.elapsedTime;
 
       for (const raid of this.raids.values()) {
         raid.mixer?.update(d);
         if (raid.rig) {
-          poseHeroRig(raid.rig, raid.mode === 'death' ? 'death' : 'attack', time - raid.bornAt + raid.ringIndex * 0.35, raid.cardId);
+          poseHeroRig(
+            raid.rig,
+            raid.mode === 'death' ? 'death' : 'attack',
+            time - raid.bornAt + raid.ringIndex * 0.35,
+            raid.cardId
+          );
         }
       }
 
