@@ -10,9 +10,8 @@ export interface ClickRaidMapSlot {
   ringIndex: number;
   ringTotal: number;
   spawnedAt: number;
-  orbitSpeed: number;
   mode: ClickRaidAnimState;
-  /** HUD / geriyə uyğunluq */
+  /** HUD / geriyə uyğunluq — spawn nöqtəsi */
   screenX: number;
   screenY: number;
   rotationY: number;

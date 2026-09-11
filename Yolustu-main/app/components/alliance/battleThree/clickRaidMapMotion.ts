@@ -1,27 +1,36 @@
-import type { ClickRaidCardId } from '@/app/lib/clickRaidLogic';
-import type { ClickRaidAnimState } from './clickRaidModelPaths';
-
-export const RAID_APPROACH_MS = 2600;
 export const RAID_MAX_UNITS = 5;
 
-const CARD_ORBIT: Record<ClickRaidCardId, number> = {
-  mutant: 0.00072,
-  standing: 0.00055,
-  zombi: 0.00048,
-  it: 0.00115,
-};
+/** Qala (X,Z) ətrafında spawn radiusu — yerimə/pathfinding yoxdur */
+export const RAID_SPAWN_RADIUS = 86;
 
 export function raidUnitCount(cardCount: number | undefined): number {
   return Math.min(RAID_MAX_UNITS, Math.max(1, Math.round(cardCount || 1)));
 }
 
-export function orbitSpeedForCard(cardId: ClickRaidCardId): number {
-  return CARD_ORBIT[cardId] ?? 0.0007;
+export interface RaidSpawnPoint {
+  /** Leaflet ekran X = 3D dünya X */
+  x: number;
+  /** Leaflet ekran Y = 3D dünya Z (yer müstəvisi) */
+  z: number;
 }
 
-export function easeOutCubic(t: number): number {
-  const x = Math.min(1, Math.max(0, t));
-  return 1 - (1 - x) ** 3;
+/**
+ * Kart atılan kimi qala koordinatları ətrafında sabit nöqtə.
+ * Vaxt keçdikcə yer dəyişmir — yalnız xəritə pan/zoom-da qala ilə birgə sürüşür.
+ */
+export function computeRaidSpawnPoint(
+  castleX: number,
+  castleZ: number,
+  ringIndex: number,
+  ringTotal: number
+): RaidSpawnPoint {
+  const n = Math.max(1, ringTotal);
+  const angle = (2 * Math.PI * ringIndex) / n - Math.PI / 2;
+  const radius = RAID_SPAWN_RADIUS + (ringIndex % 3) * 10;
+  return {
+    x: castleX + Math.cos(angle) * radius,
+    z: castleZ + Math.sin(angle) * radius * 0.55,
+  };
 }
 
 export interface RaidHeroMotion {
@@ -32,31 +41,21 @@ export interface RaidHeroMotion {
   approaching: boolean;
 }
 
-/** Qala ətrafında canlı orbit — əvvəl kənardan qaçır, sonra mühasirə */
+/** HUD / fallback — orbit yox, qala ətrafında sabit spawn */
 export function computeRaidHeroMotion(
   castleX: number,
   castleY: number,
   ringIndex: number,
-  ringTotal: number,
-  spawnedAt: number,
-  now: number,
-  orbitSpeed: number,
-  mode: ClickRaidAnimState
+  ringTotal: number
 ): RaidHeroMotion {
-  const elapsed = Math.max(0, now - spawnedAt);
-  const approach = easeOutCubic(elapsed / RAID_APPROACH_MS);
-  const outer = 168 + (ringIndex % 3) * 14;
-  const inner = 72 + Math.min(28, ringTotal * 4);
-  const radius = mode === 'death' ? inner * 0.92 : outer + (inner - outer) * approach;
-  const base = (2 * Math.PI * ringIndex) / Math.max(1, ringTotal);
-  const spin = mode === 'run' ? elapsed * orbitSpeed : elapsed * orbitSpeed * 0.18;
-  const angle = base + spin;
-
+  const spawn = computeRaidSpawnPoint(castleX, castleY, ringIndex, ringTotal);
+  const dx = castleX - spawn.x;
+  const dz = castleY - spawn.z;
   return {
-    x: castleX + Math.cos(angle) * radius,
-    y: castleY + Math.sin(angle) * radius * 0.52,
-    rotationY: angle + Math.PI,
-    radius,
-    approaching: approach < 1 && mode === 'run',
+    x: spawn.x,
+    y: spawn.z,
+    rotationY: Math.atan2(dx, dz) + Math.PI,
+    radius: RAID_SPAWN_RADIUS,
+    approaching: false,
   };
 }

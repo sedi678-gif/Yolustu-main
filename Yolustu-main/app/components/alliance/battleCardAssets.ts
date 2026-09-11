@@ -30,7 +30,7 @@ export const BATTLE_CARD_ASSETS: Record<BattleCardId, BattleCardAsset> = {
 
     tag: 'Oğru',
 
-    desc: 'Zombi hədəf qalaya qaçır. Müdafiəçilər 7 kliklə (50 üzv) dayandıra bilər; uğursuz olarsa 1500 xal oğurlanır və hücum edən ittifaqın balansına yazılır.',
+    desc: 'Zombi hədəf qala ətrafında peyda olub hücum edir. Müdafiəçilər 7 kliklə (50 üzv) dayandıra bilər; uğursuz olarsa 1500 xal oğurlanır və hücum edən ittifaqın balansına yazılır.',
 
   },
 
@@ -72,7 +72,7 @@ export const BATTLE_CARD_ASSETS: Record<BattleCardId, BattleCardAsset> = {
 
     tag: 'Zərərverici',
 
-    desc: 'Mutant hədəf qalaya qaçır. Vaxtında kliklə öldürməsən, ittifaq xalları üzv sayına mütənasib azalır.',
+    desc: 'Mutant hədəf qala ətrafında peyda olub hücum edir. Vaxtında kliklə öldürməsən, ittifaq xalları üzv sayına mütənasib azalır.',
 
   },
 
@@ -86,7 +86,7 @@ export const BATTLE_CARD_ASSETS: Record<BattleCardId, BattleCardAsset> = {
 
     tag: 'Zərərverici',
 
-    desc: 'Standing hücumçusu hədəf qalaya qaçır. Müdafiəçilər 5 kliklə (50 üzv) dayandıra bilər; uğursuz olarsa 1000 xal zərər.',
+    desc: 'Standing hücumçusu hədəf qala ətrafında peyda olub hücum edir. Müdafiəçilər 5 kliklə (50 üzv) dayandıra bilər; uğursuz olarsa 1000 xal zərər.',
 
   },
 
@@ -100,7 +100,7 @@ export const BATTLE_CARD_ASSETS: Record<BattleCardId, BattleCardAsset> = {
 
     tag: 'Oğru',
 
-    desc: 'Hücum iti sürətlə hədəf qalaya qaçır. Müdafiəçilər 5 kliklə (50 üzv) dayandıra bilər; uğursuz olarsa 1000 xal oğurlanır və hücum edən ittifaqın balansına yazılır.',
+    desc: 'Hücum iti hədəf qala ətrafında peyda olub hücum edir. Müdafiəçilər 5 kliklə (50 üzv) dayandıra bilər; uğursuz olarsa 1000 xal oğurlanır və hücum edən ittifaqın balansına yazılır.',
 
   },
 

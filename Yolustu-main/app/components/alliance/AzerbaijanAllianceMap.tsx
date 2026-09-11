@@ -305,7 +305,7 @@ export default function AzerbaijanAllianceMap({
       />
       <div className={styles.mapCountryBadge}>
         🇦🇿 {mapAlliances.length} qala
-        <span className={styles.mapCountryHint}>⚔️ 3D qəhrəmanlar hədəf qala ətrafında canlı hərəkət edir</span>
+        <span className={styles.mapCountryHint}>⚔️ Kart atılan kimi 3D qəhrəman qala ətrafında peyda olub hücum edir</span>
       </div>
       {battleToast && <div className={styles.battleToast}>{battleToast}</div>}
     </div>

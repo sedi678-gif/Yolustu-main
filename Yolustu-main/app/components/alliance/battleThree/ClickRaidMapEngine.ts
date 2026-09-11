@@ -292,7 +292,7 @@ export class ClickRaidMapEngine {
 
         anims: created.anims,
 
-        mode: 'run',
+        mode: 'attack',
 
         activeAnim: null,
 
@@ -302,7 +302,7 @@ export class ClickRaidMapEngine {
 
       this.stage3d.addChild(created.model);
 
-      this.playRun(instance);
+      this.playClip(instance, instance.anims.attack ?? instance.anims.run, true, 1);
 
       this.raids.set(attackId, instance);
 
@@ -358,16 +358,6 @@ export class ClickRaidMapEngine {
 
 
 
-  private playRun(raid: RaidInstance): void {
-
-    raid.mode = 'run';
-
-    this.playClip(raid, raid.anims.run, true, 0.85);
-
-  }
-
-
-
   syncRaids(slots: ClickRaidMapSlot[]): void {
 
     if (!this.ready || !this.stage3d) return;
@@ -382,7 +372,7 @@ export class ClickRaidMapEngine {
 
       seen.add(slot.attackId);
 
-      let raid = this.raids.get(slot.attackId);
+      const raid = this.raids.get(slot.attackId);
 
       if (!raid) {
 
@@ -454,7 +444,7 @@ export class ClickRaidMapEngine {
 
     raid.mode = 'attack';
 
-    this.playClip(raid, raid.anims.attack, false, 1);
+    this.playClip(raid, raid.anims.attack, true, 1);
 
   }
 
