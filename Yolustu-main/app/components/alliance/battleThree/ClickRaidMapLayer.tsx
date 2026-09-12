@@ -6,6 +6,7 @@ import type { AllianceAttack } from '@/app/lib/allianceBattleService';
 import {
   enrichAttacksWithCoords,
   finalizeClickRaid,
+  mergeAttackLists,
   registerClickRaidClick,
 } from '@/app/lib/allianceBattleService';
 import {
@@ -21,7 +22,8 @@ import {
   readRaidStatus,
   type ClickRaidCardId,
 } from '@/app/lib/clickRaidLogic';
-import { ClickRaidThreeGltfEngine } from './ClickRaidThreeGltfEngine';
+import { useAllianceBrain } from '../AllianceBrainContext';
+import { MixamoFbxRaidEngine } from './MixamoFbxRaidEngine';
 import type { ClickRaidMapSlot, IClickRaidMapEngine } from './clickRaidMapEngineTypes';
 import { computeRaidHeroMotion, raidUnitCount } from './clickRaidMapMotion';
 import styles from '../alliance.module.css';
@@ -99,19 +101,27 @@ export default function ClickRaidMapLayer({
   userId,
   myAllianceId,
 }: ClickRaidMapLayerProps) {
+  const brain = useAllianceBrain();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<IClickRaidMapEngine | null>(null);
   const finalizedRef = useRef<Set<string>>(new Set());
   const [engineReady, setEngineReady] = useState(false);
-  const [engineFailed, setEngineFailed] = useState(false);
   const [phases, setPhases] = useState<Record<string, RaidPhase>>({});
   const [scoreFlashes, setScoreFlashes] = useState<Record<string, number>>({});
   const [nowMs, setNowMs] = useState(0);
 
-  const enrichedAttacks = useMemo(
-    () => enrichAttacksWithCoords(attacks, alliances),
-    [attacks, alliances]
+  const mergedAttacks = useMemo(
+    () => mergeAttackLists(attacks, brain.liveBattleAttacks),
+    [attacks, brain.liveBattleAttacks]
   );
+
+  const enrichedAttacks = useMemo(
+    () => enrichAttacksWithCoords(mergedAttacks, alliances),
+    [mergedAttacks, alliances]
+  );
+
+  const uid = userId ?? brain.userId;
+  const myId = myAllianceId ?? brain.activeAlliance?.id ?? null;
 
   const activeRaids = useMemo(
     () => getActiveClickRaids(enrichedAttacks),
@@ -123,11 +133,11 @@ export default function ClickRaidMapLayer({
       if (!isClickRaidCard(a.cardId)) return false;
       const phase = phases[a.id];
       if (phase === 'done') return false;
-      if (phase === 'death' || phase === 'attack') {
+      if (phase === 'death') {
         const endsAt = readRaidEndsAt(a);
         return nowMs - Math.max(endsAt, a.createdAt) < 4000;
       }
-      return getActiveClickRaids([a]).length > 0;
+      return getActiveClickRaids([a]).length > 0 || phase === 'attack';
     });
   }, [enrichedAttacks, phases, nowMs]);
 
@@ -135,7 +145,6 @@ export default function ClickRaidMapLayer({
 
   useEffect(() => {
     if (!mapReady || !canvasRef.current || !map) return;
-
     const canvas = canvasRef.current;
     const parent = canvas.parentElement;
     if (!parent) return;
@@ -145,7 +154,7 @@ export default function ClickRaidMapLayer({
 
     void (async () => {
       try {
-        const engine = new ClickRaidThreeGltfEngine(canvas);
+        const engine = new MixamoFbxRaidEngine(canvas);
         const ok = await engine.init();
         if (cancelled) {
           engine.stop();
@@ -153,7 +162,6 @@ export default function ClickRaidMapLayer({
         }
         if (!ok) {
           engine.stop();
-          setEngineFailed(true);
           return;
         }
         activeEngine = engine;
@@ -162,15 +170,12 @@ export default function ClickRaidMapLayer({
         engine.start();
         setEngineReady(true);
       } catch (err) {
-        console.warn('[ClickRaidMap] 3D mühərrik açılmadı:', err);
-        if (!cancelled) setEngineFailed(true);
+        console.error('[ClickRaid] FBX mühərrik açılmadı.', err);
       }
     })();
 
-    const onResize = () =>
-      engineRef.current?.resize(parent.clientWidth, parent.clientHeight);
+    const onResize = () => engineRef.current?.resize(parent.clientWidth, parent.clientHeight);
     window.addEventListener('resize', onResize);
-
     return () => {
       cancelled = true;
       window.removeEventListener('resize', onResize);
@@ -194,29 +199,16 @@ export default function ClickRaidMapLayer({
   useEffect(() => {
     const engine = engineRef.current;
     if (!map || !engine || !engineReady) return;
-
-    const canvas = canvasRef.current;
-    const parent = canvas?.parentElement;
+    const parent = canvasRef.current?.parentElement;
     if (parent) engine.resize(parent.clientWidth, parent.clientHeight);
 
     const slots: ClickRaidMapSlot[] = [];
-
     for (const unit of heroUnits) {
       const castle = castlePoint(map, unit.attack);
-      if (!castle) continue;
-      if (!isClickRaidCard(unit.attack.cardId)) continue;
-
-      const phase = phases[unit.attack.id] ?? 'run';
-      if (phase === 'attack' || phase === 'done') continue;
-
-      const mode = phase === 'death' ? 'death' : 'attack';
-      const motion = computeRaidHeroMotion(
-        castle.x,
-        castle.y,
-        unit.ringIndex,
-        unit.ringTotal
-      );
-
+      if (!castle || !isClickRaidCard(unit.attack.cardId)) continue;
+      const phase = phases[unit.attack.id] ?? 'attack';
+      if (phase === 'done') continue;
+      const motion = computeRaidHeroMotion(castle.x, castle.y, unit.ringIndex, unit.ringTotal);
       slots.push({
         slotId: unit.slotId,
         attackId: unit.attack.id,
@@ -226,20 +218,18 @@ export default function ClickRaidMapLayer({
         ringIndex: unit.ringIndex,
         ringTotal: unit.ringTotal,
         spawnedAt: unit.attack.createdAt,
-        mode,
+        mode: phase === 'death' ? 'death' : 'attack',
         screenX: motion.x,
         screenY: motion.y,
         rotationY: motion.rotationY,
       });
     }
-
     engine.syncRaids(slots);
   }, [map, heroUnits, phases, nowMs, engineReady]);
 
   const resolveRaid = useCallback(async (attack: AllianceAttack, defeated: boolean) => {
     if (finalizedRef.current.has(attack.id)) return;
     finalizedRef.current.add(attack.id);
-
     const engine = engineRef.current;
     if (defeated) {
       engine?.playDeath(attack.id);
@@ -248,13 +238,11 @@ export default function ClickRaidMapLayer({
       setPhases((p) => ({ ...p, [attack.id]: 'attack' }));
       setScoreFlashes((f) => ({ ...f, [attack.id]: readRaidDamage(attack) }));
     }
-
     try {
       await finalizeClickRaid(attack.id, defeated);
     } catch (err) {
       console.warn('[ClickRaidMap] finalize:', err);
     }
-
     window.setTimeout(() => {
       setPhases((p) => ({ ...p, [attack.id]: 'done' }));
       setScoreFlashes((f) => {
@@ -265,12 +253,7 @@ export default function ClickRaidMapLayer({
     }, defeated ? 1400 : 400);
   }, []);
 
-  const tickStateRef = useRef({
-    activeRaids,
-    enrichedAttacks,
-    alliances,
-    resolveRaid,
-  });
+  const tickStateRef = useRef({ activeRaids, enrichedAttacks, alliances, resolveRaid });
   tickStateRef.current = { activeRaids, enrichedAttacks, alliances, resolveRaid };
 
   useEffect(() => {
@@ -279,11 +262,9 @@ export default function ClickRaidMapLayer({
       const t = Date.now();
       setNowMs(t);
       const snap = tickStateRef.current;
-
       for (const attack of snap.activeRaids) {
         const status = readRaidStatus(attack);
         if (status === 'killed' || status === 'hit') continue;
-
         const memberCount =
           snap.alliances.find((a) => a.id === attack.defenderAllianceId)?.members?.length ??
           attack.defenderMemberCount ??
@@ -293,33 +274,11 @@ export default function ClickRaidMapLayer({
           readRaidClicksRequired(attack) ?? computeClickRaidClicksRequired(cardId, memberCount);
         const clicksLeft = readRaidClicksRemaining(attack) ?? maxClicks;
         const endsAt = readRaidEndsAt(attack);
-
         if (clicksLeft <= 0) {
           void snap.resolveRaid(attack, true);
           continue;
         }
-        if (endsAt && t >= endsAt) {
-          void snap.resolveRaid(attack, false);
-        }
-      }
-
-      for (const attack of snap.enrichedAttacks) {
-        const status = readRaidStatus(attack);
-        const endsAt = readRaidEndsAt(attack);
-        const justEnded = t - endsAt < 2500 && endsAt > 0;
-        if (!justEnded) continue;
-        if (status === 'killed') {
-          setPhases((p) =>
-            p[attack.id] === 'death' || p[attack.id] === 'done' ? p : { ...p, [attack.id]: 'death' }
-          );
-        }
-        if (status === 'hit') {
-          setPhases((p) =>
-            p[attack.id] === 'attack' || p[attack.id] === 'done' ? p : { ...p, [attack.id]: 'attack' }
-          );
-          const dmg = readRaidDamage(attack);
-          setScoreFlashes((f) => (f[attack.id] === dmg ? f : { ...f, [attack.id]: dmg }));
-        }
+        if (endsAt && t >= endsAt) void snap.resolveRaid(attack, false);
       }
     }, 80);
     return () => window.clearInterval(timer);
@@ -328,20 +287,17 @@ export default function ClickRaidMapLayer({
   const tryRaidHitClick = useCallback(
     (clientX: number, clientY: number) => {
       const engine = engineRef.current;
-      if (!engine || !userId) return;
-
+      if (!engine || !uid) return;
       const attackId = engine.hitTest(clientX, clientY);
       if (!attackId) return;
-
       const attack = activeRaids.find((a) => a.id === attackId);
       if (!attack || readRaidStatus(attack) === 'killed' || readRaidStatus(attack) === 'hit') return;
-      if (myAllianceId !== attack.defenderAllianceId) return;
-
-      void registerClickRaidClick(attackId, userId).catch((err) =>
+      if (myId !== attack.defenderAllianceId) return;
+      void registerClickRaidClick(attackId, uid).catch((err) =>
         console.warn('[ClickRaidMap] click:', err)
       );
     },
-    [activeRaids, myAllianceId, userId]
+    [activeRaids, myId, uid]
   );
 
   useEffect(() => {
@@ -372,37 +328,14 @@ export default function ClickRaidMapLayer({
         className={styles.clickRaidMapLayer}
         aria-hidden={visibleRaids.length === 0}
       />
-      {engineFailed &&
-        map &&
-        heroUnits.map((unit) => {
-          const castle = castlePoint(map, unit.attack);
-          if (!castle || !isClickRaidCard(unit.attack.cardId)) return null;
-          const phase = phases[unit.attack.id] ?? 'run';
-          if (phase === 'attack' || phase === 'done') return null;
-          const pos = computeRaidHeroMotion(castle.x, castle.y, unit.ringIndex, unit.ringTotal);
-          const cfg = getClickRaidConfig(unit.attack.cardId);
-          return (
-            <div
-              key={unit.slotId}
-              className={`${styles.clickRaidUnit} ${styles.clickRaidUnitArrived}`}
-              style={{ left: pos.x, top: pos.y, transform: 'translate(-50%, -90%)' }}
-            >
-              <div className={styles.clickRaidUnitSprite}>
-                <span className={styles.clickRaidUnitEmoji}>{cfg.emoji}</span>
-              </div>
-            </div>
-          );
-        })}
       {map &&
         hudByAttack.map((unit) => {
           const attack = unit.attack;
           if (!isClickRaidCard(attack.cardId)) return null;
           const castle = castlePoint(map, attack);
           if (!castle) return null;
-
-          const phase = phases[attack.id] ?? 'run';
+          const phase = phases[attack.id] ?? 'attack';
           const pos = computeRaidHeroMotion(castle.x, castle.y, unit.ringIndex, unit.ringTotal);
-
           const cfg = getClickRaidConfig(attack.cardId);
           const memberCount =
             alliances.find((a) => a.id === attack.defenderAllianceId)?.members?.length ??
@@ -417,7 +350,7 @@ export default function ClickRaidMapLayer({
           const endsAt = readRaidEndsAt(attack);
           const timeLeft = Math.max(0, Math.ceil((endsAt - nowMs) / 1000));
           const hpPct = maxClicks > 0 ? (clicksLeft / maxClicks) * 100 : 0;
-          const isDefender = myAllianceId === attack.defenderAllianceId;
+          const isDefender = myId === attack.defenderAllianceId;
           const flash = scoreFlashes[attack.id];
           const units = raidUnitCount(attack.cardCount);
 
@@ -457,7 +390,7 @@ export default function ClickRaidMapLayer({
                   {cfg.mode === 'steal' ? `Oğurluq: ${raidAmount}` : `Zərər: ${raidAmount}`}
                 </div>
               )}
-              {isDefender && phase === 'run' && (
+              {isDefender && phase !== 'death' && phase !== 'done' && (
                 <div className={styles.clickRaidClickHint}>Hücum edən 3D modelə kliklə!</div>
               )}
             </div>

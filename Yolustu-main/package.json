@@ -23,8 +23,7 @@
     "android:sync": "npx cap sync android",
     "android:build": "npm run build && npm run android:sync",
     "release:android": "npm run firebase:deploy && npm run android:build",
-    "release:web": "npm run firebase:deploy:all",
-    "build:raid-gltf": "node scripts/build-click-raid-gltf.mjs"
+    "release:web": "npm run firebase:deploy:all"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -63,7 +62,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/simple-peer": "^9.11.9",
-    "@types/three": "^0.174.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
     "firebase-tools": "^14.27.0",

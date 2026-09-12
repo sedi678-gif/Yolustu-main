@@ -1,149 +1,71 @@
 import type { ClickRaidCardId } from '@/app/lib/clickRaidLogic';
 
-
-
-/** Tək glTF faylı — run / attack / death animasiya klipləri daxilində */
-
 export interface ClickRaidGltfConfig {
-
+  /** public/models (və /model alias) altındakı nisbi yol */
   gltf: string;
-
-  /** Pixi3D model miqyası (xəritə ölçüsü) */
-
   displayScale: number;
-
   clips: {
-
     run: string;
-
     attack: string;
-
     death: string;
-
   };
-
 }
 
-
-
-const MUTANT_BASE = '/models/mutant';
-
-const STANDING_BASE = '/models/standing';
-
-const ZOMBIE_BASE = '/models/zombie';
-
-const DOG_BASE = '/models/dog';
-
-
+export interface ClickRaidFbxConfig {
+  attack: string;
+  death: string;
+  run: string;
+  meshScale: number;
+}
 
 export const CLICK_RAID_GLTF: Record<ClickRaidCardId, ClickRaidGltfConfig> = {
-
   mutant: {
-
-    gltf: `${MUTANT_BASE}/mutant.gltf`,
-
+    gltf: 'Mutant/mutant.gltf',
     displayScale: 2.8,
-
     clips: { run: 'run', attack: 'attack', death: 'death' },
-
   },
-
   standing: {
-
-    gltf: `${STANDING_BASE}/standing.gltf`,
-
+    gltf: 'standing/standing.gltf',
     displayScale: 2.6,
-
     clips: { run: 'run', attack: 'attack', death: 'death' },
-
   },
-
   zombi: {
-
-    gltf: `${ZOMBIE_BASE}/zombi.gltf`,
-
+    gltf: 'zombie/zombi.gltf',
     displayScale: 2.8,
-
     clips: { run: 'run', attack: 'attack', death: 'death' },
-
   },
-
   it: {
-
-    gltf: `${DOG_BASE}/it.gltf`,
-
+    gltf: 'dog/it.gltf',
     displayScale: 2.9,
-
     clips: { run: 'run', attack: 'attack', death: 'death' },
-
   },
-
 };
-
-
 
 export type ClickRaidAnimState = 'run' | 'attack' | 'death';
 
-
-
-/** @deprecated FBX yolları — yalnız build-click-raid-gltf skripti üçün */
-
-export const CLICK_RAID_FBX_SOURCES: Record<
-
-  ClickRaidCardId,
-
-  { run: string; attack: string; death: string; meshScale: number }
-
-> = {
-
+export const CLICK_RAID_FBX_SOURCES: Record<ClickRaidCardId, ClickRaidFbxConfig> = {
   mutant: {
-
-    run: `${MUTANT_BASE}/Mutant%20Run.fbx`,
-
-    attack: `${MUTANT_BASE}/Mutant%20Swiping.fbx`,
-
-    death: `${MUTANT_BASE}/Mutant%20Dying.fbx`,
-
+    run: 'mutant/Mutant Walking.fbx',
+    attack: 'mutant/Mutant Swiping.fbx',
+    death: 'mutant/Mutant Dying.fbx',
     meshScale: 0.011,
-
   },
-
   standing: {
-
-    run: `${STANDING_BASE}/Standing%20Run%20Forward.fbx`,
-
-    attack: `${STANDING_BASE}/Standing%202H%20Magic%20Attack%2001.fbx`,
-
-    death: `${STANDING_BASE}/Standing%20React%20Death%20Backward.fbx`,
-
+    run: 'standing/Standing Run Forward.fbx',
+    attack: 'standing/Standing 2H Magic Attack 01.fbx',
+    death: 'standing/Standing React Death Backward.fbx',
     meshScale: 0.01,
-
   },
-
   zombi: {
-
-    run: `${ZOMBIE_BASE}/Zombie%20Run.fbx`,
-
-    attack: `${ZOMBIE_BASE}/Zombie%20Attack.fbx`,
-
-    death: `${ZOMBIE_BASE}/Zombie%20Death.fbx`,
-
+    run: 'zombie/Zombie Run.fbx',
+    attack: 'zombie/Zombie Attack.fbx',
+    death: 'zombie/Zombie Death.fbx',
     meshScale: 0.011,
-
   },
-
   it: {
-
-    run: `${DOG_BASE}/dog%20run.fbx`,
-
-    attack: `${DOG_BASE}/dog%20attack.fbx`,
-
-    death: `${DOG_BASE}/dog%20death.fbx`,
-
+    run: 'dog/dog run.fbx',
+    attack: 'dog/dog attack.fbx',
+    death: 'dog/dog death.fbx',
     meshScale: 0.012,
-
   },
-
 };
-
-

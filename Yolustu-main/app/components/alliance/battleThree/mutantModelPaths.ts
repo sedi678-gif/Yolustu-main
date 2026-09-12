@@ -1,9 +1,7 @@
-const BASE = '/models/mutant';
-
 export const MUTANT_MODELS = {
-  run: `${BASE}/Mutant%20Run.fbx`,
-  attack: `${BASE}/Mutant%20Swiping.fbx`,
-  death: `${BASE}/Mutant%20Dying.fbx`,
+  run: 'mutant/Mutant Run.fbx',
+  attack: 'mutant/Mutant Swiping.fbx',
+  death: 'mutant/Mutant Dying.fbx',
 } as const;
 
 export type MutantAnimState = 'run' | 'attack' | 'death';
