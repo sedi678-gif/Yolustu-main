@@ -1,14 +1,22 @@
 import { getFortressMarkerUrl, normalizeFortressLevel } from '@/app/lib/allianceFortressConfig';
 
 /** Xəritə markerində qala şəkli — px (Leaflet CSS bəzən tətbiq olunmur, inline da var) */
-export const CASTLE_ART_W = 40;
-export const CASTLE_ART_H = 44;
+export const CASTLE_ART_W = 48;
+export const CASTLE_ART_H = 52;
+
+/** Səviyyə 1 → 6: qala getdikcə böyüyür */
+const CASTLE_LEVEL_SCALE = [1, 1.08, 1.16, 1.26, 1.36, 1.5] as const;
+
+export function getCastleLevelScale(level: number): number {
+  const lv = normalizeFortressLevel(level);
+  return CASTLE_LEVEL_SCALE[lv - 1];
+}
 
 /** Yaxınlaşdıqda qala görünür şəkildə böyüsün (Leaflet min/max zoom) */
 export const CASTLE_ZOOM_SCALE_MIN = 0.88;
-export const CASTLE_ZOOM_SCALE_MAX = 2.2;
+export const CASTLE_ZOOM_SCALE_MAX = 3.0;
 const CASTLE_MAP_MIN_ZOOM = 6;
-const CASTLE_MAP_MAX_ZOOM = 12;
+const CASTLE_MAP_MAX_ZOOM = 18;
 
 export function getCastleZoomScale(mapZoom: number): number {
   const z = Math.min(CASTLE_MAP_MAX_ZOOM, Math.max(CASTLE_MAP_MIN_ZOOM, mapZoom));
@@ -16,13 +24,15 @@ export function getCastleZoomScale(mapZoom: number): number {
   return CASTLE_ZOOM_SCALE_MIN + t * (CASTLE_ZOOM_SCALE_MAX - CASTLE_ZOOM_SCALE_MIN);
 }
 
-/** CSS transform işləməyəndə də qala zoom ilə böyüsün */
+/** CSS transform işləməyəndə də qala zoom + səviyyə ilə böyüsün */
 export function applyCastleZoomToMap(container: HTMLElement, mapZoom: number): number {
-  const s = getCastleZoomScale(mapZoom);
-  const w = Math.round(CASTLE_ART_W * s);
-  const h = Math.round(CASTLE_ART_H * s);
-  container.style.setProperty('--castle-zoom-scale', String(s));
+  const zoomS = getCastleZoomScale(mapZoom);
+  container.style.setProperty('--castle-zoom-scale', String(zoomS));
   container.querySelectorAll<HTMLImageElement>('.alliance-castle-pin__img').forEach((img) => {
+    const lv = Number(img.dataset.fortressLevel || 1);
+    const s = zoomS * getCastleLevelScale(lv);
+    const w = Math.round(CASTLE_ART_W * s);
+    const h = Math.round(CASTLE_ART_H * s);
     img.style.setProperty('width', `${w}px`, 'important');
     img.style.setProperty('max-width', `${w}px`, 'important');
     img.style.setProperty('max-height', `${h}px`, 'important');
@@ -30,11 +40,12 @@ export function applyCastleZoomToMap(container: HTMLElement, mapZoom: number): n
     img.setAttribute('width', String(w));
     img.setAttribute('height', String(h));
   });
-  return s;
+  return zoomS;
 }
 
-const CASTLE_ART_SLOT_H = Math.ceil(CASTLE_ART_H * CASTLE_ZOOM_SCALE_MAX);
-const CASTLE_PIN_W = Math.ceil(CASTLE_ART_W * CASTLE_ZOOM_SCALE_MAX);
+const CASTLE_LEVEL_SCALE_MAX = CASTLE_LEVEL_SCALE[CASTLE_LEVEL_SCALE.length - 1];
+const CASTLE_ART_SLOT_H = Math.ceil(CASTLE_ART_H * CASTLE_ZOOM_SCALE_MAX * CASTLE_LEVEL_SCALE_MAX);
+const CASTLE_PIN_W = Math.ceil(CASTLE_ART_W * CASTLE_ZOOM_SCALE_MAX * CASTLE_LEVEL_SCALE_MAX);
 const CASTLE_LABEL_H = 16;
 
 export interface AllianceCastleMarkerOpts {
@@ -71,9 +82,10 @@ export function buildAllianceCastleMarkerHtml(opts: AllianceCastleMarkerOpts): s
           class="alliance-castle-pin__img"
           src="${imgUrl}"
           alt=""
+          data-fortress-level="${level}"
           width="${CASTLE_ART_W}"
           height="${CASTLE_ART_H}"
-          style="width:${CASTLE_ART_W}px;height:auto;max-height:${CASTLE_ART_H}px;display:block;border:none;object-fit:contain;${imgExtraStyle}"
+          style="width:${Math.round(CASTLE_ART_W * getCastleLevelScale(level))}px;height:auto;max-height:${Math.round(CASTLE_ART_H * getCastleLevelScale(level))}px;display:block;border:none;object-fit:contain;${imgExtraStyle}"
           draggable="false"
           decoding="async"
         />

@@ -149,8 +149,8 @@ export function getSpreadAllianceCoords(
   const seedAngle = (hashSeed(`${allianceId}:spread`) % 360) * (Math.PI / 180) * 0.15;
   const angle = indexInRegion * goldenAngle + seedAngle;
   const ring = Math.floor(Math.sqrt(indexInRegion)) + 1;
-  const spreadStep = 0.065;
-  const radius = ring * spreadStep;
+  const spreadStep = 0.09;
+  const radius = Math.max(0.085, ring * spreadStep);
 
   return {
     lat: base.lat + radius * Math.cos(angle),

@@ -3,6 +3,7 @@ import type { ClickRaidCardId } from '@/app/lib/clickRaidLogic';
 export interface ClickRaidGltfConfig {
   /** public/models (və /model alias) altındakı nisbi yol */
   gltf: string;
+  death?: string;
   displayScale: number;
   clips: {
     run: string;
@@ -20,12 +21,14 @@ export interface ClickRaidFbxConfig {
 
 export const CLICK_RAID_GLTF: Record<ClickRaidCardId, ClickRaidGltfConfig> = {
   mutant: {
-    gltf: 'Mutant/mutant.gltf',
+    gltf: 'mutant/Mutant attack.glb',
+    death: 'mutant/Mutant death.glb',
     displayScale: 2.8,
     clips: { run: 'run', attack: 'attack', death: 'death' },
   },
   standing: {
-    gltf: 'standing/standing.gltf',
+    gltf: 'standing/Standing attack.glb',
+    death: 'standing/Standing death.glb',
     displayScale: 2.6,
     clips: { run: 'run', attack: 'attack', death: 'death' },
   },
@@ -35,7 +38,8 @@ export const CLICK_RAID_GLTF: Record<ClickRaidCardId, ClickRaidGltfConfig> = {
     clips: { run: 'run', attack: 'attack', death: 'death' },
   },
   it: {
-    gltf: 'dog/it.gltf',
+    gltf: 'goblin/goblin attack.glb',
+    death: 'goblin/goblin death.glb',
     displayScale: 2.9,
     clips: { run: 'run', attack: 'attack', death: 'death' },
   },

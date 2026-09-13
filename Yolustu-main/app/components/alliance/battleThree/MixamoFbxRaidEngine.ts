@@ -1,18 +1,16 @@
 /**
- * Yalnız Mixamo FBX + Three.js FBXLoader.
- * Qala ətrafında dairəvi spawn → lookAt → Attack LoopRepeat.
+ * Mixamo GLB: hücum + ölüm klipləri, qala ətrafında spawn, Attack LoopRepeat.
  */
 import * as THREE from 'three';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { ClickRaidCardId } from '@/app/lib/clickRaidLogic';
 import type { ClickRaidAnimState } from './clickRaidModelPaths';
-import { CLICK_RAID_FBX_SOURCES, CLICK_RAID_GLTF } from './clickRaidModelPaths';
+import { CLICK_RAID_GLTF } from './clickRaidModelPaths';
 import type { ClickRaidMapSlot, IClickRaidMapEngine } from './clickRaidMapEngineTypes';
 import { loadFromPublicModels } from './raidModelAssets';
 import { CASTLE_HERO_TARGET_PX, computeRaidSpawnPoint } from './clickRaidMapMotion';
-import { addZombieRags, applyZombieAppearance } from './zombieAppearance';
+import { applyHeroAppearance } from './heroAppearance';
 
 interface RaidInstance {
   slotId: string;
@@ -75,12 +73,10 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
 
   async init(): Promise<boolean> {
     const ids: ClickRaidCardId[] = ['mutant', 'standing', 'zombi', 'it'];
-    await Promise.all(
-      ids.map((id) => (id === 'zombi' ? this.loadZombieGlb() : this.loadMixamoFbx(id)))
-    );
+    await Promise.all(ids.map((id) => this.loadHeroGlb(id)));
     this.ready = this.templates.size > 0;
     if (!this.ready) {
-      console.error('[ClickRaid] Mixamo FBX yüklənmədi. public/models yoxlanılmalıdır.');
+      console.error('[ClickRaid] GLB yüklənmədi. public/models yoxlanılmalıdır.');
     }
     if (this.lastSlots.length) this.syncRaids(this.lastSlots);
     return this.ready;
@@ -109,64 +105,43 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
     root.position.y -= box.min.y;
   }
 
-  /** Zombi hücumu: yalnız public/models/zombie/*.glb */
-  private async loadZombieGlb(): Promise<void> {
-    const rel = CLICK_RAID_GLTF.zombi.gltf;
+  /** Hücum GLB + ayrıca ölüm GLB (Mixamo eyni skelet). */
+  private async loadHeroGlb(id: ClickRaidCardId): Promise<void> {
+    const cfg = CLICK_RAID_GLTF[id];
     const loader = new GLTFLoader();
     try {
-      const gltf = await loadFromPublicModels(rel, (url) => loader.loadAsync(url));
-      if (!gltf.scene || this.meshCount(gltf.scene) === 0) {
-        console.error(`[ClickRaid] ${rel} mesh yoxdur.`);
+      const attackGltf = await loadFromPublicModels(cfg.gltf, (url) => loader.loadAsync(url));
+      if (!attackGltf.scene || this.meshCount(attackGltf.scene) === 0) {
+        console.error(`[ClickRaid] ${cfg.gltf} mesh yoxdur.`);
         return;
       }
-      gltf.scene.updateMatrixWorld(true);
-      applyZombieAppearance(gltf.scene);
-      const attackClip = gltf.animations[0] ? gltf.animations[0].clone() : null;
+      attackGltf.scene.updateMatrixWorld(true);
+      applyHeroAppearance(attackGltf.scene, id);
+
+      const attackClip = attackGltf.animations[0] ? attackGltf.animations[0].clone() : null;
       if (attackClip) attackClip.name = 'attack';
-      this.templates.set('zombi', {
-        scene: gltf.scene,
-        attackClip,
-        deathClip: gltf.animations[1] ? gltf.animations[1].clone() : null,
-        unitScale: this.fitToCastle(gltf.scene),
-      });
-    } catch (err) {
-      console.error(`[ClickRaid] GLTFLoader zombi uğursuz: public/models/${rel}`, err);
-    }
-  }
 
-  private async loadMixamoFbx(id: ClickRaidCardId): Promise<void> {
-    const cfg = CLICK_RAID_FBX_SOURCES[id];
-    const loader = new FBXLoader();
-    try {
-      const attackFbx = await loadFromPublicModels(cfg.attack, (url) => loader.loadAsync(url));
-      if (this.meshCount(attackFbx) === 0) {
-        console.error(`[ClickRaid] ${cfg.attack} mesh yoxdur — FBXLoader boş qaytardı.`);
-        return;
-      }
-
-      let deathClip: THREE.AnimationClip | null = null;
-      try {
-        const deathFbx = await loadFromPublicModels(cfg.death, (url) => loader.loadAsync(url));
-        if (deathFbx.animations[0]) {
-          deathClip = deathFbx.animations[0].clone();
-          deathClip.name = 'death';
+      let deathClip = attackGltf.animations[1] ? attackGltf.animations[1].clone() : null;
+      if (cfg.death) {
+        try {
+          const deathGltf = await loadFromPublicModels(cfg.death, (url) => loader.loadAsync(url));
+          if (deathGltf.animations[0]) {
+            deathClip = deathGltf.animations[0].clone();
+          }
+        } catch (err) {
+          console.warn(`[ClickRaid:${id}] ölüm GLB yoxdur:`, err);
         }
-      } catch (err) {
-        console.warn(`[ClickRaid:${id}] ölüm FBX yoxdur:`, err);
       }
+      if (deathClip) deathClip.name = 'death';
 
-      const attackClip = attackFbx.animations[0] ? attackFbx.animations[0].clone() : null;
-      if (attackClip) attackClip.name = 'attack';
-
-      attackFbx.updateMatrixWorld(true);
       this.templates.set(id, {
-        scene: attackFbx,
+        scene: attackGltf.scene,
         attackClip,
         deathClip,
-        unitScale: this.fitToCastle(attackFbx),
+        unitScale: this.fitToCastle(attackGltf.scene),
       });
     } catch (err) {
-      console.error(`[ClickRaid] FBXLoader ${id} uğursuz: public/models/${cfg.attack}`, err);
+      console.error(`[ClickRaid] GLTFLoader ${id} uğursuz: public/models/${cfg.gltf}`, err);
     }
   }
 
@@ -204,10 +179,7 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
     mesh.updateMatrixWorld(true);
     this.plantFeet(mesh);
     this.prepare(mesh);
-    if (slot.cardId === 'zombi') {
-      applyZombieAppearance(mesh);
-      addZombieRags(mesh);
-    }
+    applyHeroAppearance(mesh, slot.cardId);
 
     const mixer = new THREE.AnimationMixer(mesh);
     this.mixers.add(mixer);

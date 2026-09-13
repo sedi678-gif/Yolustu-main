@@ -128,7 +128,7 @@ export default function AzerbaijanAllianceMap({
         maxBounds: azBounds.pad(0.04),
         maxBoundsViscosity: 0.85,
         minZoom: 6,
-        maxZoom: 12,
+        maxZoom: 18,
       });
 
       L.tileLayer(AZ_MAP_TILE.url, {
