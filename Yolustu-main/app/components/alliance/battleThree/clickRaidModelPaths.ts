@@ -21,8 +21,8 @@ export interface ClickRaidFbxConfig {
 
 export const CLICK_RAID_GLTF: Record<ClickRaidCardId, ClickRaidGltfConfig> = {
   mutant: {
-    gltf: 'mutant/Mutant attack.glb',
-    death: 'mutant/Mutant death.glb',
+    gltf: 'sword and shield/Sword And Shield Attack.glb',
+    death: 'sword and shield/Sword And Shield Death.glb',
     displayScale: 2.8,
     clips: { run: 'run', attack: 'attack', death: 'death' },
   },
