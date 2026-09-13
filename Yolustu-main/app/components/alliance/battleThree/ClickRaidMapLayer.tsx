@@ -25,6 +25,7 @@ import {
 import { useAllianceBrain } from '../AllianceBrainContext';
 import { MixamoFbxRaidEngine } from './MixamoFbxRaidEngine';
 import type { ClickRaidMapSlot, IClickRaidMapEngine } from './clickRaidMapEngineTypes';
+import { getCastleZoomScale } from '../allianceCastleMarkerImage';
 import { computeRaidHeroMotion, raidUnitCount } from './clickRaidMapMotion';
 import styles from '../alliance.module.css';
 
@@ -176,9 +177,11 @@ export default function ClickRaidMapLayer({
 
     const onResize = () => engineRef.current?.resize(parent.clientWidth, parent.clientHeight);
     window.addEventListener('resize', onResize);
+    window.visualViewport?.addEventListener('resize', onResize);
     return () => {
       cancelled = true;
       window.removeEventListener('resize', onResize);
+      window.visualViewport?.removeEventListener('resize', onResize);
       activeEngine?.stop();
       engineRef.current = null;
       setEngineReady(false);
@@ -202,13 +205,20 @@ export default function ClickRaidMapLayer({
     const parent = canvasRef.current?.parentElement;
     if (parent) engine.resize(parent.clientWidth, parent.clientHeight);
 
+    const zoomScale = getCastleZoomScale(map.getZoom());
     const slots: ClickRaidMapSlot[] = [];
     for (const unit of heroUnits) {
       const castle = castlePoint(map, unit.attack);
       if (!castle || !isClickRaidCard(unit.attack.cardId)) continue;
       const phase = phases[unit.attack.id] ?? 'attack';
       if (phase === 'done') continue;
-      const motion = computeRaidHeroMotion(castle.x, castle.y, unit.ringIndex, unit.ringTotal);
+      const motion = computeRaidHeroMotion(
+        castle.x,
+        castle.y,
+        unit.ringIndex,
+        unit.ringTotal,
+        zoomScale
+      );
       slots.push({
         slotId: unit.slotId,
         attackId: unit.attack.id,
@@ -222,6 +232,7 @@ export default function ClickRaidMapLayer({
         screenX: motion.x,
         screenY: motion.y,
         rotationY: motion.rotationY,
+        zoomScale,
       });
     }
     engine.syncRaids(slots);
@@ -284,15 +295,16 @@ export default function ClickRaidMapLayer({
     return () => window.clearInterval(timer);
   }, [mapReady]);
 
-  const tryRaidHitClick = useCallback(
-    (clientX: number, clientY: number) => {
-      const engine = engineRef.current;
-      if (!engine || !uid) return;
-      const attackId = engine.hitTest(clientX, clientY);
-      if (!attackId) return;
+  const lastHitAtRef = useRef(0);
+  const applyRaidHit = useCallback(
+    (attackId: string) => {
+      const now = Date.now();
+      if (now - lastHitAtRef.current < 220) return;
+      if (!uid) return;
       const attack = activeRaids.find((a) => a.id === attackId);
       if (!attack || readRaidStatus(attack) === 'killed' || readRaidStatus(attack) === 'hit') return;
       if (myId !== attack.defenderAllianceId) return;
+      lastHitAtRef.current = now;
       void registerClickRaidClick(attackId, uid).catch((err) =>
         console.warn('[ClickRaidMap] click:', err)
       );
@@ -300,14 +312,81 @@ export default function ClickRaidMapLayer({
     [activeRaids, myId, uid]
   );
 
+  const tryRaidHitClick = useCallback(
+    (clientX: number, clientY: number) => {
+      const attackId = engineRef.current?.hitTest(clientX, clientY);
+      if (attackId) applyRaidHit(attackId);
+    },
+    [applyRaidHit]
+  );
+
   useEffect(() => {
     if (!map) return;
-    const onMapClick = (ev: { originalEvent: MouseEvent }) => {
-      tryRaidHitClick(ev.originalEvent.clientX, ev.originalEvent.clientY);
+
+    const eventClientXY = (ev: Event): { x: number; y: number } | null => {
+      if ('changedTouches' in ev) {
+        const t = (ev as TouchEvent).changedTouches[0];
+        if (t) return { x: t.clientX, y: t.clientY };
+      }
+      if ('clientX' in ev) {
+        const m = ev as MouseEvent;
+        return { x: m.clientX, y: m.clientY };
+      }
+      return null;
     };
+
+    const onMapClick = (ev: {
+      containerPoint?: { x: number; y: number };
+      originalEvent: Event;
+    }) => {
+      const canvas = canvasRef.current;
+      if (canvas && ev.containerPoint) {
+        const rect = canvas.getBoundingClientRect();
+        tryRaidHitClick(rect.left + ev.containerPoint.x, rect.top + ev.containerPoint.y);
+        return;
+      }
+      const p = eventClientXY(ev.originalEvent);
+      if (p) tryRaidHitClick(p.x, p.y);
+    };
+
+    const el = map.getContainer();
+    let down: { x: number; y: number; id: number } | null = null;
+
+    const onPointerDown = (ev: PointerEvent) => {
+      if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+      down = { x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+    };
+    const onPointerUp = (ev: PointerEvent) => {
+      if (!down || ev.pointerId !== down.id) return;
+      const moved = Math.hypot(ev.clientX - down.x, ev.clientY - down.y);
+      down = null;
+      if (moved > 14) return;
+      tryRaidHitClick(ev.clientX, ev.clientY);
+    };
+    const onPointerCancel = () => {
+      down = null;
+    };
+    const onTouchEnd = (ev: TouchEvent) => {
+      if (typeof window !== 'undefined' && 'PointerEvent' in window) return;
+      const t = ev.changedTouches[0];
+      if (!t || !down) return;
+      const moved = Math.hypot(t.clientX - down.x, t.clientY - down.y);
+      down = null;
+      if (moved > 14) return;
+      tryRaidHitClick(t.clientX, t.clientY);
+    };
+
     map.on('click', onMapClick);
+    el.addEventListener('pointerdown', onPointerDown, { passive: true });
+    el.addEventListener('pointerup', onPointerUp, { passive: true });
+    el.addEventListener('pointercancel', onPointerCancel, { passive: true });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
     return () => {
       map.off('click', onMapClick);
+      el.removeEventListener('pointerdown', onPointerDown);
+      el.removeEventListener('pointerup', onPointerUp);
+      el.removeEventListener('pointercancel', onPointerCancel);
+      el.removeEventListener('touchend', onTouchEnd);
     };
   }, [map, tryRaidHitClick]);
 
@@ -335,7 +414,14 @@ export default function ClickRaidMapLayer({
           const castle = castlePoint(map, attack);
           if (!castle) return null;
           const phase = phases[attack.id] ?? 'attack';
-          const pos = computeRaidHeroMotion(castle.x, castle.y, unit.ringIndex, unit.ringTotal);
+          const zoomScale = getCastleZoomScale(map.getZoom());
+          const pos = computeRaidHeroMotion(
+            castle.x,
+            castle.y,
+            unit.ringIndex,
+            unit.ringTotal,
+            zoomScale
+          );
           const cfg = getClickRaidConfig(attack.cardId);
           const memberCount =
             alliances.find((a) => a.id === attack.defenderAllianceId)?.members?.length ??
@@ -358,7 +444,7 @@ export default function ClickRaidMapLayer({
             <div
               key={attack.id}
               className={styles.clickRaidHud}
-              style={{ left: pos.x, top: pos.y - 78 }}
+              style={{ left: pos.x, top: pos.y - 48 - 30 * zoomScale }}
             >
               <div className={styles.clickRaidHudTitle}>
                 {cfg.emoji} {cfg.label} · {timeLeft}s
@@ -391,7 +477,7 @@ export default function ClickRaidMapLayer({
                 </div>
               )}
               {isDefender && phase !== 'death' && phase !== 'done' && (
-                <div className={styles.clickRaidClickHint}>Hücum edən 3D modelə kliklə!</div>
+                <div className={styles.clickRaidClickHint}>Hücum edən modelə toxun / kliklə!</div>
               )}
             </div>
           );

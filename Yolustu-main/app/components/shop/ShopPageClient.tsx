@@ -50,6 +50,8 @@ import { AllianceWeeklyShop } from '@/app/components/alliance/types';
 
 import { emitAllianceHubEvent } from '@/app/components/alliance/allianceSocket';
 
+import { isSuperAdmin } from '@/app/lib/adminConfig';
+
 import VipShopPanel from './VipShopPanel';
 
 import styles from './shop.module.css';
@@ -345,9 +347,15 @@ function ShopContent() {
 
               <div className={styles.weekBanner}>
 
-                🗓️ <strong>{activeAlliance.name}</strong> · hər kartdan həftədə max{' '}
-
-                <strong>{WEEKLY_CARD_LIMIT} ədəd</strong>
+                🗓️ <strong>{activeAlliance.name}</strong>
+                {isSuperAdmin(userId) ? (
+                  <> · ID 1 üçün kart alışı <strong>limitsiz</strong></>
+                ) : (
+                  <>
+                    {' '}
+                    · hər kartdan həftədə max <strong>{WEEKLY_CARD_LIMIT} ədəd</strong>
+                  </>
+                )}
 
               </div>
 
@@ -359,13 +367,20 @@ function ShopContent() {
 
               {BATTLE_CARD_PRODUCTS.map((product) => {
 
-                const remaining = activeAlliance ? getRemainingWeekly(weekly, product.id) : 0;
+                const remaining = activeAlliance
+                  ? getRemainingWeekly(weekly, product.id, userId)
+                  : 0;
 
                 const owned = playerProfile?.battleCards?.[product.id] ?? 0;
 
+                const unlimitedBuyer = isSuperAdmin(userId);
+
                 const canBuy =
 
-                  !!activeAlliance && remaining > 0 && manat >= product.price && !loading;
+                  !!activeAlliance &&
+                  (unlimitedBuyer || remaining > 0) &&
+                  manat >= product.price &&
+                  !loading;
 
                 const asset = getBattleCardAsset(product.id);
 
@@ -407,7 +422,9 @@ function ShopContent() {
 
                         {activeAlliance
 
-                          ? `Qaldı ${remaining}/${WEEKLY_CARD_LIMIT} · Səndə ${owned}`
+                          ? unlimitedBuyer
+                            ? `Limitsiz · Səndə ${owned}`
+                            : `Qaldı ${remaining}/${WEEKLY_CARD_LIMIT} · Səndə ${owned}`
 
                           : 'İttifaq tələb olunur'}
 

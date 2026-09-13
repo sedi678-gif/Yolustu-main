@@ -30,7 +30,7 @@ export const CLICK_RAID_GLTF: Record<ClickRaidCardId, ClickRaidGltfConfig> = {
     clips: { run: 'run', attack: 'attack', death: 'death' },
   },
   zombi: {
-    gltf: 'zombie/zombi.gltf',
+    gltf: 'zombie/Zombie Attack.glb',
     displayScale: 2.8,
     clips: { run: 'run', attack: 'attack', death: 'death' },
   },

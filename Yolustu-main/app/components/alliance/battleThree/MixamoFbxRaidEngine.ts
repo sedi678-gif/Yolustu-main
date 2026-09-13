@@ -4,13 +4,15 @@
  */
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { ClickRaidCardId } from '@/app/lib/clickRaidLogic';
 import type { ClickRaidAnimState } from './clickRaidModelPaths';
-import { CLICK_RAID_FBX_SOURCES } from './clickRaidModelPaths';
+import { CLICK_RAID_FBX_SOURCES, CLICK_RAID_GLTF } from './clickRaidModelPaths';
 import type { ClickRaidMapSlot, IClickRaidMapEngine } from './clickRaidMapEngineTypes';
 import { loadFromPublicModels } from './raidModelAssets';
-import { computeRaidSpawnPoint } from './clickRaidMapMotion';
+import { CASTLE_HERO_TARGET_PX, computeRaidSpawnPoint } from './clickRaidMapMotion';
+import { addZombieRags, applyZombieAppearance } from './zombieAppearance';
 
 interface RaidInstance {
   slotId: string;
@@ -26,6 +28,7 @@ interface RaidInstance {
   castleY: number;
   ringIndex: number;
   ringTotal: number;
+  zoomScale: number;
 }
 
 type HeroTemplate = {
@@ -47,8 +50,6 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
   private mixers = new Set<THREE.AnimationMixer>();
   private templates = new Map<ClickRaidCardId, HeroTemplate>();
   private ready = false;
-  private lookDummy = new THREE.Object3D();
-  private castleTarget = new THREE.Vector3();
   private lastSlots: ClickRaidMapSlot[] = [];
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -74,7 +75,9 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
 
   async init(): Promise<boolean> {
     const ids: ClickRaidCardId[] = ['mutant', 'standing', 'zombi', 'it'];
-    await Promise.all(ids.map((id) => this.loadMixamoFbx(id)));
+    await Promise.all(
+      ids.map((id) => (id === 'zombi' ? this.loadZombieGlb() : this.loadMixamoFbx(id)))
+    );
     this.ready = this.templates.size > 0;
     if (!this.ready) {
       console.error('[ClickRaid] Mixamo FBX yüklənmədi. public/models yoxlanılmalıdır.');
@@ -89,6 +92,46 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
       if ((obj as THREE.Mesh).isMesh) n += 1;
     });
     return n;
+  }
+
+  private fitToCastle(root: THREE.Object3D): number {
+    const box = new THREE.Box3().setFromObject(root);
+    const size = box.getSize(new THREE.Vector3());
+    const h = Math.max(size.y, 0.001);
+    return CASTLE_HERO_TARGET_PX / h;
+  }
+
+  private plantFeet(root: THREE.Object3D): void {
+    const box = new THREE.Box3().setFromObject(root);
+    const center = box.getCenter(new THREE.Vector3());
+    root.position.x -= center.x;
+    root.position.z -= center.z;
+    root.position.y -= box.min.y;
+  }
+
+  /** Zombi hücumu: yalnız public/models/zombie/*.glb */
+  private async loadZombieGlb(): Promise<void> {
+    const rel = CLICK_RAID_GLTF.zombi.gltf;
+    const loader = new GLTFLoader();
+    try {
+      const gltf = await loadFromPublicModels(rel, (url) => loader.loadAsync(url));
+      if (!gltf.scene || this.meshCount(gltf.scene) === 0) {
+        console.error(`[ClickRaid] ${rel} mesh yoxdur.`);
+        return;
+      }
+      gltf.scene.updateMatrixWorld(true);
+      applyZombieAppearance(gltf.scene);
+      const attackClip = gltf.animations[0] ? gltf.animations[0].clone() : null;
+      if (attackClip) attackClip.name = 'attack';
+      this.templates.set('zombi', {
+        scene: gltf.scene,
+        attackClip,
+        deathClip: gltf.animations[1] ? gltf.animations[1].clone() : null,
+        unitScale: this.fitToCastle(gltf.scene),
+      });
+    } catch (err) {
+      console.error(`[ClickRaid] GLTFLoader zombi uğursuz: public/models/${rel}`, err);
+    }
   }
 
   private async loadMixamoFbx(id: ClickRaidCardId): Promise<void> {
@@ -120,7 +163,7 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
         scene: attackFbx,
         attackClip,
         deathClip,
-        unitScale: cfg.meshScale * 52,
+        unitScale: this.fitToCastle(attackFbx),
       });
     } catch (err) {
       console.error(`[ClickRaid] FBXLoader ${id} uğursuz: public/models/${cfg.attack}`, err);
@@ -158,7 +201,13 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
 
     const mesh = SkeletonUtils.clone(data.scene) as THREE.Group;
     mesh.scale.setScalar(data.unitScale);
+    mesh.updateMatrixWorld(true);
+    this.plantFeet(mesh);
     this.prepare(mesh);
+    if (slot.cardId === 'zombi') {
+      applyZombieAppearance(mesh);
+      addZombieRags(mesh);
+    }
 
     const mixer = new THREE.AnimationMixer(mesh);
     this.mixers.add(mixer);
@@ -186,6 +235,7 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
       castleY: slot.castleY,
       ringIndex: slot.ringIndex,
       ringTotal: slot.ringTotal,
+      zoomScale: slot.zoomScale || 1,
     };
 
     this.placeAroundCastle(inst);
@@ -195,13 +245,22 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
   }
 
   private placeAroundCastle(raid: RaidInstance) {
-    const spawn = computeRaidSpawnPoint(raid.castleX, raid.castleY, raid.ringIndex, raid.ringTotal);
+    const spawn = computeRaidSpawnPoint(
+      raid.castleX,
+      raid.castleY,
+      raid.ringIndex,
+      raid.ringTotal,
+      raid.zoomScale
+    );
     raid.root.position.set(spawn.x, this.height - spawn.z, 8);
+    raid.root.scale.setScalar(raid.zoomScale);
 
-    this.lookDummy.position.set(spawn.x, 0, spawn.z);
-    this.castleTarget.set(raid.castleX, 0, raid.castleY);
-    this.lookDummy.lookAt(this.castleTarget);
-    raid.root.rotation.set(0.72, this.lookDummy.rotation.y + Math.PI, 0);
+    // lookAt işlətmə — modeli uzadıb xəritəni örtür.
+    // Yalnız yaw: ayaq üstə qalır, üz qala pin-inə.
+    const dx = raid.castleX - spawn.x;
+    const dz = raid.castleY - spawn.z;
+    raid.root.rotation.order = 'YXZ';
+    raid.root.rotation.set(0.32, Math.atan2(dx, dz), 0);
   }
 
   private disposeRaid(raid: RaidInstance) {
@@ -230,6 +289,7 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
       raid.castleY = slot.castleY;
       raid.ringIndex = slot.ringIndex;
       raid.ringTotal = slot.ringTotal;
+      raid.zoomScale = slot.zoomScale || 1;
       this.placeAroundCastle(raid);
       if (slot.mode === 'death' && raid.mode !== 'death') this.playDeath(slot.attackId);
     }
@@ -264,13 +324,22 @@ export class MixamoFbxRaidEngine implements IClickRaidMapEngine {
 
   hitTest(clientX: number, clientY: number): string | null {
     const rect = this.canvas.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return null;
     const x = ((clientX - rect.left) / rect.width) * this.width;
     const y = ((clientY - rect.top) / rect.height) * this.height;
+    const coarse =
+      typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
     let best: { id: string; dist: number } | null = null;
     for (const raid of this.raids.values()) {
       if (raid.mode === 'death') continue;
-      const dist = Math.hypot(x - raid.root.position.x, y - (this.height - raid.root.position.y));
-      if (dist < 56 && (!best || dist < best.dist)) best = { id: raid.attackId, dist };
+      const s = raid.zoomScale || 1;
+      const hitR = (coarse ? 64 : 40) * s;
+      const feetX = raid.root.position.x;
+      const feetY = this.height - raid.root.position.y;
+      const bodyX = feetX;
+      const bodyY = feetY - CASTLE_HERO_TARGET_PX * 0.5 * s;
+      const dist = Math.hypot(x - bodyX, y - bodyY);
+      if (dist < hitR && (!best || dist < best.dist)) best = { id: raid.attackId, dist };
     }
     return best?.id ?? null;
   }

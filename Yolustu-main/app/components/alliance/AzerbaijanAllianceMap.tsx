@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { Map as LeafletMap, Marker as LeafletMarker } from 'leaflet';
+import type { LeafletEvent, Map as LeafletMap, Marker as LeafletMarker } from 'leaflet';
 import { AllianceData } from './types';
 import { AZ_BOUNDS, AZ_CENTER } from './azerbaijanMapGeo';
 import { AZ_MAP_TILE } from './azerbaijanMapStyle';
@@ -9,7 +9,7 @@ import {
   ALLIANCE_CASTLE_ICON_ANCHOR,
   ALLIANCE_CASTLE_ICON_SIZE,
   buildAllianceCastleMarkerHtml,
-  getCastleZoomScale,
+  applyCastleZoomToMap,
 } from './allianceCastleMarkerImage';
 import { withAllianceMapCoords } from './regionCoords';
 import { useAllianceBrain } from './AllianceBrainContext';
@@ -164,17 +164,25 @@ export default function AzerbaijanAllianceMap({
     const canvas = mapRef.current;
     if (!map || !canvas || !mapReady) return;
 
-    const syncCastleScale = () => {
-      canvas.style.setProperty('--castle-zoom-scale', String(getCastleZoomScale(map.getZoom())));
+    const applyScale = (zoom: number) => {
+      applyCastleZoomToMap(map.getContainer(), zoom);
+      applyCastleZoomToMap(canvas, zoom);
+    };
+    const onZoom = () => applyScale(map.getZoom());
+    const onZoomAnim = (ev: LeafletEvent) => {
+      const z = (ev as LeafletEvent & { zoom?: number }).zoom;
+      applyScale(typeof z === 'number' ? z : map.getZoom());
     };
 
-    syncCastleScale();
-    map.on('zoom', syncCastleScale);
-    map.on('zoomend', syncCastleScale);
+    applyScale(map.getZoom());
+    map.on('zoom', onZoom);
+    map.on('zoomend', onZoom);
+    map.on('zoomanim', onZoomAnim);
 
     return () => {
-      map.off('zoom', syncCastleScale);
-      map.off('zoomend', syncCastleScale);
+      map.off('zoom', onZoom);
+      map.off('zoomend', onZoom);
+      map.off('zoomanim', onZoomAnim);
     };
   }, [mapReady]);
 
@@ -201,7 +209,7 @@ export default function AzerbaijanAllianceMap({
     const map = mapInstanceRef.current;
     if (!map || !defender?.lat || !defender?.lng) return;
     watchedRaidRef.current = live.id;
-    map.flyTo([defender.lat, defender.lng], Math.max(map.getZoom(), 9), { duration: 1.1 });
+    map.flyTo([defender.lat, defender.lng], Math.max(map.getZoom(), 10), { duration: 1.1 });
   }, [allAttacks, mapReady, mapAlliances]);
 
   useEffect(() => {
@@ -277,6 +285,7 @@ export default function AzerbaijanAllianceMap({
 
         markersRef.current[item.id] = marker;
       });
+      applyCastleZoomToMap(map.getContainer(), map.getZoom());
     });
   }, [mapAlliances, activeAlliance, attackTargetId, liveSiegeIds, mapReady]);
 

@@ -1,35 +1,35 @@
 export const RAID_MAX_UNITS = 5;
 
-/** Qala (X,Z) ətrafında spawn radiusu — yerimə/pathfinding yoxdur */
-export const RAID_SPAWN_RADIUS = 86;
+/** Qala şəkli 40×44 px — qəhrəman hündürlüyü buna yaxın olsun */
+export const CASTLE_HERO_TARGET_PX = 38;
+
+/** Qala pin-i ətrafında dairə */
+export const RAID_SPAWN_RADIUS = 36;
 
 export function raidUnitCount(cardCount: number | undefined): number {
   return Math.min(RAID_MAX_UNITS, Math.max(1, Math.round(cardCount || 1)));
 }
 
 export interface RaidSpawnPoint {
-  /** Leaflet ekran X = 3D dünya X */
   x: number;
-  /** Leaflet ekran Y = 3D dünya Z (yer müstəvisi) */
   z: number;
 }
 
-/**
- * Kart atılan kimi qala koordinatları ətrafında sabit nöqtə.
- * Vaxt keçdikcə yer dəyişmir — yalnız xəritə pan/zoom-da qala ilə birgə sürüşür.
- */
 export function computeRaidSpawnPoint(
   castleX: number,
   castleZ: number,
   ringIndex: number,
-  ringTotal: number
+  ringTotal: number,
+  zoomScale = 1
 ): RaidSpawnPoint {
   const n = Math.max(1, ringTotal);
-  const angle = (2 * Math.PI * ringIndex) / n - Math.PI / 2;
-  const radius = RAID_SPAWN_RADIUS + (ringIndex % 3) * 10;
+  const s = Math.max(0.5, zoomScale);
+  // Qalanın sol/sağından başla — üz qalaya yan baxsın, yuxarıda arxası görünməsin
+  const angle = (2 * Math.PI * ringIndex) / n + Math.PI;
+  const radius = (RAID_SPAWN_RADIUS + (ringIndex % 3) * 5) * s;
   return {
     x: castleX + Math.cos(angle) * radius,
-    z: castleZ + Math.sin(angle) * radius * 0.55,
+    z: castleZ - 6 * s + Math.sin(angle) * radius * 0.45,
   };
 }
 
@@ -41,21 +41,20 @@ export interface RaidHeroMotion {
   approaching: boolean;
 }
 
-/** HUD / fallback — orbit yox, qala ətrafında sabit spawn */
 export function computeRaidHeroMotion(
   castleX: number,
   castleY: number,
   ringIndex: number,
-  ringTotal: number
+  ringTotal: number,
+  zoomScale = 1
 ): RaidHeroMotion {
-  const spawn = computeRaidSpawnPoint(castleX, castleY, ringIndex, ringTotal);
+  const spawn = computeRaidSpawnPoint(castleX, castleY, ringIndex, ringTotal, zoomScale);
   const dx = castleX - spawn.x;
-  const dz = castleY - spawn.z;
   return {
     x: spawn.x,
     y: spawn.z,
-    rotationY: Math.atan2(dx, dz) + Math.PI,
-    radius: RAID_SPAWN_RADIUS,
+    rotationY: Math.atan2(dx, castleY - spawn.z),
+    radius: RAID_SPAWN_RADIUS * Math.max(0.5, zoomScale),
     approaching: false,
   };
 }

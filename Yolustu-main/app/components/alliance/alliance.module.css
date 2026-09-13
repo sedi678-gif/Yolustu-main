@@ -1746,10 +1746,7 @@
 }
 
 .allianceMapCanvas :global(.leaflet-div-icon .alliance-castle-pin__img) {
-  width: 40px !important;
-  max-width: 40px !important;
   height: auto !important;
-  max-height: 44px !important;
   background: transparent !important;
   object-fit: contain !important;
 }
@@ -1782,9 +1779,7 @@
 
 .allianceMapCanvas :global(.alliance-castle-pin__img) {
   display: block;
-  width: 40px !important;
-  max-width: 40px !important;
-  max-height: 44px;
+  width: 40px;
   height: auto;
   object-fit: contain;
   pointer-events: none;
@@ -1795,9 +1790,7 @@
   border: none !important;
   box-shadow: none;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
-  transform: scale(var(--castle-zoom-scale, 1));
   transform-origin: center bottom;
-  will-change: transform;
 }
 
 /* Lv.1 — şəffaf fon, yalnız qala silueti */
@@ -5347,8 +5340,7 @@
   }
 
   .allianceMapCanvas :global(.alliance-castle-pin__img) {
-    width: 38px;
-    max-height: 42px;
+    height: auto;
   }
 
   .allianceMapCanvas :global(.alliance-castle-pin__name) {

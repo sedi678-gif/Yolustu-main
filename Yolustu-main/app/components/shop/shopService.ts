@@ -22,6 +22,7 @@ import { incrementQuestProgress } from '@/app/lib/allianceQuestService';
 import { resolvePlayerManat, manatWritePatch } from '@/app/lib/manat';
 import { purchaseFortressLevel as purchaseFortressLevelCore } from '@/app/lib/allianceFortressService';
 import type { AllianceFortressLevel } from '@/app/lib/allianceFortressConfig';
+import { isSuperAdmin } from '@/app/lib/adminConfig';
 
 export function listenWeeklyShop(
   allianceId: string,
@@ -49,8 +50,10 @@ export function listenWeeklyShop(
 
 export function getRemainingWeekly(
   weekly: AllianceWeeklyShop | null,
-  cardId: BattleCardId
+  cardId: BattleCardId,
+  userId?: string
 ): number {
+  if (userId && isSuperAdmin(userId)) return Number.POSITIVE_INFINITY;
   const weekId = getWeekId();
   if (!weekly || weekly.weekId !== weekId) return WEEKLY_CARD_LIMIT;
   const used = weekly.cardPurchases[cardId] ?? 0;
@@ -98,7 +101,8 @@ export async function purchaseBattleCard(
     }
 
     const used = weekly.cardPurchases[cardId] ?? 0;
-    if (used >= WEEKLY_CARD_LIMIT) {
+    const unlimitedBuyer = isSuperAdmin(userId);
+    if (!unlimitedBuyer && used >= WEEKLY_CARD_LIMIT) {
       throw new Error(`Həftəlik limit dolub: ${product.name} (7/7)`);
     }
 
@@ -117,15 +121,17 @@ export async function purchaseBattleCard(
       { merge: true }
     );
 
-    transaction.set(
-      weeklyRef,
-      {
-        weekId,
-        cardPurchases: { ...weekly.cardPurchases, [cardId]: used + 1 },
-        updatedAt: Date.now(),
-      },
-      { merge: true }
-    );
+    if (!unlimitedBuyer) {
+      transaction.set(
+        weeklyRef,
+        {
+          weekId,
+          cardPurchases: { ...weekly.cardPurchases, [cardId]: used + 1 },
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+    }
   });
 
   void incrementQuestProgress(allianceId, 'shop_buy', 1);

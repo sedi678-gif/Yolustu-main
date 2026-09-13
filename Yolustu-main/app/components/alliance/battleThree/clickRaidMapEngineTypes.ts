@@ -15,6 +15,8 @@ export interface ClickRaidMapSlot {
   screenX: number;
   screenY: number;
   rotationY: number;
+  /** Qala CSS zoom-scale — qəhrəman eyni ölçü */
+  zoomScale: number;
 }
 
 export interface IClickRaidMapEngine {
