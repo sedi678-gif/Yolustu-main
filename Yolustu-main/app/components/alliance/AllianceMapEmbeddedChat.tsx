@@ -27,6 +27,7 @@ interface AllianceMapEmbeddedChatProps {
   onSendMessage: (text: string, channel: ChatChannel) => void;
 
   sheetMode?: boolean;
+  neon?: boolean;
 
 }
 
@@ -45,6 +46,7 @@ export default function AllianceMapEmbeddedChat({
   onSendMessage,
 
   sheetMode = false,
+  neon = false,
 
 }: AllianceMapEmbeddedChatProps) {
 
@@ -104,7 +106,7 @@ export default function AllianceMapEmbeddedChat({
 
   return (
 
-    <div className={`${styles.mapChatPanel} ${sheetMode ? styles.mapChatPanelSheet : ''}`}>
+    <div className={`${styles.mapChatPanel} ${sheetMode ? styles.mapChatPanelSheet : ''} ${neon ? styles.mapChatPanelNeon : ''}`}>
 
       {!sheetMode && (
 

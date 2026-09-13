@@ -4,7 +4,7 @@ import React from 'react';
 import styles from './alliance.module.css';
 
 interface AllianceMapRoundBtnProps {
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   onClick: () => void;
   disabled?: boolean;

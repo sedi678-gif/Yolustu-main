@@ -6,10 +6,9 @@ import { getLocalProfileDisplayName } from '@/app/lib/userId';
 import { useAllianceBrain } from './AllianceBrainContext';
 import { AlliancePlayerRankTable } from './AllianceRankTables';
 import GoogleAdButton from './GoogleAdButton';
-import AllianceMapEmbeddedChat from './AllianceMapEmbeddedChat';
 import AllianceAttackModal from './AllianceAttackModal';
 import AllianceMapRoundBtn from './AllianceMapRoundBtn';
-import AllianceMapSheet from './AllianceMapSheet';
+import { IconMapAttack } from './AllianceMapIcons';
 import { EMPTY_BATTLE_CARDS } from './battleCardsConfig';
 import styles from './alliance.module.css';
 
@@ -17,17 +16,13 @@ export default function AllianceMapRightPanel() {
   const { userId, user } = useUser();
   const userName = user?.displayName || user?.email || getLocalProfileDisplayName();
   const [attackOpen, setAttackOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
 
   const {
     alliances,
     players,
     activeAlliance,
     myProfile,
-    globalMessages,
-    allianceMessages,
     handleAdXpReward,
-    handleSendMessage,
     setAttackTargetId,
     setFocusAllianceId,
   } = useAllianceBrain();
@@ -49,15 +44,7 @@ export default function AllianceMapRightPanel() {
         />
 
         <AllianceMapRoundBtn
-          icon="💬"
-          label="Çat"
-          onClick={() => setChatOpen(true)}
-          title="Canlı söhbət"
-          active={chatOpen}
-        />
-
-        <AllianceMapRoundBtn
-          icon="⚔️"
+          icon={<IconMapAttack />}
           label="Hücum"
           onClick={() => setAttackOpen(true)}
           disabled={!activeAlliance}
@@ -65,22 +52,6 @@ export default function AllianceMapRightPanel() {
           active={attackOpen}
         />
       </div>
-
-      <AllianceMapSheet
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
-        title="Canlı söhbət"
-        icon="💬"
-      >
-        <AllianceMapEmbeddedChat
-          globalMessages={globalMessages}
-          allianceMessages={allianceMessages}
-          activeAlliance={activeAlliance}
-          currentUserName={userName}
-          onSendMessage={(text, channel) => void handleSendMessage(text, channel)}
-          sheetMode
-        />
-      </AllianceMapSheet>
 
       {activeAlliance && (
         <AllianceAttackModal
