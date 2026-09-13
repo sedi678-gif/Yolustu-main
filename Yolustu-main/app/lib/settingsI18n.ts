@@ -46,6 +46,30 @@ type SettingsStrings = {
   about: string;
   version: string;
   savedSync: string;
+  dangerZone: string;
+  dangerHint: string;
+  freezeAccount: string;
+  unfreezeAccount: string;
+  deleteAccount: string;
+  freezeTitle: string;
+  freezeText: string;
+  freezeConfirm: string;
+  frozenBanner: string;
+  deleteTitle: string;
+  deleteText: string;
+  deleteConfirmWord: string;
+  deleteConfirmLabel: string;
+  deleteConfirm: string;
+  cancel: string;
+  accountBusy: string;
+  freezeDone: string;
+  unfreezeDone: string;
+  deleteDone: string;
+  accountActionError: string;
+  guestAccountHint: string;
+  adminDeleteBlocked: string;
+  bannedOverlayTitle: string;
+  bannedOverlayText: string;
 };
 
 export const SETTINGS_I18N: Record<AppLanguage, SettingsStrings> = {
@@ -95,6 +119,30 @@ export const SETTINGS_I18N: Record<AppLanguage, SettingsStrings> = {
     about: 'Haqqında',
     version: 'Yolüstü v0.1.0',
     savedSync: 'Saxlanıldı və sinxron edildi',
+    dangerZone: 'Hesab əməliyyatları',
+    dangerHint: 'Dondurma müvəqqətidir. Silmə isə geri qaytarılmır.',
+    freezeAccount: 'Hesabı dondur',
+    unfreezeAccount: 'Hesabı aktivləşdir',
+    deleteAccount: 'Hesabı sil',
+    freezeTitle: 'Hesab dondurulsun?',
+    freezeText: 'Hesabınız gizlədiləcək və digər bölmələr bağlanacaq. İstədiyiniz vaxt buradan yenidən aktivləşdirə bilərsiniz.',
+    freezeConfirm: 'Bəli, dondur',
+    frozenBanner: 'Hesabınız dondurulub. Aktivləşdirmək üçün aşağıdakı düyməyə basın.',
+    deleteTitle: 'Hesab həmişəlik silinsin?',
+    deleteText: 'Profil, oyun məlumatı və ayarlar silinəcək. Bu əməliyyat geri qaytarılmır.',
+    deleteConfirmWord: 'SIL',
+    deleteConfirmLabel: 'Təsdiq üçün SIL yazın',
+    deleteConfirm: 'Hesabı sil',
+    cancel: 'Ləğv et',
+    accountBusy: 'Gözləyin...',
+    freezeDone: 'Hesab donduruldu',
+    unfreezeDone: 'Hesab aktivləşdirildi',
+    deleteDone: 'Hesab silindi',
+    accountActionError: 'Əməliyyat alınmadı. Yenidən cəhd edin.',
+    guestAccountHint: 'Bu əməliyyatlar yalnız qeydiyyatlı hesab üçündür.',
+    adminDeleteBlocked: 'Admin hesabı silinə bilməz.',
+    bannedOverlayTitle: 'Hesab bağlanıb',
+    bannedOverlayText: 'Hesabınız administrator tərəfindən dayandırılıb. Dəstəklə əlaqə saxlayın.',
   },
   en: {
     title: 'Settings',
@@ -142,6 +190,30 @@ export const SETTINGS_I18N: Record<AppLanguage, SettingsStrings> = {
     about: 'About',
     version: 'Yolüstü v0.1.0',
     savedSync: 'Saved and synced',
+    dangerZone: 'Account actions',
+    dangerHint: 'Freezing is temporary. Deleting cannot be undone.',
+    freezeAccount: 'Freeze account',
+    unfreezeAccount: 'Reactivate account',
+    deleteAccount: 'Delete account',
+    freezeTitle: 'Freeze this account?',
+    freezeText: 'Your profile will be hidden and other sections will lock. You can reactivate anytime from here.',
+    freezeConfirm: 'Yes, freeze',
+    frozenBanner: 'Your account is frozen. Tap the button below to reactivate it.',
+    deleteTitle: 'Delete this account forever?',
+    deleteText: 'Your profile, game data and settings will be removed. This cannot be undone.',
+    deleteConfirmWord: 'DELETE',
+    deleteConfirmLabel: 'Type DELETE to confirm',
+    deleteConfirm: 'Delete account',
+    cancel: 'Cancel',
+    accountBusy: 'Please wait...',
+    freezeDone: 'Account frozen',
+    unfreezeDone: 'Account reactivated',
+    deleteDone: 'Account deleted',
+    accountActionError: 'Something went wrong. Try again.',
+    guestAccountHint: 'These actions are only available for registered accounts.',
+    adminDeleteBlocked: 'The admin account cannot be deleted.',
+    bannedOverlayTitle: 'Account suspended',
+    bannedOverlayText: 'An administrator suspended this account. Please contact support.',
   },
   ru: {
     title: 'Настройки',
@@ -189,6 +261,30 @@ export const SETTINGS_I18N: Record<AppLanguage, SettingsStrings> = {
     about: 'О приложении',
     version: 'Yolüstü v0.1.0',
     savedSync: 'Сохранено и синхронизировано',
+    dangerZone: 'Действия с аккаунтом',
+    dangerHint: 'Заморозка временная. Удаление нельзя отменить.',
+    freezeAccount: 'Заморозить аккаунт',
+    unfreezeAccount: 'Разморозить аккаунт',
+    deleteAccount: 'Удалить аккаунт',
+    freezeTitle: 'Заморозить аккаунт?',
+    freezeText: 'Профиль будет скрыт, остальные разделы закроются. Разморозить можно здесь в любой момент.',
+    freezeConfirm: 'Да, заморозить',
+    frozenBanner: 'Аккаунт заморожен. Нажмите кнопку ниже, чтобы активировать его снова.',
+    deleteTitle: 'Удалить аккаунт навсегда?',
+    deleteText: 'Профиль, игровые данные и настройки будут удалены. Это необратимо.',
+    deleteConfirmWord: 'УДАЛИТЬ',
+    deleteConfirmLabel: 'Введите УДАЛИТЬ для подтверждения',
+    deleteConfirm: 'Удалить аккаунт',
+    cancel: 'Отмена',
+    accountBusy: 'Подождите...',
+    freezeDone: 'Аккаунт заморожен',
+    unfreezeDone: 'Аккаунт активирован',
+    deleteDone: 'Аккаунт удалён',
+    accountActionError: 'Не удалось выполнить. Попробуйте ещё раз.',
+    guestAccountHint: 'Эти действия доступны только зарегистрированным аккаунтам.',
+    adminDeleteBlocked: 'Аккаунт администратора удалить нельзя.',
+    bannedOverlayTitle: 'Аккаунт заблокирован',
+    bannedOverlayText: 'Администратор приостановил этот аккаунт. Свяжитесь с поддержкой.',
   },
   tr: {
     title: 'Ayarlar',
@@ -236,6 +332,30 @@ export const SETTINGS_I18N: Record<AppLanguage, SettingsStrings> = {
     about: 'Hakkında',
     version: 'Yolüstü v0.1.0',
     savedSync: 'Kaydedildi ve senkronize edildi',
+    dangerZone: 'Hesap işlemleri',
+    dangerHint: 'Dondurma geçicidir. Silme geri alınamaz.',
+    freezeAccount: 'Hesabı dondur',
+    unfreezeAccount: 'Hesabı etkinleştir',
+    deleteAccount: 'Hesabı sil',
+    freezeTitle: 'Hesap dondurulsun mu?',
+    freezeText: 'Profiliniz gizlenecek ve diğer bölümler kapanacak. İstediğiniz zaman buradan tekrar açabilirsiniz.',
+    freezeConfirm: 'Evet, dondur',
+    frozenBanner: 'Hesabınız donduruldu. Yeniden açmak için aşağıdaki düğmeye basın.',
+    deleteTitle: 'Hesap kalıcı olarak silinsin mi?',
+    deleteText: 'Profil, oyun verisi ve ayarlar silinecek. Bu işlem geri alınamaz.',
+    deleteConfirmWord: 'SIL',
+    deleteConfirmLabel: 'Onay için SIL yazın',
+    deleteConfirm: 'Hesabı sil',
+    cancel: 'İptal',
+    accountBusy: 'Bekleyin...',
+    freezeDone: 'Hesap donduruldu',
+    unfreezeDone: 'Hesap etkinleştirildi',
+    deleteDone: 'Hesap silindi',
+    accountActionError: 'İşlem başarısız. Tekrar deneyin.',
+    guestAccountHint: 'Bu işlemler yalnızca kayıtlı hesaplar içindir.',
+    adminDeleteBlocked: 'Yönetici hesabı silinemez.',
+    bannedOverlayTitle: 'Hesap askıya alındı',
+    bannedOverlayText: 'Yönetici bu hesabı durdurdu. Destek ile iletişime geçin.',
   },
 };
 

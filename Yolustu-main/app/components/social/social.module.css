@@ -247,6 +247,27 @@
   margin-top: 8px;
 }
 
+.warnBtn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #d97706, #b45309);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.dangerBtn:disabled,
+.warnBtn:disabled,
+.primaryBtn:disabled,
+.secondaryBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .secondaryBtn {
   width: 100%;
   padding: 12px;
@@ -1504,6 +1525,86 @@
   font-size: 12px;
   color: #94a3b8;
   margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.dangerZone {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(248, 113, 113, 0.28);
+}
+
+.dangerZoneTitle {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fca5a5;
+}
+
+.frozenBanner {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(217, 119, 6, 0.18);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fde68a;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.confirmSheet {
+  width: 100%;
+  max-width: 420px;
+  background: #1e293b;
+  border-radius: 20px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  padding: 20px;
+}
+
+.accountLockOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.88);
+  backdrop-filter: blur(10px);
+}
+
+.accountLockCard {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px;
+  border-radius: 20px;
+  background: #1e293b;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: #e2e8f0;
+  text-align: center;
+}
+
+.accountLockCard h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.accountLockCard p {
+  margin: 0 0 16px;
+  color: #94a3b8;
   line-height: 1.5;
 }
 

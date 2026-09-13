@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useSettings } from '@/context/SettingsContext';
 import { ensureFirebaseAuth } from '@/app/lib/firebaseAuth';
+import AccountAccessGate from '@/app/components/AccountAccessGate';
 
 function resolveTheme(theme: 'dark' | 'light' | 'system'): 'dark' | 'light' {
   if (theme === 'system' && typeof window !== 'undefined') {
@@ -74,6 +75,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="appViewport">
       {children}
+      <AccountAccessGate />
     </div>
   );
 }

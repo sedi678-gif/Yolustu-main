@@ -69,6 +69,8 @@ export interface AppUserProfile {
     nameStyleId?: string;
     badgeId?: string;
   };
+  frozen?: boolean;
+  banned?: boolean;
 }
 
 export interface UserReport {

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppLink from '@/app/components/AppLink';
 import AppBottomNav from '@/app/components/AppBottomNav';
 import { useSettings } from '@/context/SettingsContext';
@@ -8,6 +9,14 @@ import { useUser } from '@/context/UserContext';
 import { getSettingsStrings } from '@/app/lib/settingsI18n';
 import { submitFeedback, submitSupportRequest } from '@/app/lib/settingsService';
 import { AppLanguage } from '@/app/lib/settingsTypes';
+import { SUPER_ADMIN_ID } from '@/app/lib/adminConfig';
+import {
+  deleteOwnAccount,
+  freezeOwnAccount,
+  isRealAccountId,
+  listenAccountStatus,
+  unfreezeOwnAccount,
+} from '@/app/lib/accountLifecycleService';
 import styles from '../social/social.module.css';
 
 function Toggle({
@@ -30,16 +39,80 @@ function Toggle({
 export default function SettingsPageClient() {
   const { settings, language, setLanguage, updateSettings } = useSettings();
   const { userId } = useUser();
+  const router = useRouter();
   const t = getSettingsStrings(language);
 
   const [toast, setToast] = useState('');
   const [feedback, setFeedback] = useState('');
   const [oldPass, setOldPass] = useState('');
   const [newPass, setNewPass] = useState('');
+  const [frozen, setFrozen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'freeze' | 'delete' | null>(null);
+  const [deleteWord, setDeleteWord] = useState('');
+  const [accountBusy, setAccountBusy] = useState(false);
+  const canManageAccount = isRealAccountId(userId);
 
   const notify = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 2500);
+  };
+
+  useEffect(() => {
+    if (!canManageAccount) {
+      setFrozen(false);
+      return;
+    }
+    return listenAccountStatus(userId, (status) => {
+      setFrozen(status.frozen);
+    });
+  }, [canManageAccount, userId]);
+
+  const closeConfirm = () => {
+    if (accountBusy) return;
+    setConfirmAction(null);
+    setDeleteWord('');
+  };
+
+  const handleFreeze = async () => {
+    setAccountBusy(true);
+    try {
+      await freezeOwnAccount(userId);
+      setConfirmAction(null);
+      notify(t.freezeDone);
+    } catch {
+      notify(t.accountActionError);
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const handleUnfreeze = async () => {
+    setAccountBusy(true);
+    try {
+      await unfreezeOwnAccount(userId);
+      notify(t.unfreezeDone);
+    } catch {
+      notify(t.accountActionError);
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleteWord.trim() !== t.deleteConfirmWord) return;
+    if (String(userId).trim() === SUPER_ADMIN_ID) {
+      notify(t.adminDeleteBlocked);
+      return;
+    }
+    setAccountBusy(true);
+    try {
+      await deleteOwnAccount(userId);
+      notify(t.deleteDone);
+      router.replace('/login');
+    } catch {
+      notify(t.accountActionError);
+      setAccountBusy(false);
+    }
   };
 
   if (!settings) {
@@ -191,6 +264,51 @@ export default function SettingsPageClient() {
             checked={settings.account.autoPlayVideos}
             onChange={(v) => void updateSettings({ account: { ...settings.account, autoPlayVideos: v } })}
           />
+
+          <div className={styles.dangerZone}>
+            <h3 className={styles.dangerZoneTitle}>⚠️ {t.dangerZone}</h3>
+            <p className={styles.settingsHint}>{t.dangerHint}</p>
+            {!canManageAccount ? (
+              <p className={styles.settingsHint}>{t.guestAccountHint}</p>
+            ) : (
+              <>
+                {frozen && <p className={styles.frozenBanner}>{t.frozenBanner}</p>}
+                {frozen ? (
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    disabled={accountBusy}
+                    onClick={() => void handleUnfreeze()}
+                  >
+                    {accountBusy ? t.accountBusy : t.unfreezeAccount}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.warnBtn}
+                    disabled={accountBusy}
+                    onClick={() => setConfirmAction('freeze')}
+                  >
+                    {t.freezeAccount}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={styles.dangerBtn}
+                  disabled={accountBusy || String(userId).trim() === SUPER_ADMIN_ID}
+                  onClick={() => {
+                    if (String(userId).trim() === SUPER_ADMIN_ID) {
+                      notify(t.adminDeleteBlocked);
+                      return;
+                    }
+                    setConfirmAction('delete');
+                  }}
+                >
+                  {t.deleteAccount}
+                </button>
+              </>
+            )}
+          </div>
         </section>
 
         <section className={styles.settingsSection}>
@@ -263,6 +381,56 @@ export default function SettingsPageClient() {
       </div>
 
       <AppBottomNav activeTab="profile" />
+
+      {confirmAction && (
+        <div className={styles.confirmOverlay} onClick={closeConfirm} role="presentation">
+          <div
+            className={styles.confirmSheet}
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className={styles.modalTitle}>
+              {confirmAction === 'freeze' ? t.freezeTitle : t.deleteTitle}
+            </h2>
+            <p className={styles.settingsHint}>
+              {confirmAction === 'freeze' ? t.freezeText : t.deleteText}
+            </p>
+            {confirmAction === 'delete' && (
+              <input
+                className={styles.input}
+                value={deleteWord}
+                onChange={(e) => setDeleteWord(e.target.value)}
+                placeholder={t.deleteConfirmLabel}
+                autoComplete="off"
+              />
+            )}
+            <button
+              type="button"
+              className={confirmAction === 'delete' ? styles.dangerBtn : styles.warnBtn}
+              disabled={
+                accountBusy ||
+                (confirmAction === 'delete' && deleteWord.trim() !== t.deleteConfirmWord)
+              }
+              onClick={() => void (confirmAction === 'freeze' ? handleFreeze() : handleDelete())}
+            >
+              {accountBusy
+                ? t.accountBusy
+                : confirmAction === 'freeze'
+                  ? t.freezeConfirm
+                  : t.deleteConfirm}
+            </button>
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              disabled={accountBusy}
+              onClick={closeConfirm}
+            >
+              {t.cancel}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

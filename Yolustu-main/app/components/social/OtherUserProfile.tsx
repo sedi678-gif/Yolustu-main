@@ -38,6 +38,8 @@ export default function OtherUserProfile({ targetUserId, myId }: OtherUserProfil
     bannerGradient: string;
     bannerImage: string;
     bio: string;
+    frozen?: boolean;
+    banned?: boolean;
   } | null>(null);
   const [cosmetics, setCosmetics] = useState<PlayerCosmetics | null>(null);
   const [posts, setPosts] = useState<SocialPost[]>([]);
@@ -65,6 +67,8 @@ export default function OtherUserProfile({ targetUserId, myId }: OtherUserProfil
           bannerGradient: u.bannerGradient || DEFAULT_BANNER,
           bannerImage: u.bannerImage || '',
           bio: u.bio || '',
+          frozen: u.frozen,
+          banned: u.banned,
         });
       }
       setLoading(false);
@@ -121,10 +125,16 @@ export default function OtherUserProfile({ targetUserId, myId }: OtherUserProfil
     );
   }
 
-  if (!profile) {
+  if (!profile || profile.frozen || profile.banned) {
     return (
       <div className={styles.socialPage} style={{ minHeight: '100vh', padding: 40, textAlign: 'center' }}>
-        <p style={{ color: '#94a3b8' }}>Profil tapılmadı.</p>
+        <p style={{ color: '#94a3b8' }}>
+          {!profile
+            ? 'Profil tapılmadı.'
+            : profile.banned
+              ? 'Bu hesab bağlanıb.'
+              : 'Bu hesab dondurulub.'}
+        </p>
         <Link href="/explore" className={styles.primaryBtn} style={{ display: 'inline-block', marginTop: 16, textDecoration: 'none', width: 'auto', padding: '12px 24px' }}>
           Kəşf et-ə qayıt
         </Link>

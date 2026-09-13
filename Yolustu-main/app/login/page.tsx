@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '../../firebase';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAccountStatus } from '@/app/lib/accountLifecycleService';
+import { getLocalProfileUserId } from '@/app/lib/userId';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -31,7 +33,20 @@ export default function LoginPage() {
         return;
       }
 
-      // Email təsdiqlənibsə profil səhifəsinə yönləndiririk
+      const localId = getLocalProfileUserId();
+      if (localId) {
+        const status = await getAccountStatus(localId);
+        if (status.banned) {
+          await signOut(auth);
+          setError('Hesabınız administrator tərəfindən bağlanıb.');
+          return;
+        }
+        if (status.frozen) {
+          router.push('/settings');
+          return;
+        }
+      }
+
       router.push('/profile');
 
     } catch (err: any) {

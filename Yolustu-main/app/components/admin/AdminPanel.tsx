@@ -369,6 +369,7 @@ export default function AdminPanel({ userId, displayName }: AdminPanelProps) {
               <span style={{ color: '#fbbf24' }}> · ₼{(u.manat ?? 0).toLocaleString('az-AZ')}</span>
 
               {u.banned && <span style={{ color: '#f87171' }}> · BAN</span>}
+              {u.frozen && <span style={{ color: '#fbbf24' }}> · DONDURULUB</span>}
 
               {u.isModerator && <span style={{ color: '#34d399' }}> · MOD</span>}
 

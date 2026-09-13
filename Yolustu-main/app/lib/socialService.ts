@@ -26,6 +26,7 @@ export async function searchUsers(searchQuery: string, currentUserId?: string): 
     const data = d.data() as AppUserProfile & { name?: string; surname?: string; handle?: string };
     const id = data.id || d.id;
     if (currentUserId && id === currentUserId) return;
+    if (data.frozen || data.banned) return;
 
     const fullName = [data.name, data.surname].filter(Boolean).join(' ').toLowerCase();
     const handle = (data.handle || '').toLowerCase();
@@ -76,6 +77,8 @@ export async function getUserProfile(userId: string): Promise<AppUserProfile | n
     vipTier: data.vipTier,
     vipExpiresAt: data.vipExpiresAt,
     equippedCosmetics: data.equippedCosmetics,
+    frozen: Boolean(data.frozen),
+    banned: Boolean(data.banned),
   };
 }
 

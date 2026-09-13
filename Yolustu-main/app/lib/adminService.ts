@@ -30,6 +30,7 @@ export interface AdminUserRow {
   name: string;
   handle: string;
   banned?: boolean;
+  frozen?: boolean;
   punishedUntil?: number;
   isModerator?: boolean;
   manat?: number;
@@ -287,6 +288,7 @@ export async function listAllUsers(): Promise<AdminUserRow[]> {
       name: [data.name, data.surname].filter(Boolean).join(' ') || '—',
       handle: (data.handle as string) || '',
       banned: data.banned as boolean | undefined,
+      frozen: data.frozen as boolean | undefined,
       punishedUntil: data.punishedUntil as number | undefined,
       isModerator: data.isModerator as boolean | undefined,
       manat: manatById.get(id) ?? 0,
