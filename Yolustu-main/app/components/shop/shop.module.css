@@ -22,96 +22,38 @@
   z-index: 0;
 }
 
-.shopHero {
+.shopBar {
   position: relative;
-  z-index: 1;
-  margin: var(--app-header-top, 14px) var(--app-header-side, 16px) 0;
-  padding: 18px 18px 16px;
-  border-radius: 22px;
-  background:
-    linear-gradient(145deg, rgba(6, 78, 59, 0.55), rgba(15, 23, 42, 0.82)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent);
-  border: 1px solid rgba(52, 211, 153, 0.28);
-  box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-}
-
-.shopHero::after {
-  content: '';
-  position: absolute;
-  top: -40px;
-  right: -30px;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.22), transparent 70%);
-  pointer-events: none;
-}
-
-.shopHeroTop {
+  z-index: 2;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
   gap: 12px;
-  position: relative;
-  z-index: 1;
-}
-
-.shopEyebrow {
-  margin: 0 0 4px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #6ee7b7;
+  margin: 0;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) var(--app-header-side, 16px) 0;
 }
 
 .shopTitle {
   margin: 0;
-  font-size: clamp(20px, 5.5vw, 26px);
-  font-weight: 900;
-  line-height: 1.15;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   color: #f8fafc;
 }
 
-.shopSubtitle {
-  font-size: clamp(11px, 3vw, 12px);
-  color: #94a3b8;
-  margin: 8px 0 0;
-  line-height: 1.45;
-  max-width: 28ch;
-}
-
-.walletCard {
-  flex-shrink: 0;
-  min-width: 118px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.18), rgba(245, 158, 11, 0.08));
-  border: 1px solid rgba(251, 191, 36, 0.42);
-  box-shadow: 0 8px 24px rgba(251, 191, 36, 0.12);
-}
-
-.walletLabel {
-  display: block;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #fcd34d;
-  margin-bottom: 4px;
-}
-
-.walletAmount {
-  display: flex;
+.balancePill {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: clamp(14px, 4vw, 17px);
-  font-weight: 900;
-  color: #fffbeb;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(8px);
   white-space: nowrap;
 }
 
@@ -119,35 +61,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
-  background: rgba(251, 191, 36, 0.25);
-  font-size: 12px;
-  line-height: 1;
-}
-
-.shopHeroLinks {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 14px;
-  position: relative;
-  z-index: 1;
-}
-
-.profileLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 7px 12px;
-  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.22);
   font-size: 11px;
-  color: #a7f3d0;
-  text-decoration: none;
-  font-weight: 800;
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(52, 211, 153, 0.25);
+  line-height: 1;
 }
 
 .buildLabel {
@@ -161,16 +80,15 @@
   position: sticky;
   top: 0;
   z-index: 5;
-  margin: 14px 16px 0;
-  padding: 6px;
+  margin: 12px 16px 0;
+  padding: 5px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  border-radius: 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  border-radius: 16px;
   background: rgba(15, 23, 42, 0.72);
   border: 1px solid rgba(148, 163, 184, 0.16);
   backdrop-filter: blur(14px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
 }
 
 .tab {
@@ -191,7 +109,11 @@
 }
 
 .tabIcon {
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   line-height: 1;
 }
 
@@ -274,7 +196,7 @@
     margin: 0 auto;
   }
 
-  .shopHero,
+  .shopBar,
   .tabBar {
     max-width: 920px;
     margin-left: auto;
@@ -651,11 +573,14 @@
   font-weight: 800;
 }
 
-:global([data-theme="light"]) .shopHero {
-  background:
-    linear-gradient(145deg, rgba(236, 253, 245, 0.95), rgba(255, 255, 255, 0.98)),
-    linear-gradient(180deg, rgba(16, 185, 129, 0.08), transparent);
-  border-color: rgba(16, 185, 129, 0.25);
+:global([data-theme="light"]) .shopBar {
+  background: transparent;
+}
+
+:global([data-theme="light"]) .balancePill {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(202, 138, 4, 0.35);
+  color: #92400e;
 }
 
 :global([data-theme="light"]) .shopTitle,

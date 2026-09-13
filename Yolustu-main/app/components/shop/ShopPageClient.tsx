@@ -53,19 +53,25 @@ import { emitAllianceHubEvent } from '@/app/components/alliance/allianceSocket';
 import { isSuperAdmin } from '@/app/lib/adminConfig';
 
 import VipShopPanel from './VipShopPanel';
+import {
+  IconShopCards,
+  IconShopFortress,
+  IconShopShield,
+  IconShopVip,
+} from './ShopTabIcons';
 
 import styles from './shop.module.css';
 
 
 const TAB_META = {
 
-  cards: { icon: '🎴', label: 'Kartlar' },
+  cards: { icon: IconShopCards, label: 'Kartlar' },
 
-  shields: { icon: '🛡️', label: 'Qalxan' },
+  shields: { icon: IconShopShield, label: 'Qalxan' },
 
-  fortress: { icon: '🏰', label: 'Qalalar' },
+  fortress: { icon: IconShopFortress, label: 'Qalalar' },
 
-  vip: { icon: '👑', label: 'VIP' },
+  vip: { icon: IconShopVip, label: 'VIP' },
 
 } as const;
 
@@ -239,58 +245,20 @@ function ShopContent() {
 
 
 
-      <section className={styles.shopHero}>
-
-        <div className={styles.shopHeroTop}>
-
-          <div>
-
-            <p className={styles.shopEyebrow}>Yolustu Market</p>
-
-            <h1 className={styles.shopTitle}>Strategiya Mağazası</h1>
-
-            <p className={styles.shopSubtitle}>
-
-              Döyüş kartları, qalxanlar və VIP kosmetikalar — balansınla güclən.
-
-            </p>
-
-          </div>
-
-          <div className={styles.walletCard}>
-
-            <span className={styles.walletLabel}>Balans</span>
-
-            <div className={styles.walletAmount}>
-
-              <span className={styles.manatIcon}>₼</span>
-
-              {manatReady ? manat.toLocaleString('az-AZ') : '...'}
-
-            </div>
-
-          </div>
-
+      <header className={styles.shopBar}>
+        <h1 className={styles.shopTitle}>Mağaza</h1>
+        <div className={styles.balancePill} role="status" aria-label={`Manat balansı: ${manat}`}>
+          <span className={styles.manatIcon}>₼</span>
+          <span>{manatReady ? manat.toLocaleString('az-AZ') : '...'}</span>
         </div>
-
-        <div className={styles.shopHeroLinks}>
-
-          <Link href="/profile" className={styles.profileLink}>
-
-            Profil balansı →
-
-          </Link>
-
-        </div>
-
-      </section>
-
-
+      </header>
 
       <nav className={styles.tabBar} aria-label="Mağaza bölmələri">
 
-        {(Object.keys(TAB_META) as Array<keyof typeof TAB_META>).map((key) => (
+        {(Object.keys(TAB_META) as Array<keyof typeof TAB_META>).map((key) => {
+          const Icon = TAB_META[key].icon;
 
+          return (
           <button
 
             key={key}
@@ -303,13 +271,13 @@ function ShopContent() {
 
           >
 
-            <span className={styles.tabIcon}>{TAB_META[key].icon}</span>
+            <span className={styles.tabIcon}><Icon /></span>
 
             {TAB_META[key].label}
 
           </button>
-
-        ))}
+          );
+        })}
 
       </nav>
 
