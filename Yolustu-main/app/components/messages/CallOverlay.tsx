@@ -2,22 +2,24 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Mic,
-  MicOff,
-  Volume2,
-  VolumeX,
-  Video,
-  VideoOff,
-  Phone,
-  PhoneOff,
-} from 'lucide-react';
+  IconCallHangup,
+  IconCallInvite,
+  IconCallMic,
+  IconCallMicOff,
+  IconCallPhone,
+  IconCallSpeaker,
+  IconCallSpeakerOff,
+  IconCallVideo,
+  IconCallVideoOff,
+} from './CallControlIcons';
 import { unlockCallAudio } from '@/app/lib/audioUnlock';
 import { CallSessionData, CallType } from '@/app/lib/callService';
-import { isActiveVideoTrack, watchVideoTrackActivity } from '@/app/lib/callVideoUtils';
+import { watchVideoTrackActivity } from '@/app/lib/callVideoUtils';
 import styles from './callOverlay.module.css';
 
 interface CallOverlayProps {
   mode: 'outgoing' | 'incoming' | 'connecting' | 'active';
+  chrome?: 'full' | 'docked';
   callType: CallType;
   peerName: string;
   peerAvatar?: string;
@@ -119,6 +121,7 @@ function ControlBtn({
 
 export default function CallOverlay({
   mode,
+  chrome = 'full',
   callType,
   peerName,
   peerAvatar,
@@ -221,9 +224,15 @@ export default function CallOverlay({
   }, [mode]);
 
   const timerDisplay = formatTimer(elapsed);
+  const isDocked = chrome === 'docked';
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={`${peerName} — ${statusText}`}>
+    <div
+      className={[styles.overlay, isDocked ? styles.overlayDocked : ''].filter(Boolean).join(' ')}
+      role="dialog"
+      aria-modal={!isDocked}
+      aria-label={`${peerName} — ${statusText}`}
+    >
       <audio ref={remoteAudioRef} autoPlay playsInline className={styles.srOnly} />
 
       {showVideoStage && (
@@ -244,12 +253,13 @@ export default function CallOverlay({
       )}
 
       <header className={styles.header}>
-        <p className={styles.status}>{statusText}</p>
+        <p className={styles.status}>{isDocked ? peerName : statusText}</p>
         <p className={styles.timer}>{timerDisplay}</p>
+        {isDocked && <p className={styles.callKind}>{statusText}</p>}
       </header>
 
-      <main className={styles.main}>
-        {!showVideoStage && (
+      <main className={[styles.main, isDocked ? styles.mainDocked : ''].filter(Boolean).join(' ')}>
+        {!isDocked && !showVideoStage && (
           <div className={[styles.avatarWrap, showRipple ? styles.avatarPulse : ''].filter(Boolean).join(' ')}>
             <img src={avatar} alt="" className={styles.avatar} />
           </div>
@@ -292,7 +302,7 @@ export default function CallOverlay({
         {mode === 'incoming' ? (
           <div className={styles.controlsRow}>
             <ControlBtn label="Rədd et" onClick={onReject} danger large>
-              <PhoneOff size={28} strokeWidth={2} />
+              <IconCallHangup size={30} />
             </ControlBtn>
             <ControlBtn
               label="Qəbul et"
@@ -300,34 +310,42 @@ export default function CallOverlay({
               large
               onClick={() => void unlockCallAudio().then(() => onAccept?.())}
             >
-              <Phone size={28} strokeWidth={2} />
+              <IconCallPhone size={30} />
             </ControlBtn>
           </div>
         ) : mode === 'outgoing' ? (
           <div className={styles.controlsRow}>
             <ControlBtn label="Ləğv et" onClick={onEnd} danger large>
-              <PhoneOff size={28} strokeWidth={2} />
+              <IconCallHangup size={30} />
             </ControlBtn>
           </div>
         ) : (
-          <div className={styles.controlsGrid}>
-            <ControlBtn label={micMuted ? 'Susdu' : 'Mikrofon'} onClick={onToggleMute} active={micMuted}>
-              {micMuted ? <MicOff size={24} /> : <Mic size={24} />}
-            </ControlBtn>
-            <ControlBtn label={speakerMuted ? 'Səs yox' : 'Spiker'} onClick={onToggleSpeaker} active={speakerMuted}>
-              {speakerMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
-            </ControlBtn>
-            <ControlBtn label="Bitir" onClick={onEnd} danger large>
-              <Phone size={28} style={{ transform: 'rotate(135deg)' }} strokeWidth={2.25} />
-            </ControlBtn>
-            <ControlBtn label={cameraOn ? 'Kamera açıq' : 'Kamera'} onClick={() => void onToggleCamera?.()} active={!cameraOn}>
-              {cameraOn ? <Video size={24} /> : <VideoOff size={24} />}
-            </ControlBtn>
-            {onOpenInvite && (
-              <ControlBtn label="Dəvət" onClick={onOpenInvite}>
-                <span aria-hidden style={{ fontSize: '1.25rem' }}>👥</span>
+          <div className={styles.controlsStack}>
+            <div className={styles.controlsGrid}>
+              <ControlBtn label={micMuted ? 'Susdu' : 'Mikrofon'} onClick={onToggleMute} active={micMuted}>
+                {micMuted ? <IconCallMicOff /> : <IconCallMic />}
               </ControlBtn>
-            )}
+              <ControlBtn label={speakerMuted ? 'Səs yox' : 'Spiker'} onClick={onToggleSpeaker} active={speakerMuted}>
+                {speakerMuted ? <IconCallSpeakerOff /> : <IconCallSpeaker />}
+              </ControlBtn>
+              <ControlBtn
+                label={cameraOn ? 'Kamera açıq' : 'Kamera'}
+                onClick={() => void onToggleCamera?.()}
+                active={!cameraOn}
+              >
+                {cameraOn ? <IconCallVideo /> : <IconCallVideoOff />}
+              </ControlBtn>
+              {onOpenInvite && (
+                <ControlBtn label="Dəvət" onClick={onOpenInvite}>
+                  <IconCallInvite />
+                </ControlBtn>
+              )}
+            </div>
+            <div className={styles.controlsRow}>
+              <ControlBtn label="Bitir" onClick={onEnd} danger large>
+                <IconCallHangup size={30} />
+              </ControlBtn>
+            </div>
           </div>
         )}
       </footer>

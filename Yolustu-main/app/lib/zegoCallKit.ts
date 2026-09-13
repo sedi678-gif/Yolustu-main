@@ -12,6 +12,7 @@ import {
 import { ensureMediaPermission } from '@/app/lib/mediaPermissions';
 import { toZegoUserId, toZegoUserName } from '@/app/lib/zegoUserId';
 import type { CallType } from '@/app/lib/callService';
+import { getCallUiState, setCallUiState } from '@/app/lib/callUiBridge';
 
 type ZegoUIKitModule = typeof import('@zegocloud/zego-uikit-prebuilt');
 type ZegoInstance = ReturnType<ZegoUIKitModule['ZegoUIKitPrebuilt']['create']>;
@@ -36,19 +37,49 @@ function toCallType(
   return invitationType === ZegoUIKitPrebuilt.InvitationTypeVideoCall ? 'video' : 'voice';
 }
 
+function peerLabel(user?: { userName?: string; userID?: string }) {
+  return user?.userName || user?.userID || 'İstifadəçi';
+}
+
 function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPrebuilt']) {
   return {
     enableNotifyWhenAppRunningInBackgroundOrQuit: true,
+    enableCustomCallInvitationDialog: true,
+    enableCustomCallInvitationWaitingPage: true,
     endCallWhenInitiatorLeave: true,
+    onWaitingPageWhenSending: (
+      callType: number,
+      callees: { userID: string; userName?: string; avatar?: string }[],
+      cancel: () => void
+    ) => {
+      const peer = callees[0];
+      setCallUiState({
+        mode: 'outgoing',
+        callType: toCallType(ZegoUIKitPrebuilt, callType),
+        peerName: peerLabel(peer),
+        peerAvatar: peer?.avatar,
+        cancel,
+      });
+    },
     onConfirmDialogWhenReceiving: (
       callType: number,
-      caller: { userID: string },
-      refuse: () => void
+      caller: { userID: string; userName?: string; avatar?: string },
+      refuse: () => void,
+      accept?: () => void
     ) => {
       const mapped = toCallType(ZegoUIKitPrebuilt, callType);
       if (optionsRef.current.canReceiveFrom && !optionsRef.current.canReceiveFrom(caller.userID, mapped)) {
         refuse();
+        return;
       }
+      setCallUiState({
+        mode: 'incoming',
+        callType: mapped,
+        peerName: peerLabel(caller),
+        peerAvatar: caller.avatar,
+        accept,
+        refuse,
+      });
     },
     onIncomingCallReceived: (
       _callID: string,
@@ -62,6 +93,13 @@ function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPreb
     },
     onSetRoomConfigBeforeJoining: (callType: number) => {
       const isVideo = callType === ZegoUIKitPrebuilt.InvitationTypeVideoCall;
+      const prev = getCallUiState();
+      setCallUiState({
+        mode: 'active',
+        callType: toCallType(ZegoUIKitPrebuilt, callType),
+        peerName: prev?.peerName || 'İstifadəçi',
+        peerAvatar: prev?.peerAvatar,
+      });
       return {
         scenario: {
           mode: ZegoUIKitPrebuilt.OneONoneCall,
@@ -69,19 +107,25 @@ function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPreb
         },
         turnOnMicrophoneWhenJoining: true,
         turnOnCameraWhenJoining: isVideo,
-        showMyCameraToggleButton: true,
-        showMyMicrophoneToggleButton: true,
-        showAudioVideoSettingsButton: true,
-        showLeaveRoomButton: true,
+        showMyCameraToggleButton: false,
+        showMyMicrophoneToggleButton: false,
+        showAudioVideoSettingsButton: false,
+        showLeaveRoomButton: false,
+        showMoreButton: false,
         showTextChat: false,
         showUserList: false,
         showScreenSharingButton: false,
         showLayoutButton: false,
         showPinButton: false,
         showPreJoinView: false,
+        showRoomTimer: false,
       };
     },
     onCallInvitationEnded: (reason: string) => {
+      const ui = getCallUiState();
+      if (!ui || ui.mode !== 'active' || String(reason) === 'LeaveRoom') {
+        setCallUiState(null);
+      }
       optionsRef.current.onCallInvitationEnded?.(String(reason));
     },
     onOutgoingCallAccepted: (_callID: string, callee: { userID: string }) => {
@@ -218,6 +262,7 @@ export function isZegoCallKitReady(): boolean {
 }
 
 export function destroyZegoCallKit(): void {
+  const hadInstance = zpInstance !== null;
   try {
     zpInstance?.destroy();
   } catch {
@@ -226,4 +271,44 @@ export function destroyZegoCallKit(): void {
   zpInstance = null;
   activeUserId = null;
   initPromise = null;
+  if (hadInstance) setCallUiState(null);
+}
+
+type ZegoExpressLike = {
+  muteMicrophone?: (mute: boolean) => void;
+  muteSpeaker?: (mute: boolean) => void;
+  enableCamera?: (enable: boolean) => void;
+  mutePublishStreamVideo?: (mute: boolean) => void;
+};
+
+function getExpress(): ZegoExpressLike | null {
+  const express = (zpInstance as { express?: ZegoExpressLike } | null)?.express;
+  return express ?? null;
+}
+
+export function zegoHangUp() {
+  try {
+    zpInstance?.hangUp();
+  } catch {
+    /* ignore */
+  }
+  setCallUiState(null);
+}
+
+export function zegoMuteMicrophone(muted: boolean) {
+  getExpress()?.muteMicrophone?.(muted);
+}
+
+export function zegoMuteSpeaker(muted: boolean) {
+  getExpress()?.muteSpeaker?.(muted);
+}
+
+export function zegoEnableCamera(on: boolean) {
+  const express = getExpress();
+  if (!express) return;
+  if (express.enableCamera) {
+    express.enableCamera(on);
+    return;
+  }
+  express.mutePublishStreamVideo?.(!on);
 }

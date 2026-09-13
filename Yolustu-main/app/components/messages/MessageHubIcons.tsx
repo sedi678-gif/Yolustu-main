@@ -22,17 +22,17 @@ export function IconBack() {
 
 export function IconPhone() {
   return (
-    <svg {...iconProps}>
-      <path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" />
+    <svg {...iconProps} fill="currentColor" stroke="none">
+      <path d="M7.05 11.32c1.62 3.17 4.46 5.96 7.63 7.52l2.48-2.48a1.2 1.2 0 011.16-.3c1.26.4 2.61.62 3.98.62.66 0 1.2.54 1.2 1.2V21.2c0 .66-.54 1.2-1.2 1.2C11.3 22.4 1.6 12.7 1.6 1.7 1.6 1.04 2.14.5 2.8.5h3.32c.66 0 1.2.54 1.2 1.2 0 1.37.22 2.72.62 3.98a1.2 1.2 0 01-.3 1.16L7.05 11.32z" />
     </svg>
   );
 }
 
 export function IconVideo() {
   return (
-    <svg {...iconProps}>
-      <rect x="3" y="6" width="12" height="12" rx="2" />
-      <path d="M15 10l6-3v10l-6-3" />
+    <svg {...iconProps} fill="currentColor" stroke="none">
+      <path d="M3.2 7.4A2.4 2.4 0 015.6 5h8.4a2.4 2.4 0 012.4 2.4v9.2a2.4 2.4 0 01-2.4 2.4H5.6a2.4 2.4 0 01-2.4-2.4V7.4z" />
+      <path d="M17.6 9.55l3.05-1.83A1.15 1.15 0 0122.4 8.7v6.6a1.15 1.15 0 01-1.75.98L17.6 14.45V9.55z" />
     </svg>
   );
 }

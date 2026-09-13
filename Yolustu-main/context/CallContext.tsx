@@ -23,6 +23,7 @@ import {
 } from '@/app/lib/zegoCallKit';
 import { toZegoUserId } from '@/app/lib/zegoUserId';
 import styles from '@/app/components/social/social.module.css';
+import CallUiHost from '@/app/components/messages/CallUiHost';
 
 const DEFAULT_AVATAR =
   'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80';
@@ -340,6 +341,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+      <CallUiHost />
 
       {callError && (
         <div className={styles.modalOverlay} onClick={clearCallError}>
