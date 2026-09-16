@@ -7,7 +7,7 @@ interface AllianceMapSheetProps {
   open: boolean;
   onClose: () => void;
   title: string;
-  icon?: string;
+  icon?: React.ReactNode;
   variant?: 'default' | 'neon';
   children: React.ReactNode;
 }
@@ -41,8 +41,8 @@ export default function AllianceMapSheet({
         aria-label={title}
       >
         <div className={styles.mapSheetHeader}>
-          <span>
-            {icon ? `${icon} ` : ''}
+          <span className={styles.mapSheetTitle}>
+            {icon ? <span className={styles.mapSheetTitleIcon}>{icon}</span> : null}
             {title}
           </span>
           <button type="button" className={styles.searchModalClose} onClick={onClose} aria-label="Bağla">

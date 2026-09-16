@@ -750,6 +750,7 @@
 }
 
 .allianceMapLayout {
+  position: relative;
   display: grid;
   flex: 1 1 auto;
   min-height: 0;
@@ -758,6 +759,152 @@
   overflow: hidden;
   grid-template-columns: minmax(0, min(260px, 36vw)) minmax(0, 1fr) minmax(0, min(260px, 36vw));
   grid-template-rows: minmax(0, 1fr);
+}
+
+.worldCastleHub {
+  --map-launch-size: 76px;
+  background: #1b4332;
+}
+
+.worldCastleHub .allianceMapLayout {
+  display: block;
+}
+
+.worldCastleHub .castlePixiWrap {
+  z-index: 1;
+  background:
+    url('/images/alliance-castle-live.png') center / cover no-repeat,
+    linear-gradient(180deg, #8ecae6 0%, #6bbf59 55%, #2d6a4f 100%);
+}
+
+.worldCastleHub .castleStaticImg {
+  object-fit: cover;
+}
+
+.worldCastleHub .allianceMapSidebar,
+.worldCastleHub .allianceMapRight {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: block;
+  padding: 0;
+  margin: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.worldCastleHub .allianceMapSidebarHead {
+  pointer-events: auto;
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  left: max(8px, env(safe-area-inset-left, 0px));
+  right: calc(max(8px, env(safe-area-inset-right, 0px)) + var(--map-launch-size) + 12px);
+  margin: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  gap: 8px;
+  align-items: center;
+}
+
+.worldCastleHub .allianceMapSidebarEyebrow {
+  display: none;
+}
+
+.worldCastleHub .allianceMapSidebar .mapRoundBtnRow,
+.worldCastleHub .allianceMapRight .mapRoundBtnRow {
+  pointer-events: auto;
+  position: absolute;
+  bottom: calc(var(--alliance-map-nav, 68px) + 8px);
+  flex-direction: column;
+  gap: 6px;
+  max-width: 60px;
+}
+
+.worldCastleHub .allianceMapSidebar .mapRoundBtnRow {
+  left: max(8px, env(safe-area-inset-left, 0px));
+}
+
+.worldCastleHub .allianceMapRight .mapRoundBtnRow {
+  right: max(8px, env(safe-area-inset-right, 0px));
+  align-items: center;
+}
+
+.allianceMapLaunchBtn {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  right: max(8px, env(safe-area-inset-right, 0px));
+  z-index: 16;
+  width: var(--map-launch-size, 76px);
+  height: var(--map-launch-size, 76px);
+  padding: 0;
+  border: 2px solid rgba(250, 204, 21, 0.85);
+  border-radius: 18px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #14532d;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.allianceMapLaunchBtn img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.allianceMapLaunchBtn span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 3px 4px 4px;
+  background: linear-gradient(180deg, transparent, rgba(15, 23, 42, 0.88));
+  color: #fef3c7;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.allianceMapOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.allianceMapOverlayOpen {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.worldCastleHub .allianceMapOverlay .allianceMapShell {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  grid-column: unset;
+  grid-row: unset;
+}
+
+.worldCastleHub .allianceChatDock {
+  z-index: 14;
+  bottom: 12px;
+}
+
+.worldMapOpen .castlePixiWrap {
+  visibility: hidden;
 }
 
 .allianceMapSidebar {
@@ -1137,6 +1284,8 @@
 }
 
 .mapRoundBtn {
+  position: relative;
+  isolation: isolate;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
@@ -1148,29 +1297,59 @@
   min-height: var(--app-touch-min, 44px);
   padding: 8px 6px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(30, 41, 59, 0.88);
-  color: #e2e8f0;
+  border: 1.5px solid transparent;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e0f2fe;
   font-size: clamp(7px, 2vw, 8px);
   font-weight: 800;
   letter-spacing: 0.2px;
   line-height: 1.1;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 0 10px rgba(56, 189, 248, 0.35),
+    0 0 18px rgba(236, 72, 153, 0.22),
+    0 4px 14px rgba(0, 0, 0, 0.35);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
 
+.mapRoundBtn::before,
+.mapAdXpBtn::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, #38bdf8, #ec4899, #818cf8, #38bdf8);
+  animation: mapNeonSpin 3.2s linear infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.mapRoundBtn::after,
+.mapAdXpBtn::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: rgba(15, 23, 42, 0.92);
+  z-index: -1;
+  pointer-events: none;
+}
+
 .mapRoundBtn:hover:not(:disabled) {
-  border-color: rgba(251, 191, 36, 0.45);
-  background: rgba(51, 65, 85, 0.95);
+  color: #fce7f3;
+  box-shadow:
+    0 0 14px rgba(56, 189, 248, 0.5),
+    0 0 22px rgba(236, 72, 153, 0.35),
+    0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
 .mapRoundBtnActive {
-  border-color: rgba(251, 191, 36, 0.65);
-  background: rgba(202, 138, 4, 0.22);
-  color: #fef08a;
+  color: #fbcfe8;
+  box-shadow:
+    0 0 16px rgba(236, 72, 153, 0.55),
+    0 0 22px rgba(56, 189, 248, 0.35);
 }
 
 .mapRoundBtn:disabled {
@@ -1180,15 +1359,136 @@
 }
 
 .mapRoundBtnIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: clamp(14px, 4vw, 18px);
   line-height: 1;
+  z-index: 1;
+}
+
+.mapRoundBtnIcon svg,
+.mapAdXpBtn .epAdBtnIcon svg {
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 
 .mapRoundBtnLabel {
+  position: relative;
+  z-index: 1;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@keyframes mapNeonSpin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.allianceChatDock {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 12;
+  width: min(220px, calc(100% - 148px));
+  max-width: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid rgba(186, 230, 253, 0.22);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
+  color: #e2e8f0;
+  cursor: pointer;
+  text-align: left;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.allianceChatDockLine,
+.allianceChatDockLineMuted {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+.allianceChatDockLine strong {
+  color: #7dd3fc;
+  font-weight: 800;
+}
+
+.allianceChatDockLineMuted {
+  color: rgba(226, 232, 240, 0.62);
+  font-weight: 500;
+}
+
+.mapSheetTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mapSheetTitleIcon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.mapSheetTitleIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mapSheetNeon {
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(56, 189, 248, 0.28), transparent 52%),
+    radial-gradient(120% 90% at 100% 100%, rgba(236, 72, 153, 0.32), transparent 54%),
+    linear-gradient(180deg, #07111f 0%, #140617 100%);
+  border: 1px solid rgba(125, 211, 252, 0.38);
+  box-shadow:
+    0 0 28px rgba(56, 189, 248, 0.28),
+    0 0 48px rgba(236, 72, 153, 0.22);
+}
+
+.mapSheetNeon .mapSheetHeader {
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.32), rgba(236, 72, 153, 0.3));
+  color: #fff;
+  border-bottom: 1px solid rgba(244, 114, 182, 0.35);
+}
+
+.mapSheetNeon .mapSheetBody {
+  background: transparent;
+}
+
+.mapChatPanelNeon {
+  background: transparent;
+}
+
+.mapChatPanelNeon .epChatTabActive {
+  background: linear-gradient(90deg, #0ea5e9, #ec4899);
+  color: #fff;
+  border-color: transparent;
+}
+
+.mapChatPanelNeon .epChatSendBtn {
+  background: linear-gradient(135deg, #0ea5e9, #ec4899);
+  color: #fff;
 }
 
 .mapSheetOverlay {
@@ -1657,6 +1957,8 @@
 }
 
 .mapAdXpBtn {
+  position: relative;
+  isolation: isolate;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
@@ -1668,16 +1970,24 @@
   min-height: var(--app-touch-min, 44px);
   padding: 8px 6px;
   border-radius: 999px;
-  border: 1px solid rgba(251, 191, 36, 0.55);
-  background: linear-gradient(180deg, rgba(202, 138, 4, 0.95), rgba(161, 98, 7, 0.98));
+  border: 1.5px solid transparent;
+  background: transparent;
   color: #fff;
   font-size: clamp(7px, 2vw, 8px);
   font-weight: 900;
   letter-spacing: 0.2px;
   line-height: 1.1;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(202, 138, 4, 0.4);
+  box-shadow:
+    0 0 10px rgba(56, 189, 248, 0.35),
+    0 0 18px rgba(236, 72, 153, 0.22),
+    0 4px 14px rgba(0, 0, 0, 0.35);
   touch-action: manipulation;
+}
+
+.mapAdXpBtn span {
+  position: relative;
+  z-index: 1;
 }
 
 .mapAdXpBtn:disabled {
@@ -1875,8 +2185,15 @@
   width: 100%;
   height: 100%;
   background:
-    url('/images/alliance-castle-hub-main.png') center / contain no-repeat,
+    url('/images/alliance-castle-live.png') center / cover no-repeat,
     linear-gradient(180deg, #8ecae6 0%, #6bbf59 55%, #2d6a4f 100%);
+}
+
+.castlePixiWrap picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .castlePixiOverlay {
@@ -1915,7 +2232,7 @@
   height: 100%;
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
   user-select: none;
   pointer-events: none;
@@ -5200,12 +5517,16 @@
     pointer-events: none;
   }
 
+  .worldCastleHub {
+    --map-launch-size: 68px;
+  }
+
   .allianceMapSidebarHead {
     pointer-events: auto;
     position: absolute;
     top: max(8px, env(safe-area-inset-top, 0px));
     left: var(--map-dock-pad);
-    right: calc(var(--map-dock-pad-end) + var(--map-btn-size) + 12px);
+    right: calc(var(--map-dock-pad-end) + var(--map-launch-size, 68px) + 12px);
     margin: 0;
     padding: 5px 10px;
     border-radius: 999px;
@@ -5241,6 +5562,14 @@
     width: 28px;
     height: 20px;
     border-radius: 4px;
+  }
+
+  .allianceChatDock {
+    bottom: var(--map-dock-bottom);
+    width: min(196px, calc(100vw - 124px));
+    padding: 7px 10px;
+    min-height: 40px;
+    z-index: 9;
   }
 
   .allianceMapSidebar .mapRoundBtnRow {
@@ -5381,6 +5710,10 @@
     right: var(--map-dock-pad-end);
   }
 
+  .allianceChatDock {
+    bottom: calc(var(--map-dock-bottom) + var(--map-btn-size) + 8px);
+  }
+
   .allianceMapShell .mapCountryBadge {
     top: max(calc(env(safe-area-inset-top, 0px) + 36px), 40px);
     font-size: 9px;
@@ -5402,7 +5735,7 @@
   }
 
   .allianceMapSidebarHead {
-    right: calc(var(--map-dock-pad-end) + var(--map-btn-size) + 8px);
+    right: calc(var(--map-dock-pad-end) + var(--map-launch-size, 68px) + 8px);
   }
 }
 

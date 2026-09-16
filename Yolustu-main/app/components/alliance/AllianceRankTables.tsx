@@ -5,6 +5,7 @@ import { PlayerProfile, AllianceData } from './types';
 import { EMPTY_BATTLE_CARDS } from './battleCardsConfig';
 import AllianceMapRoundBtn from './AllianceMapRoundBtn';
 import AllianceMapSheet from './AllianceMapSheet';
+import { IconMapCrown, IconMapRank, IconMapShield } from './AllianceMapIcons';
 import styles from './alliance.module.css';
 
 export interface RankRow {
@@ -79,7 +80,7 @@ export function RankTableContent({
 
 interface CollapsibleRankTableProps {
   title: string;
-  icon: string;
+  icon: React.ReactNode;
   shortLabel?: string;
   rows: RankRow[];
   userRankRow: RankRow | null;
@@ -237,7 +238,7 @@ export default function AllianceRankTables({
         {sections.includes('leaders') && (
           <CollapsibleRankTable
             title="Liderlər cədvəli"
-            icon="👑"
+            icon={<IconMapCrown />}
             shortLabel="Lider"
             rows={leaderRows}
             userRankRow={userLeaderRank}
@@ -254,7 +255,7 @@ export default function AllianceRankTables({
         {sections.includes('alliances') && (
           <CollapsibleRankTable
             title={allianceTitle}
-            icon="🛡️"
+            icon={<IconMapShield />}
             shortLabel={allianceShortLabel}
             rows={allianceRows}
             userRankRow={userAllianceRank}
@@ -279,7 +280,7 @@ export default function AllianceRankTables({
       {sections.includes('leaders') && (
         <CollapsibleRankTable
           title="Liderlər cədvəli"
-          icon="👑"
+          icon={<IconMapCrown />}
           shortLabel="Lider"
           rows={leaderRows}
           userRankRow={userLeaderRank}
@@ -296,7 +297,7 @@ export default function AllianceRankTables({
       {sections.includes('alliances') && (
         <CollapsibleRankTable
           title={allianceTitle}
-          icon="🛡️"
+          icon={<IconMapShield />}
           shortLabel={allianceShortLabel}
           rows={allianceRows}
           userRankRow={userAllianceRank}
@@ -350,7 +351,7 @@ export function AlliancePlayerRankTable({
   return (
     <CollapsibleRankTable
       title="İstifadəçilər reytinqi"
-      icon="⭐"
+      icon={<IconMapRank />}
       shortLabel="Oyunçu"
       rows={playerRows}
       userRankRow={userPlayerRank}

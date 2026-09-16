@@ -28,6 +28,7 @@ import AllianceMapRoundBtn from './AllianceMapRoundBtn';
 
 import AllianceMapSheet from './AllianceMapSheet';
 import AllianceFortressPanel from './AllianceFortressPanel';
+import { IconMapFlag, IconMapFortress, IconMapQuest } from './AllianceMapIcons';
 
 import {
 
@@ -320,7 +321,7 @@ export default function AllianceMapSidebar() {
 
         <AllianceMapRoundBtn
 
-          icon="📋"
+          icon={<IconMapQuest />}
 
           label="Tapşırıq"
 
@@ -338,7 +339,7 @@ export default function AllianceMapSidebar() {
 
         {activeAlliance && (
           <AllianceMapRoundBtn
-            icon="🏰"
+            icon={<IconMapFortress />}
             label="Qala"
             onClick={() => setFortressOpen(true)}
             title="Qala səviyyəsi və binanı dəyiş"
@@ -350,7 +351,7 @@ export default function AllianceMapSidebar() {
 
           <AllianceMapRoundBtn
 
-            icon="🏴"
+            icon={<IconMapFlag />}
 
             label="Bayraq"
 
@@ -376,7 +377,7 @@ export default function AllianceMapSidebar() {
 
         title="Gündəlik tapşırıqlar"
 
-        icon="📋"
+        icon={<IconMapQuest />}
 
       >
 
@@ -402,7 +403,7 @@ export default function AllianceMapSidebar() {
 
         title="Bayraq redaktoru"
 
-        icon="🏴"
+        icon={<IconMapFlag />}
 
       >
 

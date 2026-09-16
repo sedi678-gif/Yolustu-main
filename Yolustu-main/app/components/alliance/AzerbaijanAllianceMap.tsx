@@ -27,11 +27,13 @@ import styles from './alliance.module.css';
 interface AzerbaijanAllianceMapProps {
   alliances: AllianceData[];
   activeAlliance: AllianceData | null;
+  active?: boolean;
 }
 
 export default function AzerbaijanAllianceMap({
   alliances,
   activeAlliance,
+  active = true,
 }: AzerbaijanAllianceMapProps) {
   const { attackTargetId, focusAllianceId, setFocusAllianceId, liveBattleAttacks, userId } =
     useAllianceBrain();
@@ -158,6 +160,16 @@ export default function AzerbaijanAllianceMap({
     const unsub = listenRecentAttacks(setFirebaseAttacks);
     return unsub;
   }, [mapReady]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!active || !map || !mapReady) return;
+    const frame = window.requestAnimationFrame(() => {
+      map.invalidateSize();
+      applyCastleZoomToMap(map.getContainer(), map.getZoom());
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [active, mapReady]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;

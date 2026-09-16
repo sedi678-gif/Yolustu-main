@@ -9,6 +9,7 @@ import {
 } from '@/app/lib/allianceFortressConfig';
 import { evaluateFortressEligibility } from '@/app/lib/allianceFortressService';
 import AllianceMapSheet from './AllianceMapSheet';
+import { IconMapFortress } from './AllianceMapIcons';
 import styles from './alliance.module.css';
 
 interface AllianceFortressPanelProps {
@@ -44,7 +45,7 @@ export default function AllianceFortressPanel({ open, onClose }: AllianceFortres
 
   if (!activeAlliance || !eligibility) {
     return (
-      <AllianceMapSheet open={open} onClose={onClose} title="Qala səviyyəsi" icon="🏰">
+      <AllianceMapSheet open={open} onClose={onClose} title="Qala səviyyəsi" icon={<IconMapFortress />}>
         <p className={styles.attackModalHint}>Qala idarəetməsi üçün ittifaqda olmalısan.</p>
       </AllianceMapSheet>
     );
@@ -56,7 +57,7 @@ export default function AllianceFortressPanel({ open, onClose }: AllianceFortres
       : null;
 
   return (
-    <AllianceMapSheet open={open} onClose={onClose} title="İttifaq qalası" icon="🏰">
+    <AllianceMapSheet open={open} onClose={onClose} title="İttifaq qalası" icon={<IconMapFortress />}>
       <div className={styles.fortressPanel}>
         <div className={styles.fortressPreviewRow}>
           <img

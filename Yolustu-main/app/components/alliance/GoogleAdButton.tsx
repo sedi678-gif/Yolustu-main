@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { IconMapAd } from './AllianceMapIcons';
 import styles from './alliance.module.css';
 
 declare global {
@@ -79,7 +80,7 @@ export default function GoogleAdButton({ onReward, variant = 'pill', label }: Go
         title="Reklam izlə — Google Ads"
         aria-label={btnLabel}
       >
-        <span className={styles.epAdBtnIcon}>📺</span>
+        <span className={styles.epAdBtnIcon}><IconMapAd /></span>
         <span>{loading ? '...' : btnLabel}</span>
       </button>
 

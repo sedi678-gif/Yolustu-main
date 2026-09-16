@@ -85,3 +85,44 @@ export function IconMapRank() {
     </GameSvg>
   );
 }
+
+export function IconMapArmy() {
+  return (
+    <GameSvg>
+      <path
+        d="M8.2 4.2l.9 3.4-2.4 2.4 7.3 7.3 2.4-2.4 3.4.9-.9 3.4-6.2-.4-7.1-7.1-.4-6.2 3 1.1z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M5.2 18.8l3.2-3.2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </GameSvg>
+  );
+}
+
+export function IconMapCrown() {
+  return (
+    <GameSvg>
+      <path
+        d="M4.4 17.6h15.2M5 17.6l-.8-9.2 4.4 3.2L12 5.4l3.4 6.2 4.4-3.2-.8 9.2H5z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+    </GameSvg>
+  );
+}
+
+export function IconMapShield() {
+  return (
+    <GameSvg>
+      <path
+        d="M12 3.6l7.2 2.4v6.2c0 4.2-2.8 7.2-7.2 8.4-4.4-1.2-7.2-4.2-7.2-8.4V6L12 3.6z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M12 8.2v7.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </GameSvg>
+  );
+}

@@ -15,6 +15,7 @@ import BattleCardArt from './BattleCardArt';
 import AllianceMapRoundBtn from './AllianceMapRoundBtn';
 
 import AllianceMapSheet from './AllianceMapSheet';
+import { IconMapArmy } from './AllianceMapIcons';
 
 import styles from './alliance.module.css';
 
@@ -226,7 +227,7 @@ export default function AllianceMapOrduCards({ variant = 'inline' }: AllianceMap
 
         <AllianceMapRoundBtn
 
-          icon="⚔️"
+          icon={<IconMapArmy />}
 
           label="Ordu"
 
@@ -248,7 +249,7 @@ export default function AllianceMapOrduCards({ variant = 'inline' }: AllianceMap
 
           title="Ordu və kartlar"
 
-          icon="⚔️"
+          icon={<IconMapArmy />}
 
         >
 
