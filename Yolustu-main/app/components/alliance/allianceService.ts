@@ -27,6 +27,7 @@ import {
 } from './battleCardsConfig';
 import { isAllianceLeader, type LeaderCheckOptions } from './allianceLeader';
 import { DEFAULT_MANAT, resolvePlayerManat, readStoredManat, manatWritePatch } from '@/app/lib/manat';
+import { withTimeout } from '@/app/lib/firebaseAuth';
 
 function mergeBattleCards(a?: BattleCardsMap, b?: BattleCardsMap): BattleCardsMap {
   const merged = { ...EMPTY_BATTLE_CARDS };
@@ -389,22 +390,26 @@ export async function updateAllianceFlag(
   options: LeaderCheckOptions = {}
 ): Promise<AllianceFlagConfig> {
   const allianceRef = doc(db, 'alliances', allianceId);
-  const snap = await getDoc(allianceRef);
-  if (!snap.exists()) throw new Error('İttifaq tapılmadı');
-
-  const data = { id: snap.id, ...snap.data() } as AllianceData;
-  if (!isAllianceLeader(data, actorId, options)) {
-    throw new Error('Yalnız lider bayrağı dəyişə bilər');
-  }
-
   const normalized = normalizeAllianceFlag(flag);
-  const patch: { flag: AllianceFlagConfig; leaderId?: string } = { flag: normalized };
-
-  if (data.leaderId !== actorId && isAllianceLeader(data, actorId, options)) {
-    patch.leaderId = actorId;
+  if (normalized.imageUrl?.startsWith('blob:')) {
+    delete normalized.imageUrl;
+    delete normalized.imageUpdatedAt;
   }
 
-  await updateDoc(allianceRef, patch);
+  const knownLeader = options.isLeaderProfile === true;
+  if (!knownLeader) {
+    const snap = await withTimeout(getDoc(allianceRef), 4_000, 'İttifaq oxunmadı.');
+    if (!snap.exists()) throw new Error('İttifaq tapılmadı');
+    const data = { id: snap.id, ...snap.data() } as AllianceData;
+    if (!isAllianceLeader(data, actorId, options)) {
+      throw new Error('Yalnız lider bayrağı dəyişə bilər');
+    }
+  }
+
+  const patch: { flag: AllianceFlagConfig; leaderId?: string } = { flag: normalized };
+  if (knownLeader) patch.leaderId = actorId;
+
+  await withTimeout(updateDoc(allianceRef, patch), 6_000, 'Bayraq saxlanması vaxtı bitdi.');
   return normalized;
 }
 

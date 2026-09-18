@@ -69,7 +69,7 @@ export async function exportProfileCrop(
   cropW = Math.min(cropW, img.naturalWidth - cropX);
   cropH = Math.min(cropH, img.naturalHeight - cropY);
 
-  const outW = kind === 'avatar' ? 640 : kind === 'flag' ? 720 : 1200;
+  const outW = kind === 'avatar' ? 640 : kind === 'flag' ? 360 : 1200;
   const outH =
     kind === 'avatar' ? 640 : Math.round(outW * (frameHeight / frameWidth));
 
@@ -85,7 +85,7 @@ export async function exportProfileCrop(
     canvas.toBlob(
       (b) => (b ? resolve(b) : reject(new Error('Şəkil sıxıla bilmədi.'))),
       'image/jpeg',
-      kind === 'avatar' ? 0.88 : kind === 'flag' ? 0.84 : 0.82
+      kind === 'avatar' ? 0.88 : kind === 'flag' ? 0.68 : 0.82
     );
   });
 

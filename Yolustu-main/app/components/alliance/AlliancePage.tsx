@@ -8,13 +8,11 @@ import AzerbaijanAllianceMap from './AzerbaijanAllianceMap';
 import AllianceMapSidebar from './AllianceMapSidebar';
 import AllianceMapRightPanel from './AllianceMapRightPanel';
 import AllianceChatDock from './AllianceChatDock';
+import GoogleAdButton from './GoogleAdButton';
 import styles from './alliance.module.css';
 
-const CASTLE_THUMB = '/images/alliance-castle-live.png';
-const MAP_THUMB = '/images/alliance-map-bg.svg';
-
 function AlliancePageInner() {
-  const { alliances, activeAlliance, liveBattleAttacks } = useAllianceBrain();
+  const { alliances, activeAlliance, liveBattleAttacks, handleAdXpReward } = useAllianceBrain();
   const [mapOpen, setMapOpen] = useState(false);
 
   useEffect(() => {
@@ -32,20 +30,16 @@ function AlliancePageInner() {
       <div className={styles.allianceMapLayout}>
         <AllianceCastleHome />
         <AllianceMapSidebar />
-        <AllianceMapRightPanel />
+        <AllianceMapRightPanel mapOpen={mapOpen} onToggleMap={() => setMapOpen((open) => !open)} />
         <AllianceChatDock />
 
-        <button
-          type="button"
-          className={styles.allianceMapLaunchBtn}
-          onClick={() => setMapOpen((open) => !open)}
-          aria-pressed={mapOpen}
-          aria-label={mapOpen ? 'Qalaya qayıt' : 'Xəritəni aç'}
-          title={mapOpen ? 'Qala' : 'Xəritə'}
-        >
-          <img src={mapOpen ? CASTLE_THUMB : MAP_THUMB} alt="" draggable={false} />
-          <span>{mapOpen ? 'Qala' : 'Xəritə'}</span>
-        </button>
+        <div className={styles.allianceMapLaunchWrap}>
+          <GoogleAdButton
+            variant="xp"
+            label="+500 XP"
+            onReward={() => void handleAdXpReward()}
+          />
+        </div>
 
         <div
           className={`${styles.allianceMapOverlay} ${mapOpen ? styles.allianceMapOverlayOpen : ''}`}

@@ -1,11 +1,14 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
+import { useUser } from '@/context/UserContext';
+import { getLocalProfileDisplayName } from '@/app/lib/userId';
 import { PlayerProfile, AllianceData } from './types';
 import { EMPTY_BATTLE_CARDS } from './battleCardsConfig';
 import AllianceMapRoundBtn from './AllianceMapRoundBtn';
 import AllianceMapSheet from './AllianceMapSheet';
 import { IconMapCrown, IconMapRank, IconMapShield } from './AllianceMapIcons';
+import { useAllianceBrain } from './AllianceBrainContext';
 import styles from './alliance.module.css';
 
 export interface RankRow {
@@ -323,14 +326,8 @@ interface AlliancePlayerRankTableProps {
   variant?: 'inline' | 'sheet';
 }
 
-export function AlliancePlayerRankTable({
-  players,
-  currentUserId,
-  currentUserName,
-  defaultOpen = false,
-  variant = 'inline',
-}: AlliancePlayerRankTableProps) {
-  const { playerRows, userPlayerRank } = useMemo(() => {
+function usePlayerRankRows(players: PlayerProfile[], currentUserId: string) {
+  return useMemo(() => {
     const sorted = [...players]
       .filter((p) => p.score > 0)
       .sort((a, b) => b.score - a.score);
@@ -344,9 +341,79 @@ export function AlliancePlayerRankTable({
     }));
 
     const userPlayerRank = playerRows.find((r) => r.id === currentUserId) ?? null;
-
     return { playerRows, userPlayerRank };
   }, [players, currentUserId]);
+}
+
+export function AllianceRankingBoard() {
+  const { userId, user } = useUser();
+  const userName = user?.displayName || user?.email || getLocalProfileDisplayName();
+  const { alliances, players, activeAlliance } = useAllianceBrain();
+  const { allianceRows, userAllianceRank } = useMemo(() => {
+    const sortedAlliances = [...alliances].sort((a, b) => (b.score || 0) - (a.score || 0));
+    const allianceRows: RankRow[] = sortedAlliances.map((item, index) => ({
+      id: item.id,
+      rank: index + 1,
+      name: item.name,
+      score: item.score || 50,
+      subtitle: `📍 ${item.region} · ${item.members?.length || 0} üzv`,
+    }));
+    const userAllianceRank = activeAlliance
+      ? allianceRows.find((r) => r.id === activeAlliance.id) ?? null
+      : null;
+    return { allianceRows, userAllianceRank };
+  }, [alliances, activeAlliance]);
+  const { playerRows, userPlayerRank } = usePlayerRankRows(players, userId);
+
+  return (
+    <div className={styles.rankTablesSplit}>
+      <section className={styles.rankTablesSplitCol}>
+        <h3 className={styles.rankTablesSplitTitle}>İttifaq reytinqi</h3>
+        <RankTableContent
+          rows={allianceRows}
+          userRankRow={userAllianceRank}
+          userRankLabel={
+            userAllianceRank ? 'Sizin ittifaq sıranız' : 'Hələ heç bir ittifaqda deyilsiniz'
+          }
+          emptyMessage="Hələ heç bir ittifaq yoxdur."
+        />
+      </section>
+      <section className={styles.rankTablesSplitCol}>
+        <h3 className={styles.rankTablesSplitTitle}>Oyunçu reytinqi</h3>
+        <RankTableContent
+          rows={playerRows}
+          userRankRow={userPlayerRank}
+          userRankLabel={
+            userPlayerRank
+              ? 'Sizin oyunçu sıranız'
+              : `${userName} — hələ reytinq cədvəlində deyilsiniz`
+          }
+          emptyMessage="Hələ heç bir oyunçu yoxdur."
+        />
+      </section>
+    </div>
+  );
+}
+
+export function AllianceCombinedRankButton() {
+  return (
+    <AllianceMapRoundBtn
+      icon={<IconMapRank />}
+      label="Reytinq"
+      href="/ranking/"
+      title="Reytinqi brauzerdə aç"
+    />
+  );
+}
+
+export function AlliancePlayerRankTable({
+  players,
+  currentUserId,
+  currentUserName,
+  defaultOpen = false,
+  variant = 'inline',
+}: AlliancePlayerRankTableProps) {
+  const { playerRows, userPlayerRank } = usePlayerRankRows(players, currentUserId);
 
   return (
     <CollapsibleRankTable

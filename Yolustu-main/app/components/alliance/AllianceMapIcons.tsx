@@ -86,6 +86,24 @@ export function IconMapRank() {
   );
 }
 
+export function IconMapCards() {
+  return (
+    <GameSvg>
+      <rect x="4.4" y="6.2" width="11.2" height="13.2" rx="1.6" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M8.4 4.6h11.2A1.6 1.6 0 0121.2 6.2v11.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </GameSvg>
+  );
+}
+
+export function IconMapGlobe() {
+  return (
+    <GameSvg>
+      <circle cx="12" cy="12" r="7.4" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M12 4.6c2.2 2.1 3.4 4.7 3.4 7.4S14.2 17.3 12 19.4M12 4.6C9.8 6.7 8.6 9.3 8.6 12s1.2 5.3 3.4 7.4M4.8 12h14.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </GameSvg>
+  );
+}
+
 export function IconMapArmy() {
   return (
     <GameSvg>

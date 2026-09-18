@@ -43,6 +43,7 @@ import { resolvePlayerManat } from '@/app/lib/manat';
 import {
   getFortressMarkerUrl,
   normalizeFortressLevel,
+  writeCachedFortressLevel,
 } from '@/app/lib/allianceFortressConfig';
 import {
   evaluateFortressEligibility,
@@ -89,6 +90,7 @@ interface AllianceBrainContextValue {
   setFocusAllianceId: (id: string | null) => void;
   liveBattleAttacks: AllianceAttack[];
   registerBattleAttack: (attack: AllianceAttack) => void;
+  alliancesReady: boolean;
 }
 
 const AllianceBrainContext = createContext<AllianceBrainContextValue | null>(null);
@@ -113,6 +115,7 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
   const [focusAllianceId, setFocusAllianceId] = useState<string | null>(null);
   const [liveBattleAttacks, setLiveBattleAttacks] = useState<AllianceAttack[]>([]);
   const [realtimeHub, setRealtimeHub] = useState<RealtimeHubState>(EMPTY_REALTIME_HUB);
+  const [alliancesReady, setAlliancesReady] = useState(false);
 
   const privateMessageListenersRef = useRef(new Set<(message: StoredMessage) => void>());
 
@@ -137,11 +140,14 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
           item.leaderId === userId || (item.members && item.members.includes(userId))
       );
       setActiveAlliance(mine || null);
+      setAlliancesReady(true);
 
       if (mine) {
         localStorage.setItem('app_user_alliance_name', mine.name);
+        writeCachedFortressLevel(mine.fortressLevel ?? 1);
       } else {
         localStorage.removeItem('app_user_alliance_name');
+        writeCachedFortressLevel(null);
       }
     });
     return () => unsub();
@@ -589,6 +595,7 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     setFocusAllianceId,
     liveBattleAttacks,
     registerBattleAttack,
+    alliancesReady,
   };
 
   return (

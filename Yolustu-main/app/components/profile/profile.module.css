@@ -1080,22 +1080,30 @@
 .photoEditorOverlay {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: 20000;
   background: rgba(2, 6, 23, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  pointer-events: auto;
+  isolation: isolate;
 }
 
 .photoEditorSheet {
   width: 100%;
   max-width: 360px;
+  max-height: min(92dvh, 640px);
+  overflow-y: auto;
   border-radius: 20px;
   background: rgba(15, 23, 42, 0.96);
   border: 1px solid rgba(99, 102, 241, 0.35);
   padding: 16px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
 }
 
 .photoEditorHeader {
@@ -1121,6 +1129,12 @@
   height: 32px;
   border-radius: 50%;
   cursor: pointer;
+  pointer-events: auto;
+}
+
+.photoEditorClose:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 
 .photoEditorHint {
@@ -1193,12 +1207,17 @@
 
 .photoEditorCancel,
 .photoEditorSave {
+  position: relative;
+  z-index: 1;
   flex: 1;
   border: none;
   border-radius: 12px;
   padding: 12px;
+  min-height: 44px;
   font-weight: 800;
   cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .photoEditorCancel {

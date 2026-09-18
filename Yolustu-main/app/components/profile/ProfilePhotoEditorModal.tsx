@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   exportProfileCrop,
   getMinCoverScale,
@@ -13,7 +14,7 @@ interface ProfilePhotoEditorModalProps {
   kind: ProfileCropKind;
   file: File | null;
   onClose: () => void;
-  onConfirm: (file: File) => void;
+  onConfirm: (file: File) => void | Promise<void>;
 }
 
 const VIEW_W = 320;
@@ -34,7 +35,12 @@ export default function ProfilePhotoEditorModal({
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [busy, setBusy] = useState(false);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+
+  useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
 
   const frame = useMemo(() => {
     if (kind === 'avatar') {
@@ -128,8 +134,13 @@ export default function ProfilePhotoEditorModal({
     });
   };
 
+  const handleClose = () => {
+    if (busy) return;
+    onClose();
+  };
+
   const handleConfirm = async () => {
-    if (!file) return;
+    if (!file || busy) return;
     setBusy(true);
     try {
       const cropped = await exportProfileCrop(file, {
@@ -142,7 +153,8 @@ export default function ProfilePhotoEditorModal({
         frameWidth: frame.w,
         frameHeight: frame.h,
       });
-      onConfirm(cropped);
+      await onConfirm(cropped);
+      onClose();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Şəkil düzəldilə bilmədi.');
     } finally {
@@ -150,16 +162,26 @@ export default function ProfilePhotoEditorModal({
     }
   };
 
-  if (!open || !file || !previewUrl) return null;
+  if (!open || !file || !previewUrl || !portalTarget) return null;
 
   const displayW = imageSize.w * scale;
   const displayH = imageSize.h * scale;
   const frameLeft = (VIEW_W - frame.w) / 2;
   const frameTop = (viewH - frame.h) / 2;
 
-  return (
-    <div className={profileStyles.photoEditorOverlay} onClick={onClose} role="dialog" aria-modal="true">
-      <div className={profileStyles.photoEditorSheet} onClick={(e) => e.stopPropagation()}>
+  return createPortal(
+    <div
+      className={profileStyles.photoEditorOverlay}
+      onClick={handleClose}
+      onPointerDown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className={profileStyles.photoEditorSheet}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <div className={profileStyles.photoEditorHeader}>
           <h3>
             {kind === 'avatar'
@@ -168,7 +190,7 @@ export default function ProfilePhotoEditorModal({
                 ? '🏴 Bayraq şəkli düzəlt'
                 : '🖼️ Qapaq şəkli düzəlt'}
           </h3>
-          <button type="button" className={profileStyles.photoEditorClose} onClick={onClose} aria-label="Bağla">✕</button>
+          <button type="button" className={profileStyles.photoEditorClose} onClick={handleClose} disabled={busy} aria-label="Bağla">✕</button>
         </div>
 
         <p className={profileStyles.photoEditorHint}>Sürüşdür · Yaxınlaşdır · Kəs · Saxla</p>
@@ -222,14 +244,15 @@ export default function ProfilePhotoEditorModal({
         </div>
 
         <div className={profileStyles.photoEditorActions}>
-          <button type="button" className={profileStyles.photoEditorCancel} onClick={onClose} disabled={busy}>
+          <button type="button" className={profileStyles.photoEditorCancel} onClick={handleClose} disabled={busy}>
             Ləğv et
           </button>
           <button type="button" className={profileStyles.photoEditorSave} onClick={() => void handleConfirm()} disabled={busy}>
-            {busy ? 'Saxlanır...' : 'Saxla'}
+            {busy ? 'Saxlanır...' : 'Şəkli qoy'}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    portalTarget
   );
 }

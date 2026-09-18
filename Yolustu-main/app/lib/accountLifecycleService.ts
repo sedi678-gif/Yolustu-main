@@ -103,6 +103,7 @@ export function clearLocalAccountSession() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem('app_current_user_v6');
   localStorage.removeItem('app_user_alliance_name');
+  localStorage.removeItem('app_user_alliance_fortress_level');
   notifyUserIdChanged();
 }
 

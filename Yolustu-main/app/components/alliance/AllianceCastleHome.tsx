@@ -1,35 +1,23 @@
 "use client";
 
-import React, { useRef } from 'react';
+import React from 'react';
 import { useAllianceBrain } from './AllianceBrainContext';
-import CastlePeasantPatrol from './CastlePeasantPatrol';
+import { useAllianceHubBgSrc } from './useAllianceHubBg';
 import styles from './alliance.module.css';
 
-const CASTLE_BG_PORTRAIT = '/images/alliance-castle-live.png';
-const CASTLE_BG_LANDSCAPE = '/images/alliance-castle-hub-main.png';
-
 export default function AllianceCastleHome() {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
   const { hubVisuals } = useAllianceBrain();
+  const src = useAllianceHubBgSrc();
 
   return (
     <div
-      ref={wrapRef}
       className={styles.castlePixiWrap}
-      aria-label={`${hubVisuals.allianceName} qala`}
+      style={src ? { backgroundImage: `url('${src}')` } : undefined}
+      aria-label={`${hubVisuals.allianceName} qala · Lv.${hubVisuals.fortressLevel}`}
     >
-      <picture>
-        <source media="(orientation: landscape)" srcSet={CASTLE_BG_LANDSCAPE} />
-        <img
-          ref={imgRef}
-          src={CASTLE_BG_PORTRAIT}
-          alt=""
-          className={styles.castleStaticImg}
-          draggable={false}
-        />
-      </picture>
-      <CastlePeasantPatrol containerRef={wrapRef} imageRef={imgRef} />
+      {src ? (
+        <img src={src} alt="" className={styles.castleStaticImg} draggable={false} />
+      ) : null}
     </div>
   );
 }

@@ -9,6 +9,7 @@ interface AllianceMapSheetProps {
   title: string;
   icon?: React.ReactNode;
   variant?: 'default' | 'neon';
+  wide?: boolean;
   children: React.ReactNode;
 }
 
@@ -18,6 +19,7 @@ export default function AllianceMapSheet({
   title,
   icon,
   variant = 'default',
+  wide = false,
   children,
 }: AllianceMapSheetProps) {
   useEffect(() => {
@@ -34,7 +36,7 @@ export default function AllianceMapSheet({
   return (
     <div className={styles.mapSheetOverlay} onClick={onClose} role="presentation">
       <div
-        className={`${styles.mapSheetPage} ${variant === 'neon' ? styles.mapSheetNeon : styles.glass}`}
+        className={`${styles.mapSheetPage} ${wide ? styles.mapSheetWide : ''} ${variant === 'neon' ? styles.mapSheetNeon : styles.glass}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

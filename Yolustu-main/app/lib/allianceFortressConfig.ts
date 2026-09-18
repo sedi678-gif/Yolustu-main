@@ -33,10 +33,58 @@ export const FORTRESS_SHOP_PRODUCTS: FortressShopProduct[] = [
 ];
 
 const FORTRESS_IMAGE_BASE = '/images/alliance-fortress';
+const FORTRESS_HUB_IMAGE_BASE = '/images/alliance-hub';
 
 export function getFortressMarkerUrl(level: number): string {
   const safe = Math.min(6, Math.max(1, Math.floor(level))) as AllianceFortressLevel;
   return `${FORTRESS_IMAGE_BASE}/fortress-level-${safe}.png?v=7`;
+}
+
+/** İttifaq səhifəsinin arxa fonu — qala səviyyəsinə görə */
+export function getFortressHubBgUrl(level: number): string {
+  const safe = normalizeFortressLevel(level);
+  return `${FORTRESS_HUB_IMAGE_BASE}/hub-level-${safe}.jpg`;
+}
+
+const FORTRESS_LEVEL_STORAGE_KEY = 'app_user_alliance_fortress_level';
+
+export function readCachedFortressLevel(): AllianceFortressLevel | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(FORTRESS_LEVEL_STORAGE_KEY);
+    if (raw == null || raw === '') return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 1) return null;
+    return normalizeFortressLevel(n);
+  } catch {
+    return null;
+  }
+}
+
+export function writeCachedFortressLevel(level: number | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (level == null) {
+      localStorage.removeItem(FORTRESS_LEVEL_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(FORTRESS_LEVEL_STORAGE_KEY, String(normalizeFortressLevel(level)));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Firebase gələnə qədər Lv.1 göstərmə — keş və ya heç nə. */
+export function resolveAllianceHubLevel(options: {
+  alliancesReady: boolean;
+  hasAlliance: boolean;
+  fortressLevel?: number | null;
+}): AllianceFortressLevel | null {
+  if (options.alliancesReady) {
+    if (!options.hasAlliance) return 1;
+    return normalizeFortressLevel(options.fortressLevel);
+  }
+  return readCachedFortressLevel();
 }
 
 export function normalizeFortressLevel(raw: unknown): AllianceFortressLevel {

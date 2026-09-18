@@ -34,13 +34,38 @@ export interface AllianceData {
   fortressPurchasedAt?: number;
 }
 
+export type AllianceFlagPattern =
+  | 'solid'
+  | 'stripes-h'
+  | 'stripes-v'
+  | 'diagonal'
+  | 'cross'
+  | 'saltire'
+  | 'chevron'
+  | 'canton'
+  | 'border'
+  | 'tricolor-h'
+  | 'tricolor-v'
+  | 'checkered'
+  | 'sunburst'
+  | 'gradient'
+  | 'split-h'
+  | 'split-v'
+  | 'triangle'
+  | 'fess'
+  | 'pale';
+
+export type AllianceFlagShape = 'rect' | 'swallowtail' | 'banner' | 'shield';
+
 export interface AllianceFlagConfig {
   backgroundColor: string;
   accentColor: string;
   emblem: string;
-  pattern: 'solid' | 'stripes-h' | 'stripes-v' | 'diagonal';
+  pattern: AllianceFlagPattern;
   imageUrl?: string;
   imageUpdatedAt?: number;
+  thirdColor?: string;
+  shape?: AllianceFlagShape;
 }
 
 export type BattleCardId =

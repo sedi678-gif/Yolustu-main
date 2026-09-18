@@ -15,7 +15,7 @@ import BattleCardArt from './BattleCardArt';
 import AllianceMapRoundBtn from './AllianceMapRoundBtn';
 
 import AllianceMapSheet from './AllianceMapSheet';
-import { IconMapArmy } from './AllianceMapIcons';
+import { IconMapCards } from './AllianceMapIcons';
 
 import styles from './alliance.module.css';
 
@@ -35,7 +35,7 @@ export function AllianceMapOrduCardsContent({ sheetMode = false }: { sheetMode?:
 
   const { activeAlliance, players, battleCards, battleCardTotal } = useAllianceBrain();
 
-  const [tab, setTab] = useState<'ordu' | 'cards'>('ordu');
+  const [tab, setTab] = useState<'ordu' | 'cards'>('cards');
 
 
 
@@ -227,15 +227,15 @@ export default function AllianceMapOrduCards({ variant = 'inline' }: AllianceMap
 
         <AllianceMapRoundBtn
 
-          icon={<IconMapArmy />}
+          icon={<IconMapCards />}
 
-          label="Ordu"
+          label="Kartlar"
 
           onClick={() => setSheetOpen(true)}
 
           disabled={!activeAlliance}
 
-          title={!activeAlliance ? 'Ordu üçün ittifaqda olmalısan' : 'Ordu və kartlar'}
+          title={!activeAlliance ? 'Kartlar üçün ittifaqda olmalısan' : 'Kartlar'}
 
           active={sheetOpen}
 
@@ -247,9 +247,9 @@ export default function AllianceMapOrduCards({ variant = 'inline' }: AllianceMap
 
           onClose={() => setSheetOpen(false)}
 
-          title="Ordu və kartlar"
+          title="Kartlar"
 
-          icon={<IconMapArmy />}
+          icon={<IconMapCards />}
 
         >
 

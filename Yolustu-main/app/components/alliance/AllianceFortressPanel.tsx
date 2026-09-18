@@ -6,6 +6,7 @@ import { useAllianceBrain } from './AllianceBrainContext';
 import {
   FORTRESS_UPGRADE_REQUIRED_MS,
   formatFortressProgress,
+  getFortressHubBgUrl,
 } from '@/app/lib/allianceFortressConfig';
 import { evaluateFortressEligibility } from '@/app/lib/allianceFortressService';
 import AllianceMapSheet from './AllianceMapSheet';
@@ -61,10 +62,10 @@ export default function AllianceFortressPanel({ open, onClose }: AllianceFortres
       <div className={styles.fortressPanel}>
         <div className={styles.fortressPreviewRow}>
           <img
-            src={fortressHub.markerUrl}
+            src={getFortressHubBgUrl(fortressHub.level)}
             alt=""
             className={styles.fortressPreviewImg}
-            width={96}
+            width={160}
           />
           <div>
             <p className={styles.fortressLevelTitle}>
