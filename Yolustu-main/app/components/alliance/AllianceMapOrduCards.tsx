@@ -10,7 +10,7 @@ import { useUser } from '@/context/UserContext';
 
 import { useAllianceBrain } from './AllianceBrainContext';
 
-import BattleCardArt from './BattleCardArt';
+import ModelCardsGrid from './ModelCardsGrid';
 
 import AllianceMapRoundBtn from './AllianceMapRoundBtn';
 
@@ -33,7 +33,7 @@ export function AllianceMapOrduCardsContent({ sheetMode = false }: { sheetMode?:
 
   const { userId } = useUser();
 
-  const { activeAlliance, players, battleCards, battleCardTotal } = useAllianceBrain();
+  const { activeAlliance, players, battleCardTotal } = useAllianceBrain();
 
   const [tab, setTab] = useState<'ordu' | 'cards'>('cards');
 
@@ -173,21 +173,7 @@ export function AllianceMapOrduCardsContent({ sheetMode = false }: { sheetMode?:
 
         <div className={`${styles.mapOrduCardsBody} ${sheetMode ? styles.mapOrduCardsBodySheet : ''}`}>
 
-          <div className={styles.mapCardsGrid}>
-
-            {battleCards.map((card) => (
-
-              <div key={card.id} className={styles.mapCardItem}>
-
-                <BattleCardArt id={card.id} size="thumb" count={card.count} />
-
-                <span className={styles.mapCardName}>{card.name}</span>
-
-              </div>
-
-            ))}
-
-          </div>
+          <ModelCardsGrid />
 
           {battleCardTotal === 0 && (
 

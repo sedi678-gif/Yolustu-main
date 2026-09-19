@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { AllianceData, BattleCard, PlayerProfile } from './types';
-import BattleCardArt from './BattleCardArt';
+import ModelCardsGrid from './ModelCardsGrid';
 import styles from './alliance.module.css';
 
 interface AllianceOrduCardsPanelProps {
@@ -116,14 +116,7 @@ export default function AllianceOrduCardsPanel({
             <p className={styles.orduPanelIntro}>
               Şəxsi döyüş kartların — mağazadan al, hücumda istifadə et.
             </p>
-            <div className={styles.battleCardsGrid}>
-              {battleCards.map((card) => (
-                <div key={card.id} className={styles.battleCardItem}>
-                  <BattleCardArt id={card.id} size="md" count={card.count} />
-                  <div className={styles.battleCardName}>{card.name}</div>
-                </div>
-              ))}
-            </div>
+            <ModelCardsGrid />
             <div className={styles.battleCardsTotal}>
               Cəmi kart: <strong>{cardTotal}</strong>
             </div>
