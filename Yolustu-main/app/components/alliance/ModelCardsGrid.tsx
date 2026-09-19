@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   MODEL_CARD_DEFS,
   ModelCardDef,
-  modelCardImageCandidates,
-  modelCardInfoUrl,
-  modelCardPublicUrl,
+  modelCardImageUrl,
+  modelCardInfoUrls,
   parseModelCardInfo,
 } from './modelCardsCatalog';
 import styles from './alliance.module.css';
@@ -16,14 +15,13 @@ interface LoadedCard {
   def: ModelCardDef;
   title: string;
   body: string;
-  images: string[];
+  image: string;
 }
 
 function ModelCardFace({ card }: { card: LoadedCard }) {
-  const [index, setIndex] = useState(0);
-  const src = card.images[index];
+  const [failed, setFailed] = useState(false);
 
-  if (!src) {
+  if (failed) {
     return (
       <div className={styles.modelCardFallback} style={{ ['--card-accent' as string]: card.def.accent }}>
         <span className={styles.modelCardFallbackEmoji}>{card.def.emoji}</span>
@@ -33,11 +31,11 @@ function ModelCardFace({ card }: { card: LoadedCard }) {
 
   return (
     <img
-      src={src}
+      src={card.image}
       alt={card.title}
       className={styles.modelCardImg}
       loading="lazy"
-      onError={() => setIndex((i) => i + 1)}
+      onError={() => setFailed(true)}
     />
   );
 }
@@ -57,8 +55,6 @@ function ModelCardInfoModal({
 
   if (!target) return null;
 
-  const body = card.body.trim() || 'Bu kart üçün məlumat hələ yazılmayıb.';
-
   return createPortal(
     <div className={styles.modelCardInfoOverlay} onClick={onClose} role="presentation">
       <div
@@ -74,47 +70,45 @@ function ModelCardInfoModal({
             ✕
           </button>
         </div>
-        <p className={styles.modelCardInfoBody}>{body}</p>
+        <p className={styles.modelCardInfoBody}>{card.body}</p>
       </div>
     </div>,
     target
   );
 }
 
+function toLoadedCard(def: ModelCardDef, body = def.info): LoadedCard {
+  return {
+    def,
+    title: def.title,
+    body: body.trim() || def.info,
+    image: modelCardImageUrl(def),
+  };
+}
+
 export default function ModelCardsGrid() {
-  const [cards, setCards] = useState<LoadedCard[]>([]);
-  const [infoCard, setInfoCard] = useState<LoadedCard | null>(null);
+  const baseCards = useMemo(() => MODEL_CARD_DEFS.map((def) => toLoadedCard(def)), []);
+  const [cards, setCards] = useState<LoadedCard[]>(baseCards);
+  const [infoId, setInfoId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     void Promise.all(
       MODEL_CARD_DEFS.map(async (def) => {
-        let title = def.title;
-        let body = '';
-        let extraImage: string | undefined;
-        try {
-          const res = await fetch(modelCardInfoUrl(def.folder), { cache: 'no-store' });
-          if (res.ok) {
+        for (const url of modelCardInfoUrls(def)) {
+          try {
+            const res = await fetch(url, { cache: 'no-store' });
+            if (!res.ok) continue;
             const parsed = parseModelCardInfo(await res.text());
-            if (parsed.title) title = parsed.title;
-            body = parsed.body;
-            extraImage = parsed.image;
+            if (parsed.body) {
+              return toLoadedCard(def, parsed.body);
+            }
+          } catch {
+            /* növbəti info yolunu yoxla */
           }
-        } catch {
-          /* info.json oxunmasa fallback başlıq qalır */
         }
-
-        const images = [
-          extraImage
-            ? extraImage.startsWith('/')
-              ? extraImage
-              : modelCardPublicUrl(def.imageFolder, extraImage)
-            : '',
-          ...modelCardImageCandidates(def),
-        ].filter(Boolean);
-
-        return { def, title, body, images };
+        return toLoadedCard(def);
       })
     ).then((loaded) => {
       if (!cancelled) setCards(loaded);
@@ -125,24 +119,19 @@ export default function ModelCardsGrid() {
     };
   }, []);
 
-  const list = cards.length > 0 ? cards : MODEL_CARD_DEFS.map((def) => ({
-    def,
-    title: def.title,
-    body: '',
-    images: modelCardImageCandidates(def),
-  }));
+  const infoCard = infoId ? cards.find((card) => card.def.id === infoId) ?? null : null;
 
   return (
     <>
       <div className={styles.mapCardsGrid}>
-        {list.map((card) => (
+        {cards.map((card) => (
           <div key={card.def.id} className={styles.mapCardItem}>
             <div className={styles.modelCardArtWrap}>
               <ModelCardFace card={card} />
               <button
                 type="button"
                 className={styles.modelCardInfoBtn}
-                onClick={() => setInfoCard(card)}
+                onClick={() => setInfoId(card.def.id)}
                 title={`${card.title} məlumatı`}
                 aria-label={`${card.title} məlumatı`}
               >
@@ -153,7 +142,7 @@ export default function ModelCardsGrid() {
           </div>
         ))}
       </div>
-      {infoCard ? <ModelCardInfoModal card={infoCard} onClose={() => setInfoCard(null)} /> : null}
+      {infoCard ? <ModelCardInfoModal card={infoCard} onClose={() => setInfoId(null)} /> : null}
     </>
   );
 }

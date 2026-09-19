@@ -6,57 +6,161 @@ export interface ModelCardDef {
   title: string;
   emoji: string;
   accent: string;
+  info: string;
 }
 
-/** public/models: `karti` = info.json, `kartı` = şəkil */
+/** public/models: `karti` = info, `kartı` = şəkil. Yalnız bu 13 kart göstərilir. */
 export const MODEL_CARD_DEFS: ModelCardDef[] = [
-  { id: '2x', folder: '2X karti', imageFolder: '2X kartı', imageFile: '2x kartı.jpeg', title: '2X Kartı', emoji: '✖️', accent: '#f59e0b' },
-  { id: 'casus', folder: 'casus karti', imageFolder: 'casus kartı', imageFile: 'casus kartı.jpeg', title: 'Cəsus Kartı', emoji: '🕵️', accent: '#64748b' },
-  { id: 'duman', folder: 'duman karti', imageFolder: 'duman kartı', imageFile: 'duman kartı.jpeg', title: 'Duman Kartı', emoji: '🌫️', accent: '#94a3b8' },
-  { id: 'guzgu', folder: 'Güzgə karti', imageFolder: 'Güzgü kartı', imageFile: 'güzgü.jpeg', title: 'Güzgü Kartı', emoji: '🪞', accent: '#67e8f9' },
-  { id: 'joker', folder: 'Joker karti', imageFolder: 'Joker kartı', imageFile: 'Joker.jpeg', title: 'Joker Kartı', emoji: '🃏', accent: '#a855f7' },
-  { id: 'ogru', folder: 'ogru karti', imageFolder: 'oğru kartı', imageFile: 'oğru kartı.jpeg', title: 'Oğru Kartı', emoji: '🥷', accent: '#334155' },
-  { id: 'qaya', folder: 'qaya (das karti)', imageFolder: 'qaya (daş kartı)', imageFile: 'qaya (daş adam) kartı.jpeg', title: 'Qaya Kartı', emoji: '🪨', accent: '#78716c' },
-  { id: 'qul', folder: 'qul eden karti (zəncirlənmə)', imageFolder: 'qul eden kartı (zəncirlənmə)', imageFile: 'qul edən kartı (zəncirlənmə kartı).jpeg', title: 'Qul Edən Kartı', emoji: '⛓️', accent: '#b45309' },
-  { id: 'qutb', folder: 'qütblərin seçimi karti (od və buz)', imageFolder: 'qütblərin seçimi kartı (od və buz)', imageFile: 'qütblərin seçimi (od və buz).jpeg', title: 'Qütblərin Seçimi', emoji: '🔥', accent: '#ef4444' },
-  { id: 'sehrbaz', folder: 'sehrbaz karti', imageFolder: 'sehrbaz kartı', imageFile: 'sehrbaz kartı.jpeg', title: 'Sehrbaz Kartı', emoji: '🧙', accent: '#6366f1' },
-  { id: 'tikanli', folder: 'tikanli məftil karti', imageFolder: 'tikanlı məftil kartı', imageFile: 'tikanlı məftil kartı.jpeg', title: 'Tikanlı Məftil', emoji: '🪢', accent: '#ca8a04' },
-  { id: 'felaket', folder: 'Təbii fəlakətlər karti', imageFolder: 'Təbii fəlakətlər kartı', imageFile: 'təbii fəlakətlər.jpeg', title: 'Təbii Fəlakətlər', emoji: '🌊', accent: '#0ea5e9' },
-  { id: 'usyan', folder: 'üsyan karti', imageFolder: 'üsyan kartı', imageFile: 'üsyan kartı.jpeg', title: 'Üsyan Kartı', emoji: '⚔️', accent: '#dc2626' },
+  {
+    id: '2x',
+    folder: '2X karti',
+    imageFolder: '2X kartı',
+    imageFile: '2x kartı.jpeg',
+    title: '2X Kartı',
+    emoji: '✖️',
+    accent: '#f59e0b',
+    info: '2X Kartı\nBu kart istifadə olunduğu zaman qazanılan xalların miqdarını iki dəfə (2x) artırmaq üçün nəzərdə tutulub.',
+  },
+  {
+    id: 'casus',
+    folder: 'casus karti',
+    imageFolder: 'casus kartı',
+    imageFile: 'casus kartı.jpeg',
+    title: 'Cəsus Kartı',
+    emoji: '🕵️',
+    accent: '#64748b',
+    info: 'Cəsus Kartı\nBu kart rəqib ittifaq barədə kəşfiyyat aparmaq üçün nəzərdə tutulub.\n🕵️‍♂️ Əsas Təsir: Atıldığı zaman rəqib ittifaqın onlayn istifadəçilərini göstərir. Döyüş zamanı isə rəqibin seçdiyi 5 kartdan 3 dənəsini görməyə imkan verir. (Qeyd: Duman kartı istisnadır, cəsus kartı onu heç bir halda görə bilməz).',
+  },
+  {
+    id: 'duman',
+    folder: 'duman karti',
+    imageFolder: 'duman kartı',
+    imageFile: 'duman kartı.jpeg',
+    title: 'Duman Kartı',
+    emoji: '🌫️',
+    accent: '#94a3b8',
+    info: 'Duman Kartı\nBu kart özündən sonra atılan istənilən növbəti kartı dumanla örtərək gizlətmək üçün nəzərdə tutulub.\n🌫️ Əsas Təsir: Atıldıqdan sonra növbəti kartı gizlədir və rəqib həmin kartın nə olduğunu görə bilmir. Əgər gizlədilən kart klik tələb edən və rəqib ittifaqa bildiriş göndərilməli olan bir kartdırsa, duman səbəbindən hədəf ittifaqa heç bir bildiriş getmir.',
+  },
+  {
+    id: 'guzgu',
+    folder: 'Güzgə karti',
+    imageFolder: 'Güzgü kartı',
+    imageFile: 'güzgü.jpeg',
+    title: 'Güzgü Kartı',
+    emoji: '🪞',
+    accent: '#67e8f9',
+    info: 'Güzgü Kartı (Əks-Etdirmə)\nBu kart rəqib tərəfindən sənə tətbiq edilən hücum kartını tamamilə əksinə çevirərək sahibinə üstünlük qazandıran unikal əks-hücum mexanizmidir.\n✨ Əsas Təsir: Rəqibin sənə atdığı kartın təsiri (məsələn, xal oğurluğu və ya zərər) güzgü effekti ilə geri qaytarılır. Rəqib sənə ziyan vurmaq əvəzinə, həmin təsirin əksini özü yaşayır.\n💡 Qeyd: Xalların ittifaqdakı istifadəçi sayına uyğun olaraq hesablanması kiçik klanların böyük klanlar qarşısında əzilməməsi üçündür. Mexanika tam ədalətli balans üzərində qurulub.',
+  },
+  {
+    id: 'joker',
+    folder: 'Joker karti',
+    imageFolder: 'Joker kartı',
+    imageFile: 'Joker.jpeg',
+    title: 'Joker Kartı',
+    emoji: '🃏',
+    accent: '#a855f7',
+    info: 'Joker Kartı\nBu kart oyundakı istənilən digər kartı təqlid etmək və onun funksiyalarını yerinə yetirmək üçün nəzərdə tutulub. Atıldığı zaman təsadüfi bir kartın rolunu üzərinə götürür.',
+  },
+  {
+    id: 'ogru',
+    folder: 'ogru karti',
+    imageFolder: 'oğru kartı',
+    imageFile: 'oğru kartı.jpeg',
+    title: 'Oğru Kartı',
+    emoji: '🥷',
+    accent: '#334155',
+    info: 'Oğru Kartı\nBu kart rəqib ittifaqdan xal oğurlamaq üçün nəzərdə tutulub.',
+  },
+  {
+    id: 'qaya',
+    folder: 'qaya (das karti)',
+    imageFolder: 'qaya (daş kartı)',
+    imageFile: 'qaya (daş adam) kartı.jpeg',
+    title: 'Qaya Kartı',
+    emoji: '🪨',
+    accent: '#78716c',
+    info: 'Qaya (Daş Adam) Kartı\nBu kart rəqibin sonuncu atdığı kartın funksiyalarını bloklamaq və əngəlləmək üçün nəzərdə tutulub (xüsusilə 2X və Güzgü kimi kartlara qarşı çox effektivdir).',
+  },
+  {
+    id: 'qul',
+    folder: 'qul eden karti (zəncirlənmə)',
+    imageFolder: 'qul eden kartı (zəncirlənmə)',
+    imageFile: 'qul edən kartı (zəncirlənmə kartı).jpeg',
+    title: 'Qul Edən Kartı',
+    emoji: '⛓️',
+    accent: '#b45309',
+    info: 'Qul Edən Kartı (Zəncirlənmə)\nBu kart düşmən ittifaqa atıldıqda hədəf tərəfə xüsusi bildiriş göndərilir. Əgər kartın təsiri vaxtında dayandırılmazsa, ittifaq ağır bədəl ödəyir.\n⚔️ Əsas Təsir: Kartın təsiri vaxtında söndürülməzsə, hədəf ittifaqın son bir saat ərzində ən çox xal qazandığı 10 dəqiqəlik pik dövrün bütün xalları (istifadəçi sayına uyğun olaraq qazanılan ümumi xal həcmi) silinərək hücum edən ittifaqa köçürülür.\nMüdafiə və Klik Mexanizmi:\nKartın təsirini ləğv etmək və xal itkisinin qarşısını almaq üçün ittifaq üzvləri vaxtında klikləməlidirlər:\nBöyük klanlar: 7 klik\nOrta klanlar: 5 klik\nKiçik klanlar: 3 klik\n💡 Qeyd: Xalların və tələb olunan klik sayının ittifaqdakı istifadəçi sayına uyğun tənzimlənməsi kiçik klanların böyük klanlar qarşısında əzilməməsi üçündür. Mexanika tam ədalətli balans üzərində qurulub.',
+  },
+  {
+    id: 'qutb',
+    folder: 'qütblərin seçimi karti (od və buz)',
+    imageFolder: 'qütblərin seçimi kartı (od və buz)',
+    imageFile: 'qütblərin seçimi (od və buz).jpeg',
+    title: 'Qütblərin Seçimi',
+    emoji: '🔥',
+    accent: '#ef4444',
+    info: 'Qütblərin Seçimi (Od və Buz)\nBu kartı düşmən ittifaqa atarkən iki təsir yolundan birini seçməlisən:\n❄️ Buz: Hücum olunan ittifaqın xal qazanması 10 dəqiqə müddətinə dondurulur.\n🔥 Od: İttifaqda yanğın başlayır. Ziyan istifadəçi sayına uyğun olaraq hesablanır (hər oyunçuya görə 50 xal, maksimum 2500 xal).\nYanğını Söndürmə Mexanizmi:\nYanğının qarşısını almaq üçün üzvlər vaxtında klikləməlidirlər:\nBöyük klanlar: 7 klik\nOrta klanlar: 5 klik\nKiçik klanlar: 3 klik\n💡 Qeyd: Xalların və tələb olunan klik sayının ittifaqdakı istifadəçi sayına uyğun tənzimlənməsi kiçik klanların böyük klanlar qarşısında əzilməməsi üçündür. Mexanika tam ədalətli balans üzərində qurulub.',
+  },
+  {
+    id: 'sehrbaz',
+    folder: 'sehrbaz karti',
+    imageFolder: 'sehrbaz kartı',
+    imageFile: 'sehrbaz kartı.jpeg',
+    title: 'Sehrbaz Kartı',
+    emoji: '🧙',
+    accent: '#6366f1',
+    info: 'Sehrbaz Kartı\nBu kart rəqib tərəfin əlindəki 5 kartdan birini təsadüfi olaraq başqa bir kartla dəyişdirmək üçün nəzərdə tutulub.',
+  },
+  {
+    id: 'tikanli',
+    folder: 'tikanli məftil karti',
+    imageFolder: 'tikanlı məftil kartı',
+    imageFile: 'tikanlı məftil kartı.jpeg',
+    title: 'Tikanlı Məftil',
+    emoji: '🪢',
+    accent: '#ca8a04',
+    info: 'Tikanlı Məftil Kartı\nBu kart rəqibin sonuncu istifadə etdiyi kartı 3 dəfə ard-arda təkrar etməyə məcbur edir və bu müddətdə rəqibin qazandığı xalların 50%-ni sənin ittifaqının hesabına köçürür.',
+  },
+  {
+    id: 'felaket',
+    folder: 'Təbii fəlakətlər karti',
+    imageFolder: 'Təbii fəlakətlər kartı',
+    imageFile: 'təbii fəlakətlər.jpeg',
+    title: 'Təbii Fəlakətlər',
+    emoji: '🌊',
+    accent: '#0ea5e9',
+    info: 'Təbii Fəlakətlər: Zəlzələ və Sunami\nBu kartı düşmən ittifaqa atarkən iki fəlakət növündən birini seçməlisən:\n🌊 Sunami: 5 saniyə ərzində kliklənib söndürülməzsə, hədəf ittifaqa ziyan vurur.\n⚡ Zəlzələ: 10 saniyə ərzində kliklənib söndürülməzsə, hədəf ittifaqa ziyan vurur.\nFəlakət Mexanikası və Zərər Hesabı:\nSunami Zərəri: Vurulan ziyan hədəf ittifaqın üzv sayına görə dəyişir (hər oyunçuya görə 30 xal, maksimum 1500 xal).\nZəlzələ Zərəri: Vurulan ziyan hədəf ittifaqın üzv sayına görə dəyişir (hər oyunçuya görə 70 xal, maksimum 3500 xal).\nMüdafiə və Klik Mexanizmi:\nFəlakətlərin qarşısını almaq üçün ittifaq üzvləri vaxtında klikləməlidirlər:\nBöyük klanlar: 7 klik\nOrta klanlar: 5 klik\nKiçik klanlar: 3 klik\n💡 Qeyd: Ziyanın miqdarı və tələb olunan klik sayının ittifaqdakı istifadəçi sayına uyğun tənzimlənməsi kiçik klanların böyük klanlar qarşısında əzilməməsi üçündür. Mexanika tam ədalətli balans üzərində qurulub.',
+  },
+  {
+    id: 'usyan',
+    folder: 'üsyan karti',
+    imageFolder: 'üsyan kartı',
+    imageFile: 'üsyan kartı.jpeg',
+    title: 'Üsyan Kartı',
+    emoji: '⚔️',
+    accent: '#dc2626',
+    info: 'Üsyan Kartı (Əks-Hücum)\nBu kart düşmən tərəfindən atılan "Qul edən" kartına qarşı öz ittifaqının içində qaldırılan üsyan və qisas mexanizmidir. Kart düşmənə deyil, birbaşa öz ittifaqına tətbiq edilir.\n🔥 Əsas Təsir: Üsyan uğurlu alınarsa, düşmən qul edən kartının əks təsiri işə düşür. 10 dəqiqə ərzində sənin ittifaqın rəqibin qazandığı ən pik xalın 2 qatını (2x) əldə edərək öz hesabına yazır.\nMüdafiə və Klik Mexanizmi (İkiqat Çətinlik):\nÜsyanı uğurla başa çatdırmaq və dəstəkləmək üçün ittifaq üzvləri normal tələbdən iki dəfə çox klikləməlidirlər:\nBöyük klanlar: 14 klik\nOrta klanlar: 10 klik\nKiçik klanlar: 6 klik\n💡 Qeyd: Xalların və tələb olunan klik sayının ittifaqdakı istifadəçi sayına uyğun tənzimlənməsi kiçik klanların böyük klanlar qarşısında əzilməməsi üçündür. Mexanika tam ədalətli balans üzərində qurulub.',
+  },
 ];
 
-const IMAGE_FILES = [
-  'card.png',
-  'card.jpg',
-  'card.webp',
-  'card.jpeg',
-  'preview.png',
-  'preview.jpg',
-  'preview.webp',
-  'image.png',
-  'image.jpg',
-  'kart.png',
-  'kart.jpg',
-  'cover.png',
-  'cover.jpg',
-];
+export const MODEL_CARD_COUNT = MODEL_CARD_DEFS.length;
 
 export function modelCardPublicUrl(folder: string, file: string): string {
   const encodedFolder = folder.split('/').map(encodeURIComponent).join('/');
   return `/models/${encodedFolder}/${encodeURIComponent(file)}`;
 }
 
-export function modelCardImageCandidates(def: ModelCardDef): string[] {
-  const named = [`${def.id}.png`, `${def.id}.jpg`, `${def.id}.jpeg`, `${def.id}.webp`];
-  const fromImageFolder = [def.imageFile, ...IMAGE_FILES, ...named].map((file) =>
-    modelCardPublicUrl(def.imageFolder, file)
-  );
-  const fromInfoFolder = [...IMAGE_FILES, ...named].map((file) => modelCardPublicUrl(def.folder, file));
-  return [...fromImageFolder, ...fromInfoFolder];
+export function modelCardImageUrl(def: ModelCardDef): string {
+  return modelCardPublicUrl(def.imageFolder, def.imageFile);
 }
 
-export function modelCardInfoUrl(folder: string): string {
-  return modelCardPublicUrl(folder, 'info.json');
+export function modelCardInfoUrls(def: ModelCardDef): string[] {
+  return [
+    modelCardPublicUrl(def.folder, 'info.json'),
+    modelCardPublicUrl(def.folder, 'info.js'),
+    modelCardPublicUrl(def.imageFolder, 'info.json'),
+    modelCardPublicUrl(def.imageFolder, 'info.js'),
+  ];
 }
 
 export interface ParsedModelCardInfo {

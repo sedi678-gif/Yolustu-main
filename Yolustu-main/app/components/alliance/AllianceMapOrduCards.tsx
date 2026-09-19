@@ -4,13 +4,12 @@
 
 import React, { useMemo, useState } from 'react';
 
-import Link from 'next/link';
-
 import { useUser } from '@/context/UserContext';
 
 import { useAllianceBrain } from './AllianceBrainContext';
 
 import ModelCardsGrid from './ModelCardsGrid';
+import { MODEL_CARD_COUNT } from './modelCardsCatalog';
 
 import AllianceMapRoundBtn from './AllianceMapRoundBtn';
 
@@ -33,7 +32,7 @@ export function AllianceMapOrduCardsContent({ sheetMode = false }: { sheetMode?:
 
   const { userId } = useUser();
 
-  const { activeAlliance, players, battleCardTotal } = useAllianceBrain();
+  const { activeAlliance, players } = useAllianceBrain();
 
   const [tab, setTab] = useState<'ordu' | 'cards'>('cards');
 
@@ -111,7 +110,7 @@ export function AllianceMapOrduCardsContent({ sheetMode = false }: { sheetMode?:
 
         >
 
-          🎴 Kartlar ({battleCardTotal})
+          🎴 Kartlar ({MODEL_CARD_COUNT})
 
         </button>
 
@@ -174,16 +173,6 @@ export function AllianceMapOrduCardsContent({ sheetMode = false }: { sheetMode?:
         <div className={`${styles.mapOrduCardsBody} ${sheetMode ? styles.mapOrduCardsBodySheet : ''}`}>
 
           <ModelCardsGrid />
-
-          {battleCardTotal === 0 && (
-
-            <Link href="/shop" className={styles.mapCardsShopLink}>
-
-              🛒 Mağazadan kart al
-
-            </Link>
-
-          )}
 
         </div>
 
