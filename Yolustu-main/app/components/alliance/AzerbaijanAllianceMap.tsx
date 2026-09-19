@@ -35,8 +35,14 @@ export default function AzerbaijanAllianceMap({
   activeAlliance,
   active = true,
 }: AzerbaijanAllianceMapProps) {
-  const { attackTargetId, focusAllianceId, setFocusAllianceId, liveBattleAttacks, userId } =
-    useAllianceBrain();
+  const {
+    attackTargetId,
+    focusAllianceId,
+    setFocusAllianceId,
+    liveBattleAttacks,
+    userId,
+    notifyAllianceInfoViewed,
+  } = useAllianceBrain();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<Record<string, LeafletMarker>>({});
@@ -294,12 +300,15 @@ export default function AzerbaijanAllianceMap({
             isUnderSiege ? '<br><span style="color:#ef4444;font-weight:700">⚔️ Hücum altında!</span>' : ''
           }</div>`
         );
+        marker.on('popupopen', () => {
+          notifyAllianceInfoViewed(item);
+        });
 
         markersRef.current[item.id] = marker;
       });
       applyCastleZoomToMap(map.getContainer(), map.getZoom());
     });
-  }, [mapAlliances, activeAlliance, attackTargetId, liveSiegeIds, mapReady]);
+  }, [mapAlliances, activeAlliance, attackTargetId, liveSiegeIds, mapReady, notifyAllianceInfoViewed]);
 
   return (
     <div className={styles.allianceMapShell}>

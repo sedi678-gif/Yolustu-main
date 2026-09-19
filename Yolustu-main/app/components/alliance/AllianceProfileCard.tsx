@@ -88,6 +88,7 @@ function AllianceProfileCardInner({ title = 'İTTİFAQ (ALLIANCE)' }: AlliancePr
     handleCreateAlliance,
     handleJoinAlliance,
     handleLeaveAlliance,
+    notifyAllianceInfoViewed,
   } = useAllianceBrain();
 
   const [mode, setMode] = useState<'none' | 'create' | 'join'>('none');
@@ -224,11 +225,18 @@ function AllianceProfileCardInner({ title = 'İTTİFAQ (ALLIANCE)' }: AlliancePr
                 <span style={{ fontSize: '12px', color: '#64748b' }}>Nəticə yoxdur.</span>
               ) : (
                 joinCandidates.map((item) => (
-                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <div>
+                  <div
+                    key={item.id}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => notifyAllianceInfoViewed(item)}
+                      style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+                    >
                       <div style={{ fontSize: '12px', fontWeight: 800 }}>{item.name}</div>
                       <div style={{ fontSize: '10px', color: '#64748b' }}>📍 {item.region}</div>
-                    </div>
+                    </button>
                     <button type="button" style={{ ...primaryBtn, flex: 'none', padding: '6px 12px', fontSize: '11px' }} onClick={() => handleJoin(item.id)}>
                       Qoşul
                     </button>

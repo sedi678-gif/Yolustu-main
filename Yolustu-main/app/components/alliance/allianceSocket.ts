@@ -24,7 +24,8 @@ export function emitAllianceHubEvent(
     | 'chat_message'
     | 'cards_updated'
     | 'fortress_updated'
-    | 'ad_xp_reward',
+    | 'ad_xp_reward'
+    | 'alliance_info_viewed',
   payload: Record<string, unknown>
 ) {
   const s = getAllianceSocket();

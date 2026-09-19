@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { AllianceData } from './types';
+import { useAllianceBrain } from './AllianceBrainContext';
 import styles from './alliance.module.css';
 
 interface AllianceSearchModalProps {
@@ -25,6 +26,7 @@ export default function AllianceSearchModal({
 }: AllianceSearchModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [regionFilter, setRegionFilter] = useState('Hamısı');
+  const { notifyAllianceInfoViewed } = useAllianceBrain();
 
   if (!open) return null;
 
@@ -35,6 +37,7 @@ export default function AllianceSearchModal({
   });
 
   const handleSelect = (item: AllianceData) => {
+    notifyAllianceInfoViewed(item);
     onSelectAlliance(item);
   };
 

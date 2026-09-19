@@ -54,6 +54,7 @@ import { connectAppSocket, isAppSocketConnected, rejoinAppSocketRoom } from '@/a
 import { getAppUserId } from '@/app/lib/userId';
 import { emitChatMessage, onChatMessage, onChatError, onUserStatusChange } from '@/app/lib/messageSocketService';
 import type { StoredMessage } from '@/app/lib/messageService';
+import { notifyAllianceInfoViewed as persistAllianceInfoView } from '@/app/lib/allianceViewNotifyService';
 
 interface AllianceBrainContextValue {
   userId: string;
@@ -91,6 +92,8 @@ interface AllianceBrainContextValue {
   liveBattleAttacks: AllianceAttack[];
   registerBattleAttack: (attack: AllianceAttack) => void;
   alliancesReady: boolean;
+  notifyAllianceInfoViewed: (alliance: Pick<AllianceData, 'id' | 'name' | 'members' | 'leaderId'>) => void;
+  allianceNotifyToast: string | null;
 }
 
 const AllianceBrainContext = createContext<AllianceBrainContextValue | null>(null);
@@ -116,6 +119,7 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
   const [liveBattleAttacks, setLiveBattleAttacks] = useState<AllianceAttack[]>([]);
   const [realtimeHub, setRealtimeHub] = useState<RealtimeHubState>(EMPTY_REALTIME_HUB);
   const [alliancesReady, setAlliancesReady] = useState(false);
+  const [allianceNotifyToast, setAllianceNotifyToast] = useState<string | null>(null);
 
   const privateMessageListenersRef = useRef(new Set<(message: StoredMessage) => void>());
 
@@ -236,6 +240,41 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     });
     return () => unsub();
   }, [activeAlliance?.id, activeAlliance?.name]);
+
+  useEffect(() => {
+    if (!activeAlliance?.id) return;
+
+    const allianceId = activeAlliance.id;
+    let primed = false;
+    const unsub = onSnapshot(query(collection(db, 'alliance_notifications')), (snapshot) => {
+      if (!primed) {
+        primed = true;
+        return;
+      }
+      snapshot.docChanges().forEach((change) => {
+        if (change.type !== 'added') return;
+        const data = change.doc.data() as {
+          allianceId?: string;
+          viewerId?: string;
+          kind?: string;
+          text?: string;
+          createdAt?: number;
+        };
+        if (data.kind !== 'info_viewed') return;
+        if (data.allianceId !== allianceId) return;
+        if (data.viewerId === userId) return;
+        if (data.createdAt && Date.now() - data.createdAt > 20_000) return;
+        setAllianceNotifyToast(data.text || '👁 Kimsə ittifaqınızın məlumatlarına baxdı');
+      });
+    });
+    return () => unsub();
+  }, [activeAlliance?.id, userId]);
+
+  useEffect(() => {
+    if (!allianceNotifyToast) return;
+    const timer = window.setTimeout(() => setAllianceNotifyToast(null), 4200);
+    return () => window.clearTimeout(timer);
+  }, [allianceNotifyToast]);
 
   // Socket.IO: mərkəzi beyin sinxronizasiyası
   useEffect(() => {
@@ -544,6 +583,31 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     [activeAlliance, userId, userName, firebaseUid, myProfile?.isLeader]
   );
 
+  const notifyAllianceInfoViewed = useCallback(
+    (alliance: Pick<AllianceData, 'id' | 'name' | 'members' | 'leaderId'>) => {
+      void persistAllianceInfoView({
+        allianceId: alliance.id,
+        allianceName: alliance.name,
+        members: alliance.members,
+        leaderId: alliance.leaderId,
+        viewerId: userId,
+        viewerName: userName,
+        viewerAllianceId: activeAlliance?.id,
+        viewerAllianceName: activeAlliance?.name,
+      })
+        .then((sent) => {
+          if (sent) {
+            emitAllianceHubEvent('alliance_info_viewed', {
+              allianceId: alliance.id,
+              viewerId: userId,
+            });
+          }
+        })
+        .catch(() => {});
+    },
+    [userId, userName, activeAlliance?.id, activeAlliance?.name]
+  );
+
   const handleAdXpReward = useCallback(async () => {
     await addPlayerScore(userId, 500);
     emitAllianceHubEvent('ad_xp_reward', { userId, amount: 500 });
@@ -596,6 +660,8 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     liveBattleAttacks,
     registerBattleAttack,
     alliancesReady,
+    notifyAllianceInfoViewed,
+    allianceNotifyToast,
   };
 
   return (

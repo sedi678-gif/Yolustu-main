@@ -24,6 +24,7 @@ import {
   type AllianceAttack,
 } from '@/app/lib/allianceBattleService';
 import { withAllianceMapCoords } from './regionCoords';
+import { useAllianceBrain } from './AllianceBrainContext';
 import styles from './alliance.module.css';
 export interface AllianceMapHandle {
   flyToAlliance: (alliance: AllianceData) => void;
@@ -68,6 +69,7 @@ const AllianceMap = forwardRef<AllianceMapHandle, AllianceMapProps>(function All
   const [viewMode, setViewMode] = useState<MapViewMode>('country');
   const [liveSiegeIds, setLiveSiegeIds] = useState<Set<string>>(() => new Set());
 
+  const { notifyAllianceInfoViewed } = useAllianceBrain();
   const mapAlliances = useMemo(() => withAllianceMapCoords(alliances), [alliances]);
 
   useImperativeHandle(ref, () => ({
@@ -305,10 +307,13 @@ const AllianceMap = forwardRef<AllianceMapHandle, AllianceMapProps>(function All
         marker.bindPopup(
           `<div style="min-width:140px"><b>🏰 ${item.name}</b><br>📍 ${item.region}<br>👑 ${item.leader}<br>⭐ ${item.score || 50} xal${isUnderSiege ? '<br><span style="color:#ef4444;font-weight:700">⚔️ Hücum altında!</span>' : ''}</div>`
         );
+        marker.on('popupopen', () => {
+          notifyAllianceInfoViewed(item);
+        });
         markersRef.current[item.id] = marker;
       });
     });
-  }, [mapAlliances, activeAlliance, highlightedAllianceId, attackTargetId, underAttackId, liveSiegeIds, mapReady, viewMode]);
+  }, [mapAlliances, activeAlliance, highlightedAllianceId, attackTargetId, underAttackId, liveSiegeIds, mapReady, viewMode, notifyAllianceInfoViewed]);
 
   useEffect(() => {
     if (!flyToTarget?.lat || !flyToTarget?.lng || !mapReady) return;

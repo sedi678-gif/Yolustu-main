@@ -25,6 +25,7 @@ interface RankTableContentProps {
   userRankLabel: string;
   emptyMessage?: string;
   sheetMode?: boolean;
+  onRowClick?: (row: RankRow) => void;
 }
 
 export function RankTableContent({
@@ -33,6 +34,7 @@ export function RankTableContent({
   userRankLabel,
   emptyMessage = 'Hələ məlumat yoxdur.',
   sheetMode = false,
+  onRowClick,
 }: RankTableContentProps) {
   const top100 = rows.slice(0, 100);
 
@@ -45,7 +47,20 @@ export function RankTableContent({
           top100.map((row) => (
             <div
               key={`${row.id}-${row.rank}`}
-              className={`${styles.rankTableRow} ${row.rank <= 3 ? styles.rankTableRowTop : ''} ${userRankRow?.id === row.id ? styles.rankTableRowMe : ''}`}
+              className={`${styles.rankTableRow} ${row.rank <= 3 ? styles.rankTableRowTop : ''} ${userRankRow?.id === row.id ? styles.rankTableRowMe : ''} ${onRowClick ? styles.rankTableRowClickable : ''}`}
+              role={onRowClick ? 'button' : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onRowClick(row);
+                      }
+                    }
+                  : undefined
+              }
             >
               <span className={styles.rankTableRank}>#{row.rank}</span>
               <div className={styles.rankTableInfo}>
@@ -91,6 +106,7 @@ interface CollapsibleRankTableProps {
   emptyMessage?: string;
   defaultOpen?: boolean;
   variant?: 'inline' | 'sheet';
+  onRowClick?: (row: RankRow) => void;
 }
 
 function CollapsibleRankTable({
@@ -103,6 +119,7 @@ function CollapsibleRankTable({
   emptyMessage = 'Hələ məlumat yoxdur.',
   defaultOpen = false,
   variant = 'inline',
+  onRowClick,
 }: CollapsibleRankTableProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -128,6 +145,7 @@ function CollapsibleRankTable({
             userRankLabel={userRankLabel}
             emptyMessage={emptyMessage}
             sheetMode
+            onRowClick={onRowClick}
           />
         </AllianceMapSheet>
       </>
@@ -152,6 +170,7 @@ function CollapsibleRankTable({
           userRankRow={userRankRow}
           userRankLabel={userRankLabel}
           emptyMessage={emptyMessage}
+          onRowClick={onRowClick}
         />
       )}
     </div>
@@ -185,6 +204,7 @@ export default function AllianceRankTables({
   variant = 'inline',
   allianceShortLabel = 'Reytinq',
 }: AllianceRankTablesProps) {
+  const { notifyAllianceInfoViewed } = useAllianceBrain();
   const { leaderRows, allianceRows, userLeaderRank, userAllianceRank } = useMemo(() => {
     const sortedAlliances = [...alliances].sort((a, b) => (b.score || 0) - (a.score || 0));
 
@@ -312,6 +332,10 @@ export default function AllianceRankTables({
           emptyMessage="Hələ heç bir ittifaq yoxdur."
           defaultOpen={defaultOpen}
           variant={variant}
+          onRowClick={(row) => {
+            const alliance = alliances.find((item) => item.id === row.id);
+            if (alliance) notifyAllianceInfoViewed(alliance);
+          }}
         />
       )}
     </div>
@@ -348,7 +372,7 @@ function usePlayerRankRows(players: PlayerProfile[], currentUserId: string) {
 export function AllianceRankingBoard() {
   const { userId, user } = useUser();
   const userName = user?.displayName || user?.email || getLocalProfileDisplayName();
-  const { alliances, players, activeAlliance } = useAllianceBrain();
+  const { alliances, players, activeAlliance, notifyAllianceInfoViewed } = useAllianceBrain();
   const { allianceRows, userAllianceRank } = useMemo(() => {
     const sortedAlliances = [...alliances].sort((a, b) => (b.score || 0) - (a.score || 0));
     const allianceRows: RankRow[] = sortedAlliances.map((item, index) => ({
@@ -376,6 +400,10 @@ export function AllianceRankingBoard() {
             userAllianceRank ? 'Sizin ittifaq sıranız' : 'Hələ heç bir ittifaqda deyilsiniz'
           }
           emptyMessage="Hələ heç bir ittifaq yoxdur."
+          onRowClick={(row) => {
+            const alliance = alliances.find((item) => item.id === row.id);
+            if (alliance) notifyAllianceInfoViewed(alliance);
+          }}
         />
       </section>
       <section className={styles.rankTablesSplitCol}>
