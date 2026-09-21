@@ -23,7 +23,11 @@ export const BATTLE_EVENT_TYPES = [
 
 export type BattleEventType = (typeof BATTLE_EVENT_TYPES)[number];
 
-export type BattleStatus = 'open' | 'active' | 'finished';
+export type BattleStatus = 'open' | 'joining' | 'locked' | 'active' | 'finished';
+
+export type BattleKind = 'open' | 'alliance_map';
+
+export type BattleSide = 'attacker' | 'defender';
 
 export type BattleEventMetaMap = {
   battle_created: {
@@ -119,6 +123,15 @@ export interface BattleRecord {
   eventSeq: number;
   participantIds: string[];
   schemaVersion: typeof BATTLE_EVENT_SCHEMA_VERSION;
+  kind?: BattleKind;
+  attackerAllianceId?: string;
+  defenderAllianceId?: string;
+  attackerAllianceName?: string;
+  defenderAllianceName?: string;
+  attackerPlayerIds?: string[];
+  defenderPlayerIds?: string[];
+  joinEndsAt?: number;
+  joinDurationMs?: number;
 }
 
 export interface AppendBattleEventInput<T extends BattleEventType = BattleEventType> {

@@ -1,8 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isBattlesPath(path) {
-      return path.size() > 0 && path[0] == 'battles';
+    function isProtectedPath(path) {
+      return path.size() > 0 && (
+        path[0] == 'battles' ||
+        path[0] == 'alliance_battle_cooldowns'
+      );
     }
 
     function isBattleEventType(t) {
@@ -25,7 +28,7 @@ service cloud.firestore {
       ];
     }
 
-    function isValidBattleCreate() {
+    function isValidOpenBattleCreate() {
       let d = request.resource.data;
       return request.auth != null
         && d.keys().hasOnly([
@@ -49,7 +52,49 @@ service cloud.firestore {
         && d.schemaVersion == 1;
     }
 
-    function isValidBattleSeqBump() {
+    function isValidMapBattleCreate() {
+      let d = request.resource.data;
+      return request.auth != null
+        && d.keys().hasOnly([
+          'createdBy',
+          'createdAt',
+          'updatedAt',
+          'status',
+          'eventSeq',
+          'participantIds',
+          'schemaVersion',
+          'kind',
+          'attackerAllianceId',
+          'defenderAllianceId',
+          'attackerAllianceName',
+          'defenderAllianceName',
+          'attackerPlayerIds',
+          'defenderPlayerIds',
+          'joinDurationMs'
+        ])
+        && d.createdBy is string
+        && d.createdBy.size() > 0
+        && d.createdBy.size() < 64
+        && d.createdAt == request.time
+        && d.updatedAt == request.time
+        && d.status == 'joining'
+        && d.kind == 'alliance_map'
+        && d.eventSeq == 1
+        && d.schemaVersion == 1
+        && d.joinDurationMs == 15000
+        && d.attackerAllianceId is string
+        && d.defenderAllianceId is string
+        && d.attackerAllianceId != d.defenderAllianceId
+        && d.attackerPlayerIds is list
+        && d.attackerPlayerIds.size() == 1
+        && d.defenderPlayerIds is list
+        && d.defenderPlayerIds.size() == 0
+        && d.participantIds == d.attackerPlayerIds
+        && exists(/databases/$(database)/documents/alliances/$(d.defenderAllianceId))
+        && exists(/databases/$(database)/documents/alliances/$(d.attackerAllianceId));
+    }
+
+    function isValidLegacySeqBump() {
       let before = resource.data;
       let after = request.resource.data;
       return request.auth != null
@@ -59,9 +104,50 @@ service cloud.firestore {
         && after.schemaVersion == before.schemaVersion
         && after.diff(before).affectedKeys()
           .hasOnly(['eventSeq', 'updatedAt', 'status', 'participantIds'])
-        && after.status in ['open', 'active', 'finished']
+        && after.status in ['open', 'joining', 'locked', 'active', 'finished']
         && after.participantIds is list
-        && after.participantIds.size() <= 16
+        && after.participantIds.size() <= 10
+        && after.updatedAt == request.time;
+    }
+
+    function isValidMapBattleJoin() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.kind == 'alliance_map'
+        && before.status == 'joining'
+        && after.status == 'joining'
+        && request.time < before.createdAt + duration.value(15, 's')
+        && after.eventSeq == before.eventSeq + 1
+        && after.createdAt == before.createdAt
+        && after.joinDurationMs == before.joinDurationMs
+        && after.attackerAllianceId == before.attackerAllianceId
+        && after.defenderAllianceId == before.defenderAllianceId
+        && after.attackerPlayerIds is list
+        && after.defenderPlayerIds is list
+        && after.attackerPlayerIds.size() <= 5
+        && after.defenderPlayerIds.size() <= 5
+        && after.attackerPlayerIds.size() >= before.attackerPlayerIds.size()
+        && after.defenderPlayerIds.size() >= before.defenderPlayerIds.size()
+        && after.attackerPlayerIds.size() + after.defenderPlayerIds.size()
+          == before.attackerPlayerIds.size() + before.defenderPlayerIds.size() + 1
+        && after.diff(before).affectedKeys()
+          .hasOnly(['eventSeq', 'updatedAt', 'participantIds', 'attackerPlayerIds', 'defenderPlayerIds'])
+        && after.updatedAt == request.time;
+    }
+
+    function isValidMapBattleLock() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.kind == 'alliance_map'
+        && before.status == 'joining'
+        && request.time >= before.createdAt + duration.value(15, 's')
+        && after.eventSeq == before.eventSeq + 1
+        && after.status in ['locked', 'finished']
+        && after.attackerPlayerIds == before.attackerPlayerIds
+        && after.defenderPlayerIds == before.defenderPlayerIds
+        && after.diff(before).affectedKeys().hasOnly(['eventSeq', 'updatedAt', 'status'])
         && after.updatedAt == request.time;
     }
 
@@ -95,10 +181,30 @@ service cloud.firestore {
         && d.meta.size() <= 8;
     }
 
+    function isValidCooldownWrite(allianceId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && d.keys().hasOnly([
+          'lastBattleId',
+          'lastBattleAt',
+          'cooldownUntil',
+          'attackerAllianceId',
+          'updatedAt'
+        ])
+        && d.lastBattleId is string
+        && d.attackerAllianceId is string
+        && d.lastBattleAt == request.time
+        && d.updatedAt == request.time
+        && d.cooldownUntil is timestamp
+        && d.cooldownUntil > request.time + duration.value(2, 'h')
+        && d.cooldownUntil < request.time + duration.value(4, 'h')
+        && exists(/databases/$(database)/documents/alliances/$(allianceId));
+    }
+
     match /battles/{battleId} {
       allow read: if true;
-      allow create: if isValidBattleCreate();
-      allow update: if isValidBattleSeqBump();
+      allow create: if isValidOpenBattleCreate() || isValidMapBattleCreate();
+      allow update: if isValidLegacySeqBump() || isValidMapBattleJoin() || isValidMapBattleLock();
       allow delete: if false;
 
       match /events/{eventId} {
@@ -108,11 +214,17 @@ service cloud.firestore {
       }
     }
 
-    // Mövcud sosial/oyun kolleksiyaları əvvəlki kimi açıq qalır.
-    // battles/* yuxarıdakı immutable qaydalarla idarə olunur.
+    match /alliance_battle_cooldowns/{allianceId} {
+      allow read: if true;
+      allow create: if isValidCooldownWrite(allianceId);
+      allow update: if isValidCooldownWrite(allianceId)
+        && request.time >= resource.data.cooldownUntil;
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read: if true;
-      allow write: if !isBattlesPath(document);
+      allow write: if !isProtectedPath(document);
     }
   }
 }

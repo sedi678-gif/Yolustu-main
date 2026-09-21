@@ -34,19 +34,19 @@ import {
 
 const EVENT_WRITE_TIMEOUT_MS = 12_000;
 
-function battleRef(battleId: string) {
+export function battleRef(battleId: string) {
   return doc(db, BATTLE_EVENTS_COLLECTION, battleId);
 }
 
-function eventsCol(battleId: string) {
+export function eventsCol(battleId: string) {
   return collection(db, BATTLE_EVENTS_COLLECTION, battleId, BATTLE_EVENT_SUBCOLLECTION);
 }
 
-function makeBattleId(): string {
+export function makeBattleId(): string {
   return `bat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function timestampToMs(value: unknown): number {
+export function timestampToMs(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (value && typeof value === 'object' && 'toMillis' in value) {
     const ms = (value as Timestamp).toMillis();
@@ -69,25 +69,48 @@ function eventFromData(eventId: string, data: DocumentData): BattleEvent {
   };
 }
 
-function battleFromData(id: string, data: DocumentData): BattleRecord {
-  const status = data.status;
+function asStringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
+}
+
+function parseBattleStatus(value: unknown): BattleStatus {
+  if (value === 'joining' || value === 'locked' || value === 'active' || value === 'finished' || value === 'open') {
+    return value;
+  }
+  return 'open';
+}
+
+export function battleFromData(id: string, data: DocumentData): BattleRecord {
   return {
     id,
     createdBy: String(data.createdBy ?? ''),
     createdAt: timestampToMs(data.createdAt),
     updatedAt: timestampToMs(data.updatedAt),
-    status: status === 'active' || status === 'finished' || status === 'open' ? status : 'open',
+    status: parseBattleStatus(data.status),
     eventSeq: Number(data.eventSeq) || 0,
-    participantIds: Array.isArray(data.participantIds)
-      ? data.participantIds.map((item) => String(item)).filter(Boolean)
-      : [],
+    participantIds: asStringList(data.participantIds),
     schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
+    kind: data.kind === 'alliance_map' ? 'alliance_map' : data.kind === 'open' ? 'open' : undefined,
+    attackerAllianceId: data.attackerAllianceId ? String(data.attackerAllianceId) : undefined,
+    defenderAllianceId: data.defenderAllianceId ? String(data.defenderAllianceId) : undefined,
+    attackerAllianceName: data.attackerAllianceName ? String(data.attackerAllianceName) : undefined,
+    defenderAllianceName: data.defenderAllianceName ? String(data.defenderAllianceName) : undefined,
+    attackerPlayerIds: asStringList(data.attackerPlayerIds),
+    defenderPlayerIds: asStringList(data.defenderPlayerIds),
+    joinDurationMs: Number(data.joinDurationMs) || undefined,
+    joinEndsAt: data.joinEndsAt
+      ? timestampToMs(data.joinEndsAt)
+      : Number(data.joinDurationMs) > 0
+        ? timestampToMs(data.createdAt) + Number(data.joinDurationMs)
+        : undefined,
   };
 }
 
 function nextStatus(type: BattleEventType, current: BattleStatus): BattleStatus {
   if (type === 'battle_finished') return 'finished';
   if (current === 'finished') return 'finished';
+  if (current === 'joining') return 'joining';
+  if (current === 'locked') return type === 'turn_started' ? 'active' : 'locked';
   if (type === 'battle_created') return 'open';
   return 'active';
 }
@@ -137,6 +160,9 @@ export async function appendBattleEvent<T extends BattleEventType>(
       }
       if (parent.status === 'finished') {
         throw new Error('Bitmiş battle-ə event yazıla bilməz');
+      }
+      if (parent.kind === 'alliance_map' && (type === 'player_joined' || type === 'player_left')) {
+        throw new Error('Xəritə döyüşündə qoşulma yalnız join/leave servisi ilə yazılır');
       }
 
       const seq = parent.eventSeq + 1;
@@ -252,6 +278,16 @@ export async function listBattleEvents(battleId: string): Promise<BattleEvent[]>
   const id = sanitizeBattleId(battleId);
   const snap = await getDocs(query(eventsCol(id), orderBy('seq', 'asc')));
   return snap.docs.map((item) => eventFromData(item.id, item.data()));
+}
+
+export function listenBattleRecord(
+  battleId: string,
+  onChange: (battle: BattleRecord | null) => void
+): Unsubscribe {
+  const id = sanitizeBattleId(battleId);
+  return onSnapshot(battleRef(id), (snap) => {
+    onChange(snap.exists() ? battleFromData(snap.id, snap.data()) : null);
+  });
 }
 
 export function listenBattleEvents(

@@ -10,11 +10,13 @@ import AllianceMapRightPanel from './AllianceMapRightPanel';
 import AllianceChatDock from './AllianceChatDock';
 import GoogleAdButton from './GoogleAdButton';
 import AppLink from '@/app/components/AppLink';
+import AllianceMapBattleHost from './AllianceMapBattleHost';
 import styles from './alliance.module.css';
 
 function AlliancePageInner() {
   const { alliances, activeAlliance, liveBattleAttacks, handleAdXpReward } = useAllianceBrain();
   const [mapOpen, setMapOpen] = useState(false);
+  const [selectedAllianceId, setSelectedAllianceId] = useState<string | null>(null);
 
   useEffect(() => {
     const latest = liveBattleAttacks[0];
@@ -58,9 +60,17 @@ function AlliancePageInner() {
             alliances={alliances}
             activeAlliance={activeAlliance}
             active={mapOpen}
+            onAllianceSelect={(alliance) => {
+              setMapOpen(true);
+              setSelectedAllianceId(alliance.id);
+            }}
           />
         </div>
       </div>
+      <AllianceMapBattleHost
+        selectedAllianceId={selectedAllianceId}
+        onClearSelected={() => setSelectedAllianceId(null)}
+      />
       <AppBottomNav activeTab="alliance" />
     </div>
   );

@@ -28,12 +28,14 @@ interface AzerbaijanAllianceMapProps {
   alliances: AllianceData[];
   activeAlliance: AllianceData | null;
   active?: boolean;
+  onAllianceSelect?: (alliance: AllianceData) => void;
 }
 
 export default function AzerbaijanAllianceMap({
   alliances,
   activeAlliance,
   active = true,
+  onAllianceSelect,
 }: AzerbaijanAllianceMapProps) {
   const {
     attackTargetId,
@@ -238,11 +240,12 @@ export default function AzerbaijanAllianceMap({
 
     map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 9), { duration: 1.2 });
     const timer = setTimeout(() => {
-      markersRef.current[focusAllianceId]?.openPopup();
+      onAllianceSelect?.(target);
+      notifyAllianceInfoViewed(target);
       setFocusAllianceId(null);
     }, 900);
     return () => clearTimeout(timer);
-  }, [focusAllianceId, mapReady, mapAlliances, setFocusAllianceId]);
+  }, [focusAllianceId, mapReady, mapAlliances, setFocusAllianceId, onAllianceSelect, notifyAllianceInfoViewed]);
 
   useEffect(() => {
     if (!mapReady || !attackTargetId) return;
@@ -295,12 +298,8 @@ export default function AzerbaijanAllianceMap({
           zIndexOffset: isUnderSiege ? 1000 : isAttackTarget ? 800 : isActive ? 600 : 0,
         }).addTo(map);
 
-        marker.bindPopup(
-          `<div style="min-width:140px"><b>🏰 ${item.name}</b><br>📍 ${item.region}<br>👑 ${item.leader}<br>⭐ ${item.score || 50} xal${
-            isUnderSiege ? '<br><span style="color:#ef4444;font-weight:700">⚔️ Hücum altında!</span>' : ''
-          }</div>`
-        );
-        marker.on('popupopen', () => {
+        marker.on('click', () => {
+          onAllianceSelect?.(item);
           notifyAllianceInfoViewed(item);
         });
 
@@ -308,7 +307,7 @@ export default function AzerbaijanAllianceMap({
       });
       applyCastleZoomToMap(map.getContainer(), map.getZoom());
     });
-  }, [mapAlliances, activeAlliance, attackTargetId, liveSiegeIds, mapReady, notifyAllianceInfoViewed]);
+  }, [mapAlliances, activeAlliance, attackTargetId, liveSiegeIds, mapReady, notifyAllianceInfoViewed, onAllianceSelect]);
 
   return (
     <div className={styles.allianceMapShell}>
