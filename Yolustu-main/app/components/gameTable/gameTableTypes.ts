@@ -117,19 +117,12 @@ export function makeInstance(cardId: string, ownerSide: TableSide): TableCardIns
 }
 
 export function starterHand(side: TableSide): TableCardInstance[] {
-  const ids = ['casus', 'duman', 'ogru', 'qaya', 'usyan', '2x', 'joker'];
-  return ids.map((id) => makeInstance(id, side));
+  return MODEL_CARD_DEFS.map((def) => makeInstance(def.id, side));
 }
 
 export function starterSlots(): Record<TableSide, Array<TableCardInstance | null>> {
   return {
-    attacker: [
-      makeInstance('ogru', 'attacker'),
-      makeInstance('duman', 'attacker'),
-      makeInstance('qul', 'attacker'),
-      null,
-      null,
-    ],
+    attacker: Array.from({ length: TABLE_SLOT_COUNT }, () => null),
     defender: [
       makeInstance('guzgu', 'defender'),
       makeInstance('qaya', 'defender'),

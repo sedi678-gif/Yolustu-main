@@ -1,24 +1,28 @@
 "use client";
 
-import { catalogCard, catalogImage, DRAG_CARD_MIME, type TableCardInstance } from './gameTableTypes';
+import { catalogCard, catalogImage, type TableCardInstance } from './gameTableTypes';
 import styles from './gameTable.module.css';
 
 interface HandDockProps {
   cards: TableCardInstance[];
   selectedId: string | null;
   enabled: boolean;
+  draggingId: string | null;
+  unlimited: boolean;
   lockedReason?: string;
   onSelect: (id: string) => void;
-  onDragStart: (id: string) => void;
+  onPointerDown: (id: string, event: React.PointerEvent<HTMLButtonElement>) => void;
 }
 
 export default function HandDock({
   cards,
   selectedId,
   enabled,
+  draggingId,
+  unlimited,
   lockedReason,
   onSelect,
-  onDragStart,
+  onPointerDown,
 }: HandDockProps) {
   if (!enabled) {
     return (
@@ -31,32 +35,32 @@ export default function HandDock({
   return (
     <div className={styles.hand} aria-label="Əlindəki kartlar">
       {cards.length === 0 ? (
-        <span className={styles.handEmpty}>Əl boşdur — masada 5 slota qədər kart ata bilərsən.</span>
+        <span className={styles.handEmpty}>Əl boşdur — masadakı kartına klikləyib geri götür.</span>
       ) : (
         cards.map((card) => {
           const def = catalogCard(card.cardId);
           const src = catalogImage(card.cardId);
           const selected = selectedId === card.instanceId;
+          const lifting = draggingId === card.instanceId;
           return (
             <button
               key={card.instanceId}
               type="button"
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData(DRAG_CARD_MIME, card.instanceId);
-                e.dataTransfer.setData('text/plain', card.instanceId);
-                e.dataTransfer.effectAllowed = 'move';
-                onDragStart(card.instanceId);
-              }}
+              draggable={false}
+              onPointerDown={(event) => onPointerDown(card.instanceId, event)}
               onClick={() => onSelect(card.instanceId)}
-              className={`${styles.handCard} ${selected ? styles.handCardSelected : ''}`}
-              title={`${def?.title ?? 'Kart'} — sürüşdür və ya seçib slota kliklə`}
+              onDragStart={(event) => event.preventDefault()}
+              className={`${styles.handCard} ${selected ? styles.handCardSelected : ''} ${
+                lifting ? styles.handCardLifting : ''
+              }`}
+              title={`${def?.title ?? 'Kart'} — tutub slota at və ya seçib slota kliklə`}
             >
               {src ? (
                 <img src={src} alt={def?.title ?? 'Kart'} className={styles.cardImg} draggable={false} />
               ) : (
                 <span className={styles.cardFallback}>{def?.emoji}</span>
               )}
+              {unlimited ? <span className={styles.handUnlimited}>∞</span> : null}
             </button>
           );
         })

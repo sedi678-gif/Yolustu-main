@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { AllianceData, BattleCard, PlayerProfile } from './types';
 import ModelCardsGrid from './ModelCardsGrid';
+import { formatCardTotal } from './battleCardsConfig';
 import styles from './alliance.module.css';
 
 interface AllianceOrduCardsPanelProps {
@@ -46,7 +47,7 @@ export default function AllianceOrduCardsPanel({
   }, [activeAlliance, players, currentUserId]);
 
   const orduPower = orduMembers.reduce((s, m) => s + m.score, 0);
-  const cardTotal = battleCards.reduce((s, c) => s + c.count, 0);
+  const cardTotal = formatCardTotal(battleCards);
 
   if (!open) return null;
 
@@ -120,12 +121,12 @@ export default function AllianceOrduCardsPanel({
             <div className={styles.battleCardsTotal}>
               Cəmi kart: <strong>{cardTotal}</strong>
             </div>
-            {cardTotal === 0 && (
+            {cardTotal === '0' && (
               <Link href="/shop" className={styles.searchModalJoinBtn} style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
                 🛒 Mağazadan kart al
               </Link>
             )}
-            {canAttack && onAttack && cardTotal > 0 && (
+            {canAttack && onAttack && cardTotal !== '0' && (
               <button type="button" className={styles.searchModalJoinBtn} onClick={onAttack}>
                 🚀 İttifaq hücumu başlat
               </button>

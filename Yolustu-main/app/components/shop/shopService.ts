@@ -90,7 +90,8 @@ export async function purchaseBattleCard(
     }
 
     const balance = resolvePlayerManat(player);
-    if (balance < product.price) throw new Error('Balansda kifayət qədər manat yoxdur');
+    const unlimitedBuyer = isSuperAdmin(userId);
+    if (!unlimitedBuyer && balance < product.price) throw new Error('Balansda kifayət qədər manat yoxdur');
 
     let weekly: AllianceWeeklyShop = weeklySnap.exists()
       ? (weeklySnap.data() as AllianceWeeklyShop)
@@ -101,18 +102,17 @@ export async function purchaseBattleCard(
     }
 
     const used = weekly.cardPurchases[cardId] ?? 0;
-    const unlimitedBuyer = isSuperAdmin(userId);
     if (!unlimitedBuyer && used >= WEEKLY_CARD_LIMIT) {
       throw new Error(`Həftəlik limit dolub: ${product.name} (7/7)`);
     }
 
     const cards = normalizeBattleCards(player.battleCards as BattleCardsMap);
-    cards[cardId] = (cards[cardId] ?? 0) + 1;
+    if (!unlimitedBuyer) cards[cardId] = (cards[cardId] ?? 0) + 1;
 
     transaction.set(
       playerRef,
       {
-        ...manatWritePatch(balance - product.price),
+        ...manatWritePatch(unlimitedBuyer ? balance : balance - product.price),
         battleCards: cards,
         allianceId,
         allianceName: alliance.name ?? player.allianceName ?? null,

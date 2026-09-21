@@ -12,6 +12,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { BattleCardId, BattleCardsMap } from '@/app/components/alliance/types';
+import { isSuperAdmin } from '@/app/lib/adminConfig';
 import {
   EMPTY_BATTLE_CARDS,
   normalizeBattleCards,
@@ -180,15 +181,18 @@ export async function launchAllianceAttack(
     }
 
     const cards = normalizeBattleCards(player.battleCards as BattleCardsMap);
-    if ((cards[cardId] ?? 0) < cardCount) throw new Error('Kifayət qədər kart yoxdur');
+    const unlimited = isSuperAdmin(userId);
+    if (!unlimited && (cards[cardId] ?? 0) < cardCount) throw new Error('Kifayət qədər kart yoxdur');
 
-    cards[cardId] -= cardCount;
+    if (!unlimited) cards[cardId] -= cardCount;
 
     const defender = defenderSnap.data();
     const attacker = attackerSnap.data();
     const defenderMembers = Array.isArray(defender.members) ? defender.members.length : 1;
 
-    tx.set(playerRef, { battleCards: cards, updatedAt: Date.now() }, { merge: true });
+    if (!unlimited) {
+      tx.set(playerRef, { battleCards: cards, updatedAt: Date.now() }, { merge: true });
+    }
 
     if (isClickRaid) {
       const raidCardId = cardId as ClickRaidCardId;

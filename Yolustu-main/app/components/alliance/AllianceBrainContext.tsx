@@ -33,7 +33,7 @@ import {
   BattleCard,
   ChatChannel,
 } from './types';
-import { battleCardsMapToList, totalBattleCards, EMPTY_BATTLE_CARDS } from './battleCardsConfig';
+import { battleCardsMapToList, totalBattleCards, resolveBattleCardsForUser } from './battleCardsConfig';
 import { incrementQuestProgress } from '@/app/lib/allianceQuestService';
 import { DEFAULT_ALLIANCE_FLAG, normalizeAllianceFlag } from './allianceFlagConfig';
 import { isAllianceLeader } from './allianceLeader';
@@ -398,14 +398,19 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     [realtimeHub.onlineUserIds]
   );
 
+  const resolvedCards = useMemo(
+    () => resolveBattleCardsForUser(userId, myProfile?.battleCards),
+    [userId, myProfile]
+  );
+
   const battleCards = useMemo(
-    () => battleCardsMapToList(myProfile?.battleCards ?? EMPTY_BATTLE_CARDS),
-    [myProfile]
+    () => battleCardsMapToList(resolvedCards),
+    [resolvedCards]
   );
 
   const battleCardTotal = useMemo(
-    () => totalBattleCards(myProfile?.battleCards ?? EMPTY_BATTLE_CARDS),
-    [myProfile]
+    () => totalBattleCards(resolvedCards),
+    [resolvedCards]
   );
 
   const myManat = useMemo(

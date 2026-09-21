@@ -3,6 +3,7 @@
 import React from 'react';
 import { BattleCard } from './types';
 import BattleCardArt from './BattleCardArt';
+import { formatCardTotal } from './battleCardsConfig';
 import styles from './alliance.module.css';
 
 interface BattleCardsModalProps {
@@ -16,7 +17,7 @@ interface BattleCardsModalProps {
 export default function BattleCardsModal({ open, onClose, cards, onAttack, canAttack }: BattleCardsModalProps) {
   if (!open) return null;
 
-  const total = cards.reduce((s, c) => s + c.count, 0);
+  const total = formatCardTotal(cards);
 
   return (
     <div className={styles.searchModalOverlay} onClick={onClose} role="presentation">
@@ -46,7 +47,7 @@ export default function BattleCardsModal({ open, onClose, cards, onAttack, canAt
           Cəmi kart: <strong>{total}</strong>
         </div>
 
-        {canAttack && onAttack && total > 0 && (
+        {canAttack && onAttack && (total === '∞' || Number(total) > 0) && (
           <button type="button" className={styles.searchModalJoinBtn} onClick={onAttack}>
             🚀 İttifaq hücumu başlat
           </button>

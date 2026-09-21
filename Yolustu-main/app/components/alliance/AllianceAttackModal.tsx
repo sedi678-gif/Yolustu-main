@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AllianceData, BattleCardId } from './types';
-import { BATTLE_CARD_DEFS } from './battleCardsConfig';
+import { BATTLE_CARD_DEFS, isUnlimitedStock } from './battleCardsConfig';
 import BattleCardArt from './BattleCardArt';
 import { getBattleCardAsset } from './battleCardAssets';
 import { launchAllianceAttack, CARD_POWER } from '@/app/lib/allianceBattleService';
@@ -85,7 +85,7 @@ export default function AllianceAttackModal({
 
   const toggleCard = (id: BattleCardId) => {
     const owned = battleCards[id] ?? 0;
-    if (owned < 1) return;
+    if (owned < 1 && !isUnlimitedStock(owned)) return;
 
     setSelection((prev) => {
       const next = { ...prev };

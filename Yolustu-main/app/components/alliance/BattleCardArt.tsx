@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { BattleCardId } from './types';
 import { getBattleCardAsset } from './battleCardAssets';
+import { formatCardCount, isUnlimitedStock } from './battleCardsConfig';
 import { CANVAS_RENDERED_CARDS, renderBattleCardCanvas } from './battleCardCanvasRenderer';
 import BattleCardIcon from './BattleCardIcon';
 import styles from './battleCardArt.module.css';
@@ -76,7 +77,7 @@ export default function BattleCardArt({
 
   const badge =
     typeof count === 'number' && count > 0 ? (
-      <span className={styles.cardArtBadge}>×{count}</span>
+      <span className={styles.cardArtBadge}>{isUnlimitedStock(count) ? '∞' : `×${formatCardCount(count)}`}</span>
     ) : null;
 
   if (onClick || selectable) {

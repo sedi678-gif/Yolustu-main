@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAllianceBrain } from './AllianceBrainContext';
 import { AZ_ALL_REGIONS } from './regionCoords';
+import { formatCardTotal } from './battleCardsConfig';
 
 const cardStyle: React.CSSProperties = {
   backgroundColor: '#ffffff',
@@ -139,7 +140,7 @@ function AllianceProfileCardInner({ title = 'İTTİFAQ (ALLIANCE)' }: AlliancePr
     a.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
   );
 
-  const cardTotal = battleCards.reduce((s, c) => s + c.count, 0);
+  const cardTotal = formatCardTotal(battleCards);
 
   return (
     <div style={cardStyle}>

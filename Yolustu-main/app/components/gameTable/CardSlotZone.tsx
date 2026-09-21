@@ -10,8 +10,10 @@ interface CardSlotZoneProps {
   revealCard: (card: TableCardInstance) => boolean;
   dropEnabled: boolean;
   hotSlot: number | null;
+  selectedReady: boolean;
   onDropSlot: (index: number) => void;
   onHoverSlot: (index: number | null) => void;
+  onReturnSlot: (index: number) => void;
 }
 
 export default function CardSlotZone({
@@ -20,8 +22,10 @@ export default function CardSlotZone({
   revealCard,
   dropEnabled,
   hotSlot,
+  selectedReady,
   onDropSlot,
   onHoverSlot,
+  onReturnSlot,
 }: CardSlotZoneProps) {
   const isAttacker = side === 'attacker';
   const filled = slots.filter(Boolean).length;
@@ -38,35 +42,38 @@ export default function CardSlotZone({
         </span>
       </div>
       <div className={styles.slots}>
-        {slots.map((card, index) => (
-          <div
-            key={`${side}-${index}`}
-            className={`${styles.slot} ${isAttacker ? styles.slotAttacker : styles.slotDefender} ${
-              hotSlot === index ? styles.slotHot : ''
-            } ${dropEnabled && !card ? styles.slotDroppable : ''}`}
-            onDragOver={(e) => {
-              if (!dropEnabled || card) return;
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-              onHoverSlot(index);
-            }}
-            onDragLeave={() => onHoverSlot(null)}
-            onDrop={(e) => {
-              e.preventDefault();
-              onHoverSlot(null);
-              if (dropEnabled && !card) onDropSlot(index);
-            }}
-            onClick={() => {
-              if (dropEnabled && !card) onDropSlot(index);
-            }}
-          >
-            {card ? (
-              <TableCard card={card} revealed={revealCard(card)} />
-            ) : (
-              <span className={styles.slotEmpty}>Slot {index + 1}</span>
-            )}
-          </div>
-        ))}
+        {slots.map((card, index) => {
+          const empty = !card;
+          const canDrop = dropEnabled && (empty || Boolean(card));
+          return (
+            <div
+              key={`${side}-${index}`}
+              data-table-slot={`${side}-${index}`}
+              data-table-side={side}
+              data-table-index={String(index)}
+              className={`${styles.slot} ${isAttacker ? styles.slotAttacker : styles.slotDefender} ${
+                hotSlot === index ? styles.slotHot : ''
+              } ${dropEnabled && empty ? styles.slotDroppable : ''} ${
+                dropEnabled && selectedReady && empty ? styles.slotAwait : ''
+              }`}
+              onPointerEnter={() => {
+                if (dropEnabled) onHoverSlot(index);
+              }}
+              onPointerLeave={() => onHoverSlot(null)}
+              onClick={() => {
+                if (!dropEnabled) return;
+                if (empty || selectedReady) onDropSlot(index);
+                else onReturnSlot(index);
+              }}
+            >
+              {card ? (
+                <TableCard card={card} revealed={revealCard(card)} />
+              ) : (
+                <span className={styles.slotEmpty}>{canDrop && selectedReady ? 'Buraya at' : `Slot ${index + 1}`}</span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </section>
   );

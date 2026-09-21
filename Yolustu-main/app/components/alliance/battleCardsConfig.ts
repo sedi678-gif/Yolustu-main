@@ -1,5 +1,5 @@
+import { isSuperAdmin } from '@/app/lib/adminConfig';
 import { BattleCard, BattleCardId, BattleCardsMap } from './types';
-
 import { BATTLE_CARD_ASSETS } from './battleCardAssets';
 
 
@@ -122,6 +122,36 @@ export function totalBattleCards(cards: BattleCardsMap): number {
 
   return Object.values(cards).reduce((sum, n) => sum + n, 0);
 
+}
+
+export const UNLIMITED_CARD_STOCK = 9999;
+
+export function unlimitedBattleCards(): BattleCardsMap {
+  const out = { ...EMPTY_BATTLE_CARDS };
+  for (const id of ALL_CARD_IDS) out[id] = UNLIMITED_CARD_STOCK;
+  return out;
+}
+
+export function isUnlimitedStock(count: number): boolean {
+  return Number.isFinite(count) && count >= UNLIMITED_CARD_STOCK;
+}
+
+export function formatCardCount(count: number): string {
+  if (!Number.isFinite(count) || isUnlimitedStock(count)) return '∞';
+  return String(count);
+}
+
+export function formatCardTotal(cards: Array<{ count: number }>): string {
+  if (cards.length > 0 && cards.every((card) => isUnlimitedStock(card.count))) return '∞';
+  return formatCardCount(cards.reduce((sum, card) => sum + card.count, 0));
+}
+
+export function resolveBattleCardsForUser(
+  userId: string | undefined,
+  raw?: Partial<BattleCardsMap> | Record<string, number> | null
+): BattleCardsMap {
+  if (userId && isSuperAdmin(userId)) return unlimitedBattleCards();
+  return normalizeBattleCards(raw);
 }
 
 
