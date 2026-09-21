@@ -1,9 +1,118 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Hamısı aktiv — anonim auth ilə və ya auth olmadan (dev/test)
+    function isBattlesPath(path) {
+      return path.size() > 0 && path[0] == 'battles';
+    }
+
+    function isBattleEventType(t) {
+      return t in [
+        'battle_created',
+        'player_joined',
+        'player_left',
+        'loadout_locked',
+        'card_played',
+        'energy_changed',
+        'card_blocked',
+        'card_countered',
+        'click_started',
+        'click_completed',
+        'damage_applied',
+        'score_changed',
+        'turn_started',
+        'turn_timeout',
+        'battle_finished'
+      ];
+    }
+
+    function isValidBattleCreate() {
+      let d = request.resource.data;
+      return request.auth != null
+        && d.keys().hasOnly([
+          'createdBy',
+          'createdAt',
+          'updatedAt',
+          'status',
+          'eventSeq',
+          'participantIds',
+          'schemaVersion'
+        ])
+        && d.createdBy is string
+        && d.createdBy.size() > 0
+        && d.createdBy.size() < 64
+        && d.createdAt == request.time
+        && d.updatedAt == request.time
+        && d.status == 'open'
+        && d.eventSeq == 1
+        && d.participantIds is list
+        && d.participantIds.size() == 1
+        && d.schemaVersion == 1;
+    }
+
+    function isValidBattleSeqBump() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && after.eventSeq == before.eventSeq + 1
+        && after.createdAt == before.createdAt
+        && after.createdBy == before.createdBy
+        && after.schemaVersion == before.schemaVersion
+        && after.diff(before).affectedKeys()
+          .hasOnly(['eventSeq', 'updatedAt', 'status', 'participantIds'])
+        && after.status in ['open', 'active', 'finished']
+        && after.participantIds is list
+        && after.participantIds.size() <= 16
+        && after.updatedAt == request.time;
+    }
+
+    function isValidBattleEventCreate(battleId, eventId) {
+      let d = request.resource.data;
+      let parent = get(/databases/$(database)/documents/battles/$(battleId)).data;
+      return request.auth != null
+        && exists(/databases/$(database)/documents/battles/$(battleId))
+        && d.keys().hasOnly([
+          'eventId',
+          'battleId',
+          'playerId',
+          'type',
+          'seq',
+          'createdAt',
+          'schemaVersion',
+          'meta'
+        ])
+        && d.eventId == eventId
+        && d.battleId == battleId
+        && d.playerId is string
+        && d.playerId.size() > 0
+        && d.playerId.size() < 64
+        && isBattleEventType(d.type)
+        && d.seq is int
+        && d.seq > 0
+        && d.seq == parent.eventSeq
+        && d.createdAt == request.time
+        && d.schemaVersion == 1
+        && d.meta is map
+        && d.meta.size() <= 8;
+    }
+
+    match /battles/{battleId} {
+      allow read: if true;
+      allow create: if isValidBattleCreate();
+      allow update: if isValidBattleSeqBump();
+      allow delete: if false;
+
+      match /events/{eventId} {
+        allow read: if true;
+        allow create: if isValidBattleEventCreate(battleId, eventId);
+        allow update, delete: if false;
+      }
+    }
+
+    // Mövcud sosial/oyun kolleksiyaları əvvəlki kimi açıq qalır.
+    // battles/* yuxarıdakı immutable qaydalarla idarə olunur.
     match /{document=**} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if !isBattlesPath(document);
     }
   }
 }
