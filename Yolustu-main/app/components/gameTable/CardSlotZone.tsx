@@ -1,13 +1,13 @@
 "use client";
 
-import type { TableCardInstance, TableSide } from './gameTableTypes';
+import { TABLE_SLOT_COUNT, type TableCardInstance, type TableSide } from './gameTableTypes';
 import TableCard from './TableCard';
 import styles from './gameTable.module.css';
 
 interface CardSlotZoneProps {
   side: TableSide;
   slots: Array<TableCardInstance | null>;
-  revealed: boolean;
+  revealCard: (card: TableCardInstance) => boolean;
   dropEnabled: boolean;
   hotSlot: number | null;
   onDropSlot: (index: number) => void;
@@ -17,20 +17,24 @@ interface CardSlotZoneProps {
 export default function CardSlotZone({
   side,
   slots,
-  revealed,
+  revealCard,
   dropEnabled,
   hotSlot,
   onDropSlot,
   onHoverSlot,
 }: CardSlotZoneProps) {
   const isAttacker = side === 'attacker';
+  const filled = slots.filter(Boolean).length;
 
   return (
-    <section aria-label={isAttacker ? 'Hücum kart zonası' : 'Müdafiə kart zonası'}>
+    <section
+      className={isAttacker ? styles.zoneAttacker : styles.zoneDefender}
+      aria-label={isAttacker ? 'Hücum kart zonası' : 'Müdafiə kart zonası'}
+    >
       <div className={styles.zoneLabel} style={{ color: isAttacker ? '#fb7185' : '#67e8f9' }}>
         <span>{isAttacker ? '⚔ Hücum edən ittifaq' : '🛡 Müdafiə olunan ittifaq'}</span>
-        <span className="tracking-normal text-slate-400">
-          {slots.filter(Boolean).length}/5 kart
+        <span className={styles.zoneCount}>
+          {filled}/{TABLE_SLOT_COUNT} kart
         </span>
       </div>
       <div className={styles.slots}>
@@ -39,10 +43,11 @@ export default function CardSlotZone({
             key={`${side}-${index}`}
             className={`${styles.slot} ${isAttacker ? styles.slotAttacker : styles.slotDefender} ${
               hotSlot === index ? styles.slotHot : ''
-            }`}
+            } ${dropEnabled && !card ? styles.slotDroppable : ''}`}
             onDragOver={(e) => {
               if (!dropEnabled || card) return;
               e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
               onHoverSlot(index);
             }}
             onDragLeave={() => onHoverSlot(null)}
@@ -56,11 +61,9 @@ export default function CardSlotZone({
             }}
           >
             {card ? (
-              <TableCard card={card} revealed={revealed} />
+              <TableCard card={card} revealed={revealCard(card)} />
             ) : (
-              <span className="grid h-full place-items-center text-[10px] font-bold uppercase tracking-widest text-white/30">
-                Slot {index + 1}
-              </span>
+              <span className={styles.slotEmpty}>Slot {index + 1}</span>
             )}
           </div>
         ))}

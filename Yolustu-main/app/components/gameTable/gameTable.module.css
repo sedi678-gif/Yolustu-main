@@ -1,0 +1,620 @@
+.canvas {
+  --gt-gold: #f5d78a;
+  --gt-crimson: #fb7185;
+  --gt-cyan: #67e8f9;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  color: #f8fafc;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(88, 28, 135, 0.28), transparent 55%),
+    radial-gradient(ellipse at 18% 88%, rgba(190, 18, 60, 0.18), transparent 42%),
+    radial-gradient(ellipse at 82% 12%, rgba(8, 145, 178, 0.16), transparent 40%),
+    linear-gradient(180deg, #050816 0%, #0b1224 48%, #070b16 100%);
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
+  pointer-events: none;
+}
+
+.role_leader,
+.role_co-leader {
+  box-shadow: inset 0 0 80px rgba(245, 215, 138, 0.08);
+}
+
+.role_clicker {
+  box-shadow: inset 0 0 80px rgba(244, 63, 94, 0.1);
+}
+
+.role_coordinator {
+  box-shadow: inset 0 0 80px rgba(103, 232, 249, 0.1);
+}
+
+.hud {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 6px;
+}
+
+.backLink {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #e2e8f0;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.permPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.pill {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.pillOn {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fef3c7;
+}
+
+.pillPlay {
+  background: rgba(52, 211, 153, 0.18);
+  color: #d1fae5;
+}
+
+.pillClick {
+  background: rgba(244, 63, 94, 0.2);
+  color: #ffe4e6;
+}
+
+.pillPing {
+  background: rgba(167, 139, 250, 0.22);
+  color: #ede9fe;
+}
+
+.resetBtn {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(15, 23, 42, 0.7);
+  color: #cbd5e1;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.status {
+  position: relative;
+  z-index: 20;
+  margin: 0 12px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fde68a;
+  min-height: 1.2em;
+}
+
+.tableWrap {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-height: 0;
+  margin: 0 10px 8px;
+  border-radius: 28px;
+  border: 1px solid rgba(245, 215, 138, 0.28);
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(30, 16, 8, 0.2), rgba(8, 8, 16, 0.55)),
+    linear-gradient(160deg, #2a1a12 0%, #1a120e 40%, #121018 100%);
+  box-shadow:
+    inset 0 0 80px rgba(0, 0, 0, 0.55),
+    0 0 0 8px rgba(15, 10, 6, 0.85),
+    0 18px 50px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.tableFelt {
+  position: absolute;
+  inset: 14px;
+  border-radius: 22px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(14, 64, 48, 0.35), rgba(6, 18, 16, 0.92));
+  border: 1px solid rgba(52, 211, 153, 0.12);
+  pointer-events: none;
+}
+
+.board {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  min-height: 420px;
+  padding: 28px 12px 12px;
+}
+
+.zoneLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.zoneCount {
+  letter-spacing: 0;
+  text-transform: none;
+  color: #94a3b8;
+}
+
+.slots {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.slot {
+  aspect-ratio: 3 / 4.2;
+  max-height: 132px;
+  border-radius: 12px;
+  border: 1.5px dashed rgba(248, 250, 252, 0.22);
+  background: rgba(2, 6, 23, 0.35);
+  position: relative;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.slotDroppable {
+  cursor: pointer;
+}
+
+.slotHot {
+  border-color: var(--gt-gold);
+  box-shadow: 0 0 18px rgba(245, 215, 138, 0.35);
+  transform: translateY(-2px);
+}
+
+.slotAttacker {
+  border-color: rgba(251, 113, 133, 0.35);
+}
+
+.slotDefender {
+  border-color: rgba(103, 232, 249, 0.32);
+}
+
+.slotEmpty {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.castleWrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+}
+
+.castle {
+  position: relative;
+  width: min(52vw, 260px);
+  height: min(52vw, 260px);
+  border-radius: 50%;
+  border: 3px solid rgba(245, 215, 138, 0.7);
+  background:
+    radial-gradient(circle at 50% 58%, transparent 36%, rgba(2, 6, 23, 0.55) 37%, rgba(2, 6, 23, 0.82) 100%),
+    url('/images/alliance-hub/hub-level-6.jpg') center / cover no-repeat;
+  box-shadow:
+    0 0 40px rgba(245, 215, 138, 0.22),
+    inset 0 0 30px rgba(0, 0, 0, 0.45);
+  animation: castlePulse 4.8s ease-in-out infinite;
+  cursor: default;
+  padding: 0;
+  color: inherit;
+}
+
+.castle:disabled {
+  cursor: default;
+}
+
+.castle:not(:disabled) {
+  cursor: pointer;
+}
+
+.castleRing {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  border: 1px dashed rgba(245, 215, 138, 0.35);
+  pointer-events: none;
+}
+
+.castleCore {
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 2px;
+  background: radial-gradient(circle, rgba(15, 23, 42, 0.08), rgba(2, 6, 23, 0.55));
+  pointer-events: none;
+}
+
+.castleIcon {
+  font-size: 32px;
+  filter: drop-shadow(0 0 12px rgba(245, 215, 138, 0.8));
+}
+
+.castleTitle {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #fef3c7;
+}
+
+.castleMode {
+  font-size: 9px;
+  font-weight: 800;
+  color: rgba(165, 243, 252, 0.85);
+}
+
+.castleHit {
+  animation: castleHit 0.45s ease-out;
+}
+
+.seatRow {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.seatRowTop {
+  top: 10px;
+}
+
+.seatRowBottom {
+  bottom: 10px;
+}
+
+.seat {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(2, 6, 23, 0.72);
+  padding: 3px 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.seatAttacker {
+  color: #fecdd3;
+}
+
+.seatDefender {
+  color: #a5f3fc;
+}
+
+.seatYou {
+  box-shadow: 0 0 0 1px #f5d78a;
+  color: #fef3c7;
+}
+
+.pingLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.pingLayerOn {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.coordGrid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(103, 232, 249, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 232, 249, 0.12) 1px, transparent 1px);
+  background-size: 36px 36px;
+  pointer-events: none;
+}
+
+.ping {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.pingRing {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  animation: pingRipple 1.6s ease-out infinite;
+}
+
+.pingLabel {
+  position: absolute;
+  left: 50%;
+  top: 28px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cardFace,
+.cardBack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(245, 215, 138, 0.45);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.cardBack {
+  background:
+    repeating-linear-gradient(45deg, #1e1033 0 8px, #2a1648 8px 16px),
+    radial-gradient(circle at 50% 30%, #f5d78a, transparent 55%);
+  display: grid;
+  place-items: center;
+  color: #f5d78a;
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.cardBackMark {
+  text-shadow: 0 0 12px rgba(245, 215, 138, 0.65);
+}
+
+.cardImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cardFallback {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  background: #0f172a;
+  font-size: 20px;
+}
+
+.cardCaption {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 4px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 800;
+  color: #fef3c7;
+}
+
+.hand {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 8px 12px 18px;
+  min-height: 112px;
+}
+
+.handLocked,
+.handEmpty {
+  align-items: center;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.handCard {
+  width: 72px;
+  height: 102px;
+  flex-shrink: 0;
+  cursor: grab;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid rgba(253, 230, 138, 0.5);
+  padding: 0;
+  background: #0f172a;
+  transition: transform 0.15s ease;
+}
+
+.handCard:hover,
+.handCardSelected {
+  transform: translateY(-12px);
+}
+
+.clickerBar,
+.coordBar {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 12px 10px;
+}
+
+.clickerBtn {
+  min-height: 48px;
+  border-radius: 999px;
+  border: 1px solid rgba(253, 164, 175, 0.7);
+  background: linear-gradient(180deg, #f43f5e, #9f1239);
+  padding: 0 28px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fff;
+  box-shadow: 0 0 24px rgba(244, 63, 94, 0.45);
+  cursor: pointer;
+}
+
+.clickerBtn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.clickerMeter {
+  min-width: 180px;
+}
+
+.clickerMeterHead {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 228, 230, 0.85);
+}
+
+.clickerTrack {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.clickerFill {
+  height: 100%;
+  border-radius: 999px;
+  background: #fb7185;
+}
+
+.coordChip {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(2, 6, 23, 0.55);
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.coordChipOn {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.coordHint {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+@keyframes castlePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 28px rgba(245, 215, 138, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 54px rgba(245, 215, 138, 0.38);
+  }
+}
+
+@keyframes castleHit {
+  0% {
+    filter: brightness(1.8);
+    transform: scale(1.04);
+  }
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes pingRipple {
+  0% {
+    transform: scale(0.55);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .slots {
+    gap: 5px;
+  }
+  .slot {
+    max-height: 92px;
+  }
+  .handCard {
+    width: 56px;
+    height: 80px;
+  }
+  .castle {
+    width: min(62vw, 188px);
+    height: min(62vw, 188px);
+  }
+  .castleWrap {
+    min-height: 160px;
+  }
+}
