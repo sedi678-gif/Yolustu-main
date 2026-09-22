@@ -20,6 +20,7 @@ import {
   viewTurnTimer,
 } from '@/app/lib/battlePlay';
 import { BATTLE_LOADOUT_CARD_METAS, listenOwnLoadout } from '@/app/lib/battleLoadout';
+import { viewCardEffectLabel } from '@/app/lib/battleEffects';
 import styles from './alliance.module.css';
 
 export default function BattleEnergyPanel({
@@ -88,7 +89,9 @@ export default function BattleEnergyPanel({
         setLastPlay(
           result.duplicate
             ? 'Eyni request təkrarlandı — energy yenidən çıxılmadı'
-            : `${cardId} oynandı. −${result.cost} energy · zərər ${result.damage} · xal +${result.playerDelta}`
+            : `${cardId} oynandı. −${result.cost} energy · zərər ${result.damage} · xal +${result.playerDelta}${
+                result.effects.length ? ` · ${result.effects.join(', ')}` : ''
+              }`
         );
       } catch (err) {
         requestRef.current = null;
@@ -166,7 +169,7 @@ export default function BattleEnergyPanel({
               >
                 <span>{meta?.title ?? cardId}</span>
                 <span>
-                  ⚡ {cost} · {used}/{BATTLE_CARD_MAX_USES}
+                  {viewCardEffectLabel(cardId)} · ⚡ {cost} · {used}/{BATTLE_CARD_MAX_USES}
                   {cooling ? ` · ${Math.ceil((readyAt - serverNow) / 1000)}s` : ''}
                 </span>
               </button>

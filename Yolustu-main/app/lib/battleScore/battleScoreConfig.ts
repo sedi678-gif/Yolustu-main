@@ -1,6 +1,7 @@
 import { serverTimestamp } from 'firebase/firestore';
-import { BATTLE_LOADOUT_POOL, isBattleLoadoutCardId, type BattleLoadoutCardId } from '@/app/lib/battleLoadout/battleLoadoutConfig';
+import { BATTLE_LOADOUT_POOL, type BattleLoadoutCardId } from '@/app/lib/battleLoadout/battleLoadoutConfig';
 import type { BattleRecord, BattleSide } from '@/app/lib/battleEventLog/battleEventTypes';
+import { resolveCardEffect, type EffectKind } from '@/app/lib/battleEffects';
 
 export const BATTLE_SCORE_COLLECTION = 'scores';
 export const BATTLE_SCORE_SCHEMA_VERSION = 1;
@@ -14,54 +15,49 @@ export const BATTLE_PLAYER_DELTA_MAX = 10;
 export const BATTLE_ALLIANCE_DELTA_MAX = 8;
 export const BATTLE_STEAL_MAX = 6;
 
-export type BattleCardEffectKind = 'damage' | 'steal' | 'support' | 'control';
+export type BattleCardEffectKind = EffectKind;
 
 export interface OfficialCardEffect {
   cardId: BattleLoadoutCardId;
-  kind: BattleCardEffectKind;
+  kind: EffectKind;
   damage: number;
   playerDelta: number;
   allianceDelta: number;
   steal: number;
 }
 
-/** Rəsmi effekt cədvəli — client damage/score/reward qəbul edilmir. */
-export const BATTLE_CARD_EFFECTS: Record<BattleLoadoutCardId, OfficialCardEffect> = {
-  '2x': { cardId: '2x', kind: 'support', damage: 0, playerDelta: 8, allianceDelta: 4, steal: 0 },
-  casus: { cardId: 'casus', kind: 'control', damage: 0, playerDelta: 3, allianceDelta: 1, steal: 0 },
-  duman: { cardId: 'duman', kind: 'control', damage: 0, playerDelta: 2, allianceDelta: 1, steal: 0 },
-  guzgu: { cardId: 'guzgu', kind: 'damage', damage: 4, playerDelta: 4, allianceDelta: 2, steal: 0 },
-  joker: { cardId: 'joker', kind: 'damage', damage: 5, playerDelta: 5, allianceDelta: 3, steal: 0 },
-  ogru: { cardId: 'ogru', kind: 'steal', damage: 0, playerDelta: 4, allianceDelta: 0, steal: 4 },
-  qaya: { cardId: 'qaya', kind: 'damage', damage: 6, playerDelta: 3, allianceDelta: 2, steal: 0 },
-  qul: { cardId: 'qul', kind: 'damage', damage: 3, playerDelta: 4, allianceDelta: 2, steal: 0 },
-  qutb: { cardId: 'qutb', kind: 'damage', damage: 7, playerDelta: 5, allianceDelta: 3, steal: 0 },
-  sehrbaz: { cardId: 'sehrbaz', kind: 'control', damage: 4, playerDelta: 4, allianceDelta: 2, steal: 0 },
-  tikanli: { cardId: 'tikanli', kind: 'steal', damage: 5, playerDelta: 3, allianceDelta: 2, steal: 2 },
-  felaket: { cardId: 'felaket', kind: 'damage', damage: 9, playerDelta: 6, allianceDelta: 4, steal: 0 },
-  usyan: { cardId: 'usyan', kind: 'steal', damage: 3, playerDelta: 5, allianceDelta: 3, steal: 2 },
-  zombi: { cardId: 'zombi', kind: 'damage', damage: 6, playerDelta: 4, allianceDelta: 2, steal: 0 },
-  mutant: { cardId: 'mutant', kind: 'damage', damage: 6, playerDelta: 4, allianceDelta: 2, steal: 0 },
-};
-
 function isSafeInt(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && Number.isSafeInteger(value);
 }
 
 export function officialCardEffect(cardId: string): OfficialCardEffect | null {
-  if (!isBattleLoadoutCardId(cardId)) return null;
-  const effect = BATTLE_CARD_EFFECTS[cardId];
-  if (!effect) return null;
-  if (!isSafeInt(effect.damage) || effect.damage < 0 || effect.damage > BATTLE_DAMAGE_MAX) return null;
-  if (!isSafeInt(effect.playerDelta) || effect.playerDelta < 0 || effect.playerDelta > BATTLE_PLAYER_DELTA_MAX) {
+  const resolved = resolveCardEffect(cardId);
+  if (!resolved) return null;
+  if (!isSafeInt(resolved.damage) || resolved.damage < 0 || resolved.damage > BATTLE_DAMAGE_MAX) return null;
+  if (!isSafeInt(resolved.playerDelta) || resolved.playerDelta < 0 || resolved.playerDelta > BATTLE_PLAYER_DELTA_MAX) {
     return null;
   }
-  if (!isSafeInt(effect.allianceDelta) || effect.allianceDelta < 0 || effect.allianceDelta > BATTLE_ALLIANCE_DELTA_MAX) {
+  if (
+    !isSafeInt(resolved.allianceDelta) ||
+    resolved.allianceDelta < 0 ||
+    resolved.allianceDelta > BATTLE_ALLIANCE_DELTA_MAX
+  ) {
     return null;
   }
-  if (!isSafeInt(effect.steal) || effect.steal < 0 || effect.steal > BATTLE_STEAL_MAX) return null;
-  return effect;
+  if (!isSafeInt(resolved.steal) || resolved.steal < 0 || resolved.steal > BATTLE_STEAL_MAX) return null;
+  return {
+    cardId: resolved.cardId,
+    kind: resolved.primary,
+    damage: resolved.damage,
+    playerDelta: resolved.playerDelta,
+    allianceDelta: resolved.allianceDelta,
+    steal: resolved.steal,
+  };
 }
+
+export const BATTLE_CARD_EFFECTS = Object.fromEntries(
+  BATTLE_LOADOUT_POOL.map((id) => [id, officialCardEffect(id)])
+) as Record<BattleLoadoutCardId, OfficialCardEffect>;
 
 export function readBoundedScore(value: unknown): number {
   if (!isSafeInt(value)) return 0;

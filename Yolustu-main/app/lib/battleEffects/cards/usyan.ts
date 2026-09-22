@@ -1,0 +1,12 @@
+import type { CardEffectModule } from '../types';
+
+export const usyanCard: CardEffectModule = {
+  cardId: 'usyan',
+  effects: [
+    { type: 'rebellion' },
+    { type: 'click_challenge', required: 10 },
+    { type: 'steal', amount: 2 },
+    { type: 'damage', amount: 3 },
+    { type: 'attack', playerDelta: 5, allianceDelta: 3 },
+  ],
+};

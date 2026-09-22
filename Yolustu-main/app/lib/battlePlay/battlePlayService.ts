@@ -34,6 +34,7 @@ import {
   readBoundedScore,
 } from '@/app/lib/battleScore/battleScoreConfig';
 import { battleScoreRef } from '@/app/lib/battleScore/battleScoreService';
+import { resolveCardEffect } from '@/app/lib/battleEffects';
 
 export interface PlayBattleCardInput {
   battleId: string;
@@ -68,6 +69,8 @@ export interface PlayBattleCardResult {
   playerScore: number;
   attackerScore: number;
   defenderScore: number;
+  effects: string[];
+  clickRequired: number;
 }
 
 const WRITE_MS = 12_000;
@@ -157,6 +160,8 @@ function resultFromReceipt(requestId: string, prev: Record<string, unknown>): Pl
     playerScore: Number(prev.playerScoreAfter) || 0,
     attackerScore: Number(prev.attackerScoreAfter) || 0,
     defenderScore: Number(prev.defenderScoreAfter) || 0,
+    effects: Array.isArray(prev.effectKinds) ? prev.effectKinds.map(String) : [],
+    clickRequired: Number(prev.clickRequired) || 0,
   };
 }
 
@@ -257,8 +262,9 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
       const energyAfter = energy - cost;
       if (energyAfter < 0 || energyAfter > BATTLE_ENERGY_MAX) throw new Error('Energy mənfi ola bilməz');
 
+      const resolved = resolveCardEffect(cardId);
       const effect = officialCardEffect(cardId);
-      if (!effect) throw new Error('Kart effekti tapılmadı');
+      if (!resolved || !effect) throw new Error('Kart effekti tapılmadı');
 
       const applied = applyOfficialBattleScores({
         side,
@@ -323,6 +329,8 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         defenderScoreAfter: applied.defenderScore,
         ownAllianceAfter: applied.ownAllianceAfter,
         oppAllianceAfter: applied.oppAllianceAfter,
+        effectKinds: resolved.kinds,
+        clickRequired: resolved.clickRequired,
         schemaVersion: 1,
         createdAt: serverTimestamp(),
       });
@@ -497,6 +505,8 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         playerScore: applied.playerScore,
         attackerScore: applied.attackerScore,
         defenderScore: applied.defenderScore,
+        effects: resolved.kinds,
+        clickRequired: resolved.clickRequired,
       };
     }),
     WRITE_MS,

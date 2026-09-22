@@ -511,6 +511,16 @@ service cloud.firestore {
         : -1;
     }
 
+    function officialClick(id) {
+      return id == 'qul' ? 5
+        : id == 'qutb' ? 5
+        : id == 'felaket' ? 5
+        : id == 'usyan' ? 10
+        : id == 'zombi' ? 5
+        : id == 'mutant' ? 5
+        : 0;
+    }
+
     function officialSteal(id) {
       return id == 'ogru' ? 4
         : id == 'tikanli' ? 2
@@ -791,6 +801,13 @@ service cloud.firestore {
         && d.playerDelta == officialPlayerDelta(d.cardId)
         && d.allianceDelta == officialAllianceDelta(d.cardId)
         && d.steal == officialSteal(d.cardId)
+        && d.clickRequired == officialClick(d.cardId)
+        && d.clickRequired is int
+        && d.clickRequired >= 0
+        && d.clickRequired <= 14
+        && d.effectKinds is list
+        && d.effectKinds.size() > 0
+        && d.effectKinds.size() <= 6
         && d.damage is int
         && d.playerDelta is int
         && d.allianceDelta is int
@@ -839,6 +856,7 @@ service cloud.firestore {
           'damage', 'playerDelta', 'allianceDelta', 'steal', 'taken',
           'playerScoreAfter', 'attackerScoreAfter', 'defenderScoreAfter',
           'ownAllianceAfter', 'oppAllianceAfter',
+          'effectKinds', 'clickRequired',
           'schemaVersion', 'createdAt'
         ]);
     }
