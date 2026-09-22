@@ -10,7 +10,15 @@ import {
   playBattleCard,
   type BattleEnergy,
 } from '@/app/lib/battleEnergy';
-import { BATTLE_CARD_MAX_USES, canPlayOnTurn, cardUsageCount } from '@/app/lib/battlePlay';
+import {
+  BATTLE_CARD_MAX_USES,
+  BATTLE_TURN_DURATION_MS,
+  canPlayOnTurn,
+  cardUsageCount,
+  listenServerClock,
+  timeoutBattleTurn,
+  viewTurnTimer,
+} from '@/app/lib/battlePlay';
 import { BATTLE_LOADOUT_CARD_METAS, listenOwnLoadout } from '@/app/lib/battleLoadout';
 import styles from './alliance.module.css';
 
@@ -27,13 +35,11 @@ export default function BattleEnergyPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastPlay, setLastPlay] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [serverNow, setServerNow] = useState(0);
   const requestRef = useRef<string | null>(null);
+  const timeoutSent = useRef<number | null>(null);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 500);
-    return () => window.clearInterval(timer);
-  }, []);
+  useEffect(() => listenServerClock(setServerNow), []);
 
   useEffect(() => {
     return listenBattleEnergy(battleId, playerId, setEnergy);
@@ -46,7 +52,21 @@ export default function BattleEnergyPanel({
   }, [battleId, playerId]);
 
   const myTurn = canPlayOnTurn(battle, playerId);
-  const playable = battle.status === 'active' && myTurn && energy != null;
+  const timer = viewTurnTimer(battle, serverNow);
+  const playable = battle.status === 'active' && myTurn && energy != null && timer.ready && !timer.expired;
+
+  useEffect(() => {
+    if (!timer.ready || !timer.expired) return;
+    if (timeoutSent.current === battle.stateVersion) return;
+    timeoutSent.current = battle.stateVersion ?? 0;
+    void timeoutBattleTurn({
+      battleId,
+      playerId,
+      expectedStateVersion: battle.stateVersion ?? 0,
+    }).catch(() => {
+      timeoutSent.current = null;
+    });
+  }, [battle.stateVersion, battleId, playerId, timer.expired, timer.ready]);
 
   const onPlay = useCallback(
     async (cardId: string) => {
@@ -92,6 +112,29 @@ export default function BattleEnergyPanel({
           style={{ width: `${energy ? (energy.energy / BATTLE_ENERGY_MAX) * 100 : 0}%` }}
         />
       </div>
+      {battle.status === 'active' ? (
+        <div className={styles.turnTimer} data-expired={timer.expired ? '1' : '0'}>
+          <strong>Növbə</strong>
+          <span>
+            {!timer.ready
+              ? 'Server saatı gözlənilir…'
+              : timer.expired
+                ? 'Vaxt bitdi'
+                : `${Math.ceil(timer.remainingMs / 1000)} / ${BATTLE_TURN_DURATION_MS / 1000} san`}
+          </span>
+          <div className={styles.turnTimerTrack}>
+            <div
+              className={styles.turnTimerFill}
+              style={{
+                width: timer.ready
+                  ? `${Math.min(100, (timer.remainingMs / BATTLE_TURN_DURATION_MS) * 100)}%`
+                  : '0%',
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+
       <p className={styles.energyHint}>
         {!energy
           ? 'Energy serverdən gözlənilir…'
@@ -109,7 +152,7 @@ export default function BattleEnergyPanel({
             const cost = officialCardEnergyCost(cardId);
             const used = cardUsageCount(energy?.cardUsage ?? {}, cardId);
             const readyAt = energy?.cardCooldownUntil[cardId] ?? 0;
-            const cooling = readyAt > now;
+            const cooling = readyAt > serverNow && serverNow > 0;
             const lacking = energy != null && energy.energy < cost;
             const maxed = used >= BATTLE_CARD_MAX_USES;
             const blocked = !playable || maxed || cooling || lacking || Boolean(busyId);
@@ -124,7 +167,7 @@ export default function BattleEnergyPanel({
                 <span>{meta?.title ?? cardId}</span>
                 <span>
                   ⚡ {cost} · {used}/{BATTLE_CARD_MAX_USES}
-                  {cooling ? ` · ${Math.ceil((readyAt - now) / 1000)}s` : ''}
+                  {cooling ? ` · ${Math.ceil((readyAt - serverNow) / 1000)}s` : ''}
                 </span>
               </button>
             );

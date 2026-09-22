@@ -5,7 +5,8 @@ service cloud.firestore {
       return path.size() > 0 && (
         path[0] == 'battles' ||
         path[0] == 'alliance_battle_cooldowns' ||
-        path[0] == 'battle_card_costs'
+        path[0] == 'battle_card_costs' ||
+        path[0] == 'server_clock'
       );
     }
 
@@ -207,6 +208,7 @@ service cloud.firestore {
         && isBattleEventType(d.type)
         && d.type != 'card_played'
         && d.type != 'energy_changed'
+        && d.type != 'turn_timeout'
         && d.seq is int
         && d.seq > 0
         && d.seq == parent.eventSeq
@@ -402,8 +404,14 @@ service cloud.firestore {
           (after.turnSide == 'attacker' && after.turnPlayerId in after.attackerPlayerIds)
           || (after.turnSide == 'defender' && after.turnPlayerId in after.defenderPlayerIds)
         )
+        && after.turnStartAt == request.time
+        && after.turnDurationMs == 15000
+        && request.time < before.turnStartAt + duration.value(15, 's')
         && after.diff(before).affectedKeys()
-          .hasOnly(['eventSeq', 'updatedAt', 'status', 'turn', 'turnSide', 'turnPlayerId', 'stateVersion'])
+          .hasOnly([
+            'eventSeq', 'updatedAt', 'status', 'turn', 'turnSide', 'turnPlayerId',
+            'stateVersion', 'turnStartAt', 'turnDurationMs'
+          ])
         && after.updatedAt == request.time;
     }
 
@@ -419,11 +427,58 @@ service cloud.firestore {
         && after.turn == 1
         && after.turnSide == 'attacker'
         && after.turnPlayerId == after.attackerPlayerIds[0]
+        && after.turnStartAt == request.time
+        && after.turnDurationMs == 15000
         && after.createdAt == before.createdAt
         && after.createdBy == before.createdBy
         && after.diff(before).affectedKeys()
-          .hasOnly(['eventSeq', 'updatedAt', 'status', 'turn', 'turnSide', 'turnPlayerId', 'stateVersion'])
+          .hasOnly([
+            'eventSeq', 'updatedAt', 'status', 'turn', 'turnSide', 'turnPlayerId',
+            'stateVersion', 'turnStartAt', 'turnDurationMs'
+          ])
         && after.updatedAt == request.time;
+    }
+
+    function isValidTurnTimeout() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.status == 'active'
+        && request.time >= before.turnStartAt + duration.value(15, 's')
+        && after.status == 'active'
+        && after.eventSeq == before.eventSeq + 1
+        && after.stateVersion == before.stateVersion + 1
+        && after.turnStartAt == request.time
+        && after.turnDurationMs == 15000
+        && after.turn is int
+        && after.turnSide in ['attacker', 'defender']
+        && after.turnPlayerId is string
+        && (
+          (after.turnSide == 'attacker' && after.turnPlayerId in after.attackerPlayerIds)
+          || (after.turnSide == 'defender' && after.turnPlayerId in after.defenderPlayerIds)
+        )
+        && after.createdAt == before.createdAt
+        && after.createdBy == before.createdBy
+        && after.diff(before).affectedKeys()
+          .hasOnly([
+            'eventSeq', 'updatedAt', 'status', 'turn', 'turnSide', 'turnPlayerId',
+            'stateVersion', 'turnStartAt', 'turnDurationMs'
+          ])
+        && after.updatedAt == request.time;
+    }
+
+    function isValidTurnTimeoutEvent(battleId, eventId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && exists(/databases/$(database)/documents/battles/$(battleId))
+        && battleData(battleId).status == 'active'
+        && request.time >= battleData(battleId).turnStartAt + duration.value(15, 's')
+        && d.type == 'turn_timeout'
+        && d.eventId == eventId
+        && d.battleId == battleId
+        && d.seq == battleData(battleId).eventSeq + 1
+        && d.createdAt == request.time
+        && d.schemaVersion == 1;
     }
 
     function energyReceipt(battleId, requestId) {
@@ -479,6 +534,7 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/battles/$(battleId))
         && battleData(battleId).status == 'active'
         && battleData(battleId).turnPlayerId == playerId
+        && request.time < battleData(battleId).turnStartAt + duration.value(15, 's')
         && reqId is string
         && reqId.size() >= 8
         && receipt.playerId == playerId
@@ -514,6 +570,7 @@ service cloud.firestore {
       return request.auth != null
         && exists(/databases/$(database)/documents/battles/$(battleId))
         && battleData(battleId).status == 'active'
+        && request.time < battleData(battleId).turnStartAt + duration.value(15, 's')
         && d.requestId == requestId
         && d.battleId == battleId
         && d.playerId is string
@@ -609,13 +666,14 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isValidOpenBattleCreate() || isValidMapBattleCreate();
       allow update: if isValidLegacySeqBump() || isValidMapBattleJoin() || isValidMapBattleLock()
-        || isValidBattleActivate() || isValidCardPlaySeqBump();
+        || isValidBattleActivate() || isValidCardPlaySeqBump() || isValidTurnTimeout();
       allow delete: if false;
 
       match /events/{eventId} {
         allow read: if true;
         allow create: if isValidBattleEventCreate(battleId, eventId)
-          || isValidEnergyPlayEvent(battleId, eventId);
+          || isValidEnergyPlayEvent(battleId, eventId)
+          || isValidTurnTimeoutEvent(battleId, eventId);
         allow update, delete: if false;
       }
 
@@ -645,6 +703,16 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isValidCardCostCreate(cardId);
       allow update, delete: if false;
+    }
+
+    match /server_clock/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['t', 'updatedAt'])
+        && request.resource.data.t == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
     }
 
     match /alliance_battle_cooldowns/{allianceId} {

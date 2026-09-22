@@ -17,6 +17,7 @@ import {
 } from '@/app/lib/battleEnergy/battleEnergyConfig';
 import {
   BATTLE_CARD_MAX_USES,
+  BATTLE_TURN_DURATION_MS,
   canPlayOnTurn,
   cardUsageCount,
   nextTurnState,
@@ -286,6 +287,8 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         turnSide: nextTurn.turnSide,
         turnPlayerId: nextTurn.turnPlayerId,
         stateVersion,
+        turnStartAt: serverTimestamp(),
+        turnDurationMs: BATTLE_TURN_DURATION_MS,
       });
 
       tx.set(playEvent, {
@@ -350,5 +353,85 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
   } finally {
     inFlight.delete(flightKey);
     playLocks.delete(playerLock);
+  }
+}
+
+const timeoutLocks = new Set<string>();
+
+export async function timeoutBattleTurn(input: {
+  battleId: string;
+  playerId: string;
+  expectedStateVersion: unknown;
+}): Promise<BattleRecord> {
+  await requireFirebaseAuth();
+  const playerId = sanitizePlayerId(input.playerId);
+  const battleId = String(input.battleId || '').trim();
+  if (!battleId) throw new Error('Battle ID tələb olunur');
+  const expectedStateVersion = requireInt(input.expectedStateVersion, 'Battle state version');
+
+  const lockKey = `${battleId}:${expectedStateVersion}`;
+  if (timeoutLocks.has(lockKey)) throw new Error('Timeout artıq göndərilir');
+  timeoutLocks.add(lockKey);
+
+  try {
+    return await withTimeout(
+      runTransaction(db, async (tx) => {
+        const parentRef = battleRef(battleId);
+        const parentSnap = await tx.get(parentRef);
+        if (!parentSnap.exists()) throw new Error('Battle tapılmadı');
+        const battle = battleFromData(parentSnap.id, parentSnap.data());
+
+        if (battle.status !== 'active') throw new Error('Battle aktiv deyil');
+        if ((battle.stateVersion ?? 0) !== expectedStateVersion) {
+          return battle;
+        }
+        if (!(battle.participantIds ?? []).includes(playerId)) {
+          throw new Error('Bu döyüşdə deyilsən');
+        }
+
+        const timedSide = battle.turnSide ?? 'attacker';
+        const nextTurn = nextTurnState(battle, timedSide);
+        const seq = battle.eventSeq + 1;
+        const stateVersion = (battle.stateVersion ?? 0) + 1;
+        const eventDoc = doc(eventsCol(battleId));
+
+        tx.update(parentRef, {
+          eventSeq: seq,
+          updatedAt: serverTimestamp(),
+          status: 'active',
+          turn: nextTurn.turn,
+          turnSide: nextTurn.turnSide,
+          turnPlayerId: nextTurn.turnPlayerId,
+          stateVersion,
+          turnStartAt: serverTimestamp(),
+          turnDurationMs: BATTLE_TURN_DURATION_MS,
+        });
+        tx.set(eventDoc, {
+          eventId: eventDoc.id,
+          battleId,
+          playerId,
+          type: 'turn_timeout',
+          seq,
+          createdAt: serverTimestamp(),
+          schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
+          meta: { turn: battle.turn, side: timedSide },
+        });
+
+        return {
+          ...battle,
+          eventSeq: seq,
+          updatedAt: Date.now(),
+          turn: nextTurn.turn,
+          turnSide: nextTurn.turnSide,
+          turnPlayerId: nextTurn.turnPlayerId,
+          stateVersion,
+          turnDurationMs: BATTLE_TURN_DURATION_MS,
+        };
+      }),
+      WRITE_MS,
+      'Turn timeout yazılmadı.'
+    );
+  } finally {
+    timeoutLocks.delete(lockKey);
   }
 }

@@ -22,7 +22,7 @@ import {
 } from '@/app/lib/battleEventLog/battleEventLog';
 import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
 import { BATTLE_ENERGY_COLLECTION, initialBattleEnergyDoc } from '@/app/lib/battleEnergy/battleEnergyConfig';
-import { initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
+import { BATTLE_TURN_DURATION_MS, initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
 import type { AllianceData } from '@/app/components/alliance/types';
 
 export const ALLIANCE_BATTLE_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -469,6 +469,8 @@ export async function activateAllianceBattle(battleId: string, actorId: string):
         turnSide: turn.turnSide,
         turnPlayerId: turn.turnPlayerId,
         stateVersion: turn.stateVersion,
+        turnStartAt: serverTimestamp(),
+        turnDurationMs: BATTLE_TURN_DURATION_MS,
       });
       tx.set(eventDoc, {
         eventId: eventDoc.id,
@@ -490,6 +492,9 @@ export async function activateAllianceBattle(battleId: string, actorId: string):
         turnSide: turn.turnSide,
         turnPlayerId: turn.turnPlayerId,
         stateVersion: turn.stateVersion,
+        turnStartAt: Date.now(),
+        turnDurationMs: BATTLE_TURN_DURATION_MS,
+        turnEndAt: Date.now() + BATTLE_TURN_DURATION_MS,
       };
     }),
     WRITE_MS,

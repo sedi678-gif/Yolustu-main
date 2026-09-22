@@ -110,6 +110,13 @@ export function battleFromData(id: string, data: DocumentData): BattleRecord {
     turnSide: data.turnSide === 'defender' ? 'defender' : data.turnSide === 'attacker' ? 'attacker' : undefined,
     turnPlayerId: data.turnPlayerId ? String(data.turnPlayerId) : undefined,
     stateVersion: Number(data.stateVersion) || 0,
+    turnStartAt: timestampToMs(data.turnStartAt) || undefined,
+    turnDurationMs: Number(data.turnDurationMs) || undefined,
+    turnEndAt:
+      timestampToMs(data.turnEndAt) ||
+      (timestampToMs(data.turnStartAt) > 0
+        ? timestampToMs(data.turnStartAt) + (Number(data.turnDurationMs) || 15_000)
+        : undefined),
   };
 }
 
@@ -167,6 +174,9 @@ export async function appendBattleEvent<T extends BattleEventType>(
       }
       if (type === 'card_played' || type === 'energy_changed') {
         throw new Error('Kart/energy yalnız playBattleCard ilə yazılır');
+      }
+      if (type === 'turn_timeout') {
+        throw new Error('Turn timeout yalnız timeoutBattleTurn ilə yazılır');
       }
       if (parent.status === 'finished') {
         throw new Error('Bitmiş battle-ə event yazıla bilməz');

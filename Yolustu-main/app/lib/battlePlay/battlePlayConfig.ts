@@ -2,6 +2,7 @@ import { BATTLE_LOADOUT_POOL, isBattleLoadoutCardId, type BattleLoadoutCardId } 
 import type { BattleRecord, BattleSide } from '@/app/lib/battleEventLog/battleEventTypes';
 
 export const BATTLE_CARD_MAX_USES = 3;
+export const BATTLE_TURN_DURATION_MS = 15_000;
 export const BATTLE_PLAY_COLLECTION = 'energy';
 export const BATTLE_PLAY_REQUESTS_COLLECTION = 'energy_requests';
 
@@ -111,6 +112,37 @@ export function canPlayOnTurn(battle: BattleRecord, playerId: string): boolean {
   if (battle.status !== 'active') return false;
   if (!battle.turnPlayerId) return false;
   return battle.turnPlayerId === playerId;
+}
+
+export function turnEndAtMs(battle: Pick<BattleRecord, 'turnStartAt' | 'turnEndAt' | 'turnDurationMs'>): number {
+  if (battle.turnEndAt && battle.turnEndAt > 0) return battle.turnEndAt;
+  const start = battle.turnStartAt ?? 0;
+  const duration = battle.turnDurationMs && battle.turnDurationMs > 0 ? battle.turnDurationMs : BATTLE_TURN_DURATION_MS;
+  return start > 0 ? start + duration : 0;
+}
+
+/** Client yalnız serverNow (sinxron saat) ilə countdown göstərir. */
+export function viewTurnTimer(
+  battle: BattleRecord,
+  serverNow: number
+): {
+  turnStartAt: number;
+  turnEndAt: number;
+  remainingMs: number;
+  expired: boolean;
+  ready: boolean;
+} {
+  const turnStartAt = battle.turnStartAt ?? 0;
+  const turnEndAt = turnEndAtMs(battle);
+  const ready = serverNow > 0 && turnStartAt > 0 && battle.status === 'active';
+  const remainingMs = ready ? Math.max(0, turnEndAt - serverNow) : 0;
+  return {
+    turnStartAt,
+    turnEndAt,
+    remainingMs,
+    expired: ready && serverNow >= turnEndAt,
+    ready,
+  };
 }
 
 for (const id of BATTLE_LOADOUT_POOL) {

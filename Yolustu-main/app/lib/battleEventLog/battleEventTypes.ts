@@ -142,6 +142,9 @@ export interface BattleRecord {
   turnSide?: BattleSide;
   turnPlayerId?: string;
   stateVersion?: number;
+  turnStartAt?: number;
+  turnEndAt?: number;
+  turnDurationMs?: number;
 }
 
 export interface AppendBattleEventInput<T extends BattleEventType = BattleEventType> {
