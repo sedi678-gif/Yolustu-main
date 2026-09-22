@@ -1,6 +1,7 @@
 import { isBattleLoadoutCardId, type BattleLoadoutCardId } from '@/app/lib/battleLoadout/battleLoadoutConfig';
 import { emptyContribution, mergeContributions } from './fold';
 import { getEffectPrimitive } from './primitives';
+import { officialRequiredClicks as requiredClicksForAlliance } from '@/app/lib/battleClick/battleClickConfig';
 import { getCardEffectModule } from './registry';
 import type { EffectKind, ResolvedCardEffect } from './types';
 
@@ -44,8 +45,9 @@ export function resolveCardEffect(cardId: string): ResolvedCardEffect | null {
   };
 }
 
-export function officialClickRequired(cardId: string): number {
-  return resolveCardEffect(cardId)?.clickRequired ?? 0;
+export function officialClickRequired(cardId: string, memberCount?: unknown): number {
+  if (memberCount !== undefined) return requiredClicksForAlliance(cardId, memberCount);
+  return resolveCardEffect(cardId)?.kinds.includes('click_challenge') ? 1 : 0;
 }
 
 export function viewCardEffectLabel(cardId: string): string {

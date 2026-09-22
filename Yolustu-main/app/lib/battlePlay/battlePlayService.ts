@@ -35,6 +35,12 @@ import {
 } from '@/app/lib/battleScore/battleScoreConfig';
 import { battleScoreRef } from '@/app/lib/battleScore/battleScoreService';
 import { resolveCardEffect } from '@/app/lib/battleEffects';
+import {
+  cardClickScale,
+  initialChallengeDoc,
+  officialClickTarget,
+  officialRequiredClicks,
+} from '@/app/lib/battleClick';
 
 export interface PlayBattleCardInput {
   battleId: string;
@@ -290,8 +296,15 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
       const playerScoreEvent = newBattleEventRef(battleId);
       const ownScoreEvent = newBattleEventRef(battleId);
       const oppScoreEvent = newBattleEventRef(battleId);
-      const oppAllianceId =
-        side === 'attacker' ? battle.defenderAllianceId : battle.attackerAllianceId;
+      const ownAllianceId = side === 'attacker' ? battle.attackerAllianceId : battle.defenderAllianceId;
+      const oppAllianceId = side === 'attacker' ? battle.defenderAllianceId : battle.attackerAllianceId;
+      const targetAllianceId =
+        officialClickTarget(cardId) === 'own' ? ownAllianceId || '' : oppAllianceId || '';
+      const needsChallenge = cardClickScale(cardId) > 0 && Boolean(targetAllianceId);
+      const allianceSnap = needsChallenge ? await tx.get(doc(db, 'alliances', targetAllianceId)) : null;
+      const requiredClicks = needsChallenge
+        ? officialRequiredClicks(cardId, allianceSnap?.data()?.members)
+        : 0;
 
       if (!costSnap.exists()) {
         tx.set(costRef, {
@@ -330,10 +343,27 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         ownAllianceAfter: applied.ownAllianceAfter,
         oppAllianceAfter: applied.oppAllianceAfter,
         effectKinds: resolved.kinds,
-        clickRequired: resolved.clickRequired,
+        clickRequired: requiredClicks,
+        targetAllianceId: targetAllianceId || null,
+        challengeId: requiredClicks > 0 ? requestId : null,
         schemaVersion: 1,
         createdAt: serverTimestamp(),
       });
+
+      if (requiredClicks > 0) {
+        tx.set(
+          doc(db, 'battles', battleId, 'challenges', requestId),
+          initialChallengeDoc({
+            challengeId: requestId,
+            battleId,
+            cardId,
+            requestId,
+            targetAllianceId,
+            requiredClicks,
+            createdBy: playerId,
+          })
+        );
+      }
 
       tx.update(energyRef, {
         energy: energyAfter,
@@ -506,7 +536,7 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         attackerScore: applied.attackerScore,
         defenderScore: applied.defenderScore,
         effects: resolved.kinds,
-        clickRequired: resolved.clickRequired,
+        clickRequired: requiredClicks,
       };
     }),
     WRITE_MS,

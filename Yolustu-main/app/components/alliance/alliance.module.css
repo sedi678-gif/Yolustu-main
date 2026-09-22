@@ -6648,6 +6648,39 @@
   color: #94a3b8;
 }
 
+.clickBox {
+  margin-top: 10px;
+  border: 1px solid rgba(251, 113, 133, 0.28);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(76, 5, 25, 0.28);
+}
+
+.clickHead {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fda4af;
+}
+
+.clickCard {
+  margin-bottom: 8px;
+}
+
+.clickCard p {
+  margin: 0 0 6px;
+  color: #fecdd3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.clickHint {
+  color: #94a3b8 !important;
+  font-weight: 600 !important;
+}
+
 .eventLogBox {
   margin-top: 12px;
   border: 1px solid rgba(148, 163, 184, 0.22);

@@ -30,6 +30,8 @@ export interface EffectSpec {
   allianceDelta?: number;
   required?: number;
   freezeMs?: number;
+  scale?: 'normal' | 'double';
+  target?: 'own' | 'opponent';
 }
 
 export interface EffectContribution {

@@ -5,7 +5,7 @@ export const qutbCard: CardEffectModule = {
   effects: [
     { type: 'fire', amount: 7 },
     { type: 'ice', freezeMs: 600_000 },
-    { type: 'click_challenge', required: 5 },
+    { type: 'click_challenge', scale: 'normal', target: 'opponent' },
     { type: 'attack', playerDelta: 5, allianceDelta: 3 },
   ],
 };

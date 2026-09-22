@@ -61,6 +61,8 @@ const SERVICE_ONLY_EVENT_TYPES: readonly BattleEventType[] = [
   'battle_finished',
   'damage_applied',
   'score_changed',
+  'click_started',
+  'click_completed',
 ];
 
 /** Event yalnız create olunur — update/delete yoxdur. createdAt server timestamp-dır. */

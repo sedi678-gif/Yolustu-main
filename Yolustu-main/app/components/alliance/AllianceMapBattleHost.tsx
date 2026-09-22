@@ -21,6 +21,7 @@ import {
 import BattleLoadoutPicker from './BattleLoadoutPicker';
 import BattleEnergyPanel from './BattleEnergyPanel';
 import BattleScorePanel from './BattleScorePanel';
+import BattleClickChallengePanel from './BattleClickChallengePanel';
 import BattleEventLogPanel from './BattleEventLogPanel';
 import styles from './alliance.module.css';
 
@@ -330,6 +331,7 @@ export default function AllianceMapBattleHost({
             ) : null}
             {alreadyIn ? <BattleEnergyPanel battle={liveView.battle} playerId={userId} /> : null}
             <BattleScorePanel battle={liveView.battle} playerId={userId} />
+            {alreadyIn ? <BattleClickChallengePanel battleId={liveView.battle.id} playerId={userId} /> : null}
             <BattleEventLogPanel battleId={liveView.battle.id} />
             {liveView && !alreadyIn ? (
               <p className={styles.battleJoinHint}>Rəqib kart seçimi gizlidir.</p>

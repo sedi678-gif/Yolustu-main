@@ -205,8 +205,6 @@ service cloud.firestore {
       return t in [
         'card_blocked',
         'card_countered',
-        'click_started',
-        'click_completed'
       ];
     }
 
@@ -511,14 +509,22 @@ service cloud.firestore {
         : -1;
     }
 
-    function officialClick(id) {
-      return id == 'qul' ? 5
-        : id == 'qutb' ? 5
-        : id == 'felaket' ? 5
-        : id == 'usyan' ? 10
-        : id == 'zombi' ? 5
-        : id == 'mutant' ? 5
-        : 0;
+    function officialClickBand(allianceId) {
+      let n = allianceId is string
+        && allianceId.size() > 0
+        && exists(/databases/$(database)/documents/alliances/$(allianceId))
+        && get(/databases/$(database)/documents/alliances/$(allianceId)).data.keys().hasAny(['members'])
+        && get(/databases/$(database)/documents/alliances/$(allianceId)).data.members is list
+          ? get(/databases/$(database)/documents/alliances/$(allianceId)).data.members.size()
+          : 1;
+      return n <= 5 ? 3 : n <= 15 ? 5 : 7;
+    }
+
+    function officialChallengeClicks(cardId, allianceId) {
+      return cardId == 'usyan' ? officialClickBand(allianceId) * 2
+        : (cardId == 'qul' || cardId == 'qutb' || cardId == 'felaket' || cardId == 'zombi' || cardId == 'mutant')
+          ? officialClickBand(allianceId)
+          : 0;
     }
 
     function officialSteal(id) {
@@ -801,10 +807,12 @@ service cloud.firestore {
         && d.playerDelta == officialPlayerDelta(d.cardId)
         && d.allianceDelta == officialAllianceDelta(d.cardId)
         && d.steal == officialSteal(d.cardId)
-        && d.clickRequired == officialClick(d.cardId)
+        && d.clickRequired == officialChallengeClicks(d.cardId, d.targetAllianceId)
         && d.clickRequired is int
         && d.clickRequired >= 0
         && d.clickRequired <= 14
+        && (d.challengeId == null || d.challengeId == d.requestId)
+        && (d.clickRequired == 0 || d.challengeId == d.requestId)
         && d.effectKinds is list
         && d.effectKinds.size() > 0
         && d.effectKinds.size() <= 6
@@ -856,7 +864,7 @@ service cloud.firestore {
           'damage', 'playerDelta', 'allianceDelta', 'steal', 'taken',
           'playerScoreAfter', 'attackerScoreAfter', 'defenderScoreAfter',
           'ownAllianceAfter', 'oppAllianceAfter',
-          'effectKinds', 'clickRequired',
+          'effectKinds', 'clickRequired', 'targetAllianceId', 'challengeId',
           'schemaVersion', 'createdAt'
         ]);
     }
@@ -1026,6 +1034,109 @@ service cloud.firestore {
         );
     }
 
+    function challengeData(battleId, challengeId) {
+      return get(/databases/$(database)/documents/battles/$(battleId)/challenges/$(challengeId)).data;
+    }
+
+    function isValidChallengeCreate(battleId, challengeId) {
+      let d = request.resource.data;
+      let receipt = energyReceipt(battleId, challengeId);
+      return request.auth != null
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId)/energy_requests/$(challengeId))
+        && receipt.challengeId == challengeId
+        && receipt.clickRequired > 0
+        && d.challengeId == challengeId
+        && d.battleId == battleId
+        && d.requestId == challengeId
+        && d.cardId == receipt.cardId
+        && d.targetAllianceId == receipt.targetAllianceId
+        && d.requiredClicks == receipt.clickRequired
+        && d.requiredClicks == officialChallengeClicks(d.cardId, d.targetAllianceId)
+        && d.requiredClicks > 0
+        && d.requiredClicks <= 14
+        && d.currentClicks == 0
+        && d.status == 'active'
+        && d.startedAt == request.time
+        && d.durationMs == 15000
+        && d.schemaVersion == 1
+        && d.createdBy is string
+        && d.keys().hasOnly([
+          'challengeId', 'battleId', 'cardId', 'requestId', 'targetAllianceId',
+          'requiredClicks', 'currentClicks', 'startedAt', 'durationMs',
+          'status', 'createdBy', 'schemaVersion'
+        ]);
+    }
+
+    function isValidChallengeClick(battleId, challengeId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.status == 'active'
+        && request.time < before.startedAt + duration.value(15, 's')
+        && after.requiredClicks == before.requiredClicks
+        && after.targetAllianceId == before.targetAllianceId
+        && after.cardId == before.cardId
+        && after.currentClicks == before.currentClicks + 1
+        && after.currentClicks <= before.requiredClicks
+        && after.currentClicks > 0
+        && (
+          after.currentClicks < after.requiredClicks
+            ? after.status == 'active'
+            : after.status == 'succeeded'
+        )
+        && !exists(/databases/$(database)/documents/battles/$(battleId)/challenges/$(challengeId)/clicks/$(request.auth.uid))
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(challengeId)/clicks/$(request.auth.uid))
+        && after.diff(before).affectedKeys().hasOnly(['currentClicks', 'status', 'updatedAt']);
+    }
+
+    function isValidChallengeExpire(battleId, challengeId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.status == 'active'
+        && request.time >= before.startedAt + duration.value(15, 's')
+        && after.status == 'expired'
+        && after.currentClicks == before.currentClicks
+        && after.requiredClicks == before.requiredClicks
+        && after.targetAllianceId == before.targetAllianceId
+        && after.diff(before).affectedKeys().hasOnly(['status', 'updatedAt']);
+    }
+
+    function isValidChallengeClickCreate(battleId, challengeId, clickId) {
+      let d = request.resource.data;
+      let ch = challengeData(battleId, challengeId);
+      return request.auth != null
+        && clickId == request.auth.uid
+        && exists(/databases/$(database)/documents/battles/$(battleId)/challenges/$(challengeId))
+        && ch.status == 'active'
+        && request.time < ch.startedAt + duration.value(15, 's')
+        && d.uid == request.auth.uid
+        && d.playerId is string
+        && d.createdAt == request.time
+        && d.schemaVersion == 1
+        && getAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(challengeId)).data.currentClicks
+          == ch.currentClicks + 1;
+    }
+
+    function isValidClickCompleteEvent(battleId, eventId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && isBattleEventDoc(battleId, eventId)
+        && d.type == 'click_completed'
+        && isNextEventSeq(battleId)
+        && d.meta.clicks is int
+        && d.meta.required is int
+        && d.meta.success is bool
+        && d.meta.required > 0
+        && d.meta.required <= 14
+        && d.meta.clicks >= 0
+        && d.meta.clicks <= d.meta.required
+        && (
+          (d.meta.success == true && d.meta.clicks == d.meta.required)
+          || (d.meta.success == false && d.meta.clicks < d.meta.required)
+        );
+    }
+
     function isValidLoadoutFreeze(battleId) {
       let b = battleData(battleId);
       return request.auth != null
@@ -1058,7 +1169,8 @@ service cloud.firestore {
           || isValidTurnStartedEvent(battleId, eventId)
           || isValidEnergyPlayEvent(battleId, eventId)
           || isValidScorePlayEvent(battleId, eventId)
-          || isValidTurnTimeoutEvent(battleId, eventId);
+          || isValidTurnTimeoutEvent(battleId, eventId)
+          || isValidClickCompleteEvent(battleId, eventId);
         allow update, delete: if false;
       }
 
@@ -1081,6 +1193,20 @@ service cloud.firestore {
           || isValidScoreCreateOnPlay(battleId, playerId);
         allow update: if isValidScoreAward(battleId, playerId);
         allow delete: if false;
+      }
+
+      match /challenges/{challengeId} {
+        allow read: if true;
+        allow create: if isValidChallengeCreate(battleId, challengeId);
+        allow update: if isValidChallengeClick(battleId, challengeId)
+          || isValidChallengeExpire(battleId, challengeId);
+        allow delete: if false;
+
+        match /clicks/{clickId} {
+          allow read: if true;
+          allow create: if isValidChallengeClickCreate(battleId, challengeId, clickId);
+          allow update, delete: if false;
+        }
       }
 
       match /loadouts/{playerId} {

@@ -5,7 +5,7 @@ export const felaketCard: CardEffectModule = {
   effects: [
     { type: 'earthquake', amount: 9 },
     { type: 'tsunami' },
-    { type: 'click_challenge', required: 5 },
+    { type: 'click_challenge', scale: 'normal', target: 'opponent' },
     { type: 'attack', playerDelta: 6, allianceDelta: 4 },
   ],
 };
