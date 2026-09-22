@@ -31,6 +31,7 @@ import BattleEnergyPanel from './BattleEnergyPanel';
 import BattleScorePanel from './BattleScorePanel';
 import BattleClickChallengePanel from './BattleClickChallengePanel';
 import BattleEventLogPanel from './BattleEventLogPanel';
+import BattleArenaScreen from './BattleArenaScreen';
 import styles from './alliance.module.css';
 
 function playerName(players: PlayerProfile[], id: string) {
@@ -276,7 +277,10 @@ export default function AllianceMapBattleHost({
 
   const localAlliance = resolvedIdentified || alliances.find((item) => item.id === selectedAllianceId) || null;
   const showInfo = Boolean(selectedAllianceId) && !lobbyId;
-  const showLobby = Boolean(lobbyId && liveView);
+  const showArena = Boolean(
+    alreadyIn && liveView && (liveView.phase === 'active' || liveView.phase === 'finished')
+  );
+  const showLobby = Boolean(lobbyId && liveView && !showArena);
 
   return (
     <>
@@ -410,6 +414,24 @@ export default function AllianceMapBattleHost({
           <p>Döyüş yüklənir…</p>
         )}
       </AllianceMapSheet>
+
+      {showArena && liveView ? (
+        <BattleArenaScreen
+          battle={liveView.battle}
+          playerId={userId}
+          players={players}
+          restoredEnergy={
+            reconnectSnap?.battle.id === liveView.battle.id ? reconnectSnap.energy : null
+          }
+          restoredChallenges={
+            reconnectSnap?.battle.id === liveView.battle.id ? reconnectSnap.challenges : undefined
+          }
+          onClose={() => {
+            setLobbyId(null);
+            onClearSelected();
+          }}
+        />
+      ) : null}
     </>
   );
 }
