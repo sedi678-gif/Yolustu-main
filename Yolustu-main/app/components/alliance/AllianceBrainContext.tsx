@@ -260,11 +260,15 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
           text?: string;
           createdAt?: number;
         };
-        if (data.kind !== 'info_viewed') return;
+        if (data.kind !== 'info_viewed' && data.kind !== 'battle_finished') return;
         if (data.allianceId !== allianceId) return;
-        if (data.viewerId === userId) return;
+        if (data.kind === 'info_viewed' && data.viewerId === userId) return;
         if (data.createdAt && Date.now() - data.createdAt > 20_000) return;
-        setAllianceNotifyToast(data.text || '👁 Kimsə ittifaqınızın məlumatlarına baxdı');
+        setAllianceNotifyToast(
+          data.kind === 'battle_finished'
+            ? data.text || 'Döyüş bitdi'
+            : data.text || '👁 Kimsə ittifaqınızın məlumatlarına baxdı'
+        );
       });
     });
     return () => unsub();

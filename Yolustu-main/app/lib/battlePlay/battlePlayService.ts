@@ -42,6 +42,8 @@ import {
   officialRequiredClicks,
 } from '@/app/lib/battleClick';
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
+import { finishBattle } from '@/app/lib/battleFinish/battleFinishService';
+import { finishReasonFromScores } from '@/app/lib/battleFinish/battleFinishConfig';
 
 export interface PlayBattleCardInput {
   battleId: string;
@@ -197,7 +199,7 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
     playLocks.add(playerLock);
 
     try {
-      return await withTimeout(
+      const played = await withTimeout(
     runTransaction(db, async (tx) => {
       const parentRef = battleRef(battleId);
       const energyRef = battleEnergyRef(battleId, playerId);
@@ -542,6 +544,10 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
     WRITE_MS,
     'Kart oynanılmadı.'
       );
+      if (finishReasonFromScores(played.turn, played.attackerScore, played.defenderScore)) {
+        await finishBattle({ battleId, playerId }).catch(() => {});
+      }
+      return played;
     } finally {
       playLocks.delete(playerLock);
     }
@@ -560,8 +566,8 @@ export async function timeoutBattleTurn(input: {
   const expectedStateVersion = requireInt(input.expectedStateVersion, 'Battle state version');
 
   const lockKey = `timeout:${battleId}:${expectedStateVersion}`;
-  return replayBattleRequest(lockKey, () =>
-    withTimeout(
+  return replayBattleRequest(lockKey, async () => {
+    const battle = await withTimeout(
       runTransaction(db, async (tx) => {
         const parentRef = battleRef(battleId);
         const parentSnap = await tx.get(parentRef);
@@ -618,6 +624,13 @@ export async function timeoutBattleTurn(input: {
       }),
       WRITE_MS,
       'Turn timeout yazılmadı.'
-    )
-  );
+    );
+    if (
+      battle.status === 'active' &&
+      finishReasonFromScores(battle.turn ?? 0, battle.attackerScore, battle.defenderScore)
+    ) {
+      await finishBattle({ battleId, playerId }).catch(() => {});
+    }
+    return battle;
+  });
 }

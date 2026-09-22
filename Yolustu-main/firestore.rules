@@ -197,8 +197,20 @@ service cloud.firestore {
         && after.status in ['locked', 'finished']
         && after.attackerPlayerIds == before.attackerPlayerIds
         && after.defenderPlayerIds == before.defenderPlayerIds
-        && after.diff(before).affectedKeys().hasOnly(['eventSeq', 'updatedAt', 'status'])
-        && after.updatedAt == request.time;
+        && after.updatedAt == request.time
+        && (
+          (
+            after.status == 'locked'
+            && after.diff(before).affectedKeys().hasOnly(['eventSeq', 'updatedAt', 'status'])
+          ) || (
+            after.status == 'finished'
+            && after.finishReason == 'join_failed'
+            && after.winnerAllianceId == null
+            && after.winnerSide == null
+            && after.diff(before).affectedKeys()
+              .hasOnly(['eventSeq', 'updatedAt', 'status', 'finishReason', 'winnerSide', 'winnerAllianceId'])
+          )
+        );
     }
 
     function isGenericBattleEventType(t) {
@@ -287,11 +299,107 @@ service cloud.firestore {
 
     function isValidBattleFinishedEvent(battleId, eventId) {
       let d = request.resource.data;
+      let before = battleData(battleId);
+      let after = battleAfter(battleId);
       return request.auth != null
         && isBattleEventDoc(battleId, eventId)
         && d.type == 'battle_finished'
         && isNextEventSeq(battleId)
-        && battleAfter(battleId).status == 'finished';
+        && after.status == 'finished'
+        && !d.meta.keys().hasAny(['winnerPlayerId'])
+        && (
+          (
+            before.status == 'joining'
+            && after.finishReason == 'join_failed'
+            && d.meta.reason == 'join_failed'
+            && !d.meta.keys().hasAny(['winnerAllianceId', 'winnerSide'])
+          ) || (
+            before.status == 'active'
+            && d.meta.reason == after.finishReason
+            && d.meta.attackerScore == after.attackerScore
+            && d.meta.defenderScore == after.defenderScore
+            && (
+              (after.winnerAllianceId == null && !d.meta.keys().hasAny(['winnerAllianceId']))
+              || d.meta.winnerAllianceId == after.winnerAllianceId
+            )
+          )
+        );
+    }
+
+    function isValidBattleFinish() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let scoreWin = before.attackerScore != before.defenderScore
+        && (before.attackerScore >= 40 || before.defenderScore >= 40);
+      return request.auth != null
+        && before.status == 'active'
+        && after.status == 'finished'
+        && after.eventSeq == before.eventSeq + 1
+        && after.attackerScore == before.attackerScore
+        && after.defenderScore == before.defenderScore
+        && after.createdAt == before.createdAt
+        && after.createdBy == before.createdBy
+        && after.finishReason in ['score_reached', 'turn_limit']
+        && (
+          (after.finishReason == 'score_reached' && scoreWin)
+          || (after.finishReason == 'turn_limit' && before.turn > 8 && !scoreWin)
+        )
+        && after.winnerAllianceId == (
+          before.attackerScore > before.defenderScore
+            ? before.attackerAllianceId
+            : before.defenderScore > before.attackerScore
+              ? before.defenderAllianceId
+              : null
+        )
+        && after.winnerSide == (
+          before.attackerScore > before.defenderScore
+            ? 'attacker'
+            : before.defenderScore > before.attackerScore
+              ? 'defender'
+              : null
+        )
+        && after.finishedAt == request.time
+        && after.diff(before).affectedKeys().hasOnly([
+          'eventSeq', 'updatedAt', 'status', 'finishReason', 'winnerSide',
+          'winnerAllianceId', 'finishedAt', 'attackerScore', 'defenderScore'
+        ])
+        && after.updatedAt == request.time;
+    }
+
+    function isValidBattleResultCreate(battleId, resultId) {
+      let d = request.resource.data;
+      let after = battleAfter(battleId);
+      return request.auth != null
+        && resultId == 'final'
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId))
+        && after.status == 'finished'
+        && d.battleId == battleId
+        && d.status == 'finished'
+        && d.winnerPlayerId == null
+        && d.reason == after.finishReason
+        && d.attackerScore == after.attackerScore
+        && d.defenderScore == after.defenderScore
+        && d.winnerAllianceId == after.winnerAllianceId
+        && d.winnerSide == after.winnerSide
+        && d.playerDeltaWin == 8
+        && d.playerDeltaLoss == 2
+        && d.playerDeltaDraw == 4
+        && d.allianceDeltaWin == 6
+        && d.allianceDeltaLoss == 0
+        && d.allianceDeltaDraw == 3
+        && d.scoreWin == 40
+        && d.turnLimit == 8
+        && d.schemaVersion == 1
+        && d.createdAt == request.time
+        && d.eventSeq == after.eventSeq
+        && d.keys().hasOnly([
+          'battleId', 'status', 'reason', 'winnerSide', 'winnerAllianceId', 'winnerPlayerId',
+          'attackerScore', 'defenderScore', 'attackerAllianceId', 'defenderAllianceId',
+          'playerDeltas', 'allianceDeltas', 'participantIds', 'eventSeq',
+          'playerDeltaWin', 'playerDeltaLoss', 'playerDeltaDraw',
+          'allianceDeltaWin', 'allianceDeltaLoss', 'allianceDeltaDraw',
+          'scoreWin', 'turnLimit', 'schemaVersion', 'createdAt'
+        ]);
     }
 
     function isValidTurnStartedEvent(battleId, eventId) {
@@ -1102,6 +1210,18 @@ service cloud.firestore {
         && after.diff(before).affectedKeys().hasOnly(['status', 'updatedAt']);
     }
 
+    function isValidChallengeCloseOnFinish(battleId, challengeId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.status == 'active'
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId))
+        && battleAfter(battleId).status == 'finished'
+        && after.status == 'expired'
+        && after.currentClicks == before.currentClicks
+        && after.diff(before).affectedKeys().hasOnly(['status', 'updatedAt']);
+    }
+
     function isValidChallengeClickCreate(battleId, challengeId, clickId) {
       let d = request.resource.data;
       let ch = challengeData(battleId, challengeId);
@@ -1156,7 +1276,8 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isValidOpenBattleCreate() || isValidMapBattleCreate();
       allow update: if isValidLegacySeqBump() || isValidMapBattleJoin() || isValidMapBattleLock()
-        || isValidBattleActivate() || isValidCardPlaySeqBump(battleId) || isValidTurnTimeout();
+        || isValidBattleActivate() || isValidCardPlaySeqBump(battleId) || isValidTurnTimeout()
+        || isValidBattleFinish();
       allow delete: if false;
 
       match /events/{eventId} {
@@ -1199,7 +1320,8 @@ service cloud.firestore {
         allow read: if true;
         allow create: if isValidChallengeCreate(battleId, challengeId);
         allow update: if isValidChallengeClick(battleId, challengeId)
-          || isValidChallengeExpire(battleId, challengeId);
+          || isValidChallengeExpire(battleId, challengeId)
+          || isValidChallengeCloseOnFinish(battleId, challengeId);
         allow delete: if false;
 
         match /clicks/{clickId} {
@@ -1207,6 +1329,12 @@ service cloud.firestore {
           allow create: if isValidChallengeClickCreate(battleId, challengeId, clickId);
           allow update, delete: if false;
         }
+      }
+
+      match /result/{resultId} {
+        allow read: if true;
+        allow create: if isValidBattleResultCreate(battleId, resultId);
+        allow update, delete: if false;
       }
 
       match /loadouts/{playerId} {

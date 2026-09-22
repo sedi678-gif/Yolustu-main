@@ -164,6 +164,10 @@ export function battleFromData(id: string, data: DocumentData): BattleRecord {
     defenderScore: Number.isFinite(Number(data.defenderScore)) ? Math.trunc(Number(data.defenderScore)) : 0,
     scoreVersion: Number(data.scoreVersion) || 0,
     lastScoreRequestId: data.lastScoreRequestId ? String(data.lastScoreRequestId) : undefined,
+    winnerSide: data.winnerSide === 'defender' ? 'defender' : data.winnerSide === 'attacker' ? 'attacker' : data.winnerSide === null ? null : undefined,
+    winnerAllianceId: data.winnerAllianceId ? String(data.winnerAllianceId) : data.winnerAllianceId === null ? null : undefined,
+    finishReason: data.finishReason ? String(data.finishReason) : undefined,
+    finishedAt: timestampToMs(data.finishedAt) || undefined,
   };
 }
 

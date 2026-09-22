@@ -20,7 +20,7 @@ const META_KEYS: Record<BattleEventType, readonly string[]> = {
   score_changed: ['score', 'delta', 'scope', 'requestId', 'cardId'],
   turn_started: ['turn', 'side'],
   turn_timeout: ['turn', 'side'],
-  battle_finished: ['winnerPlayerId', 'winnerAllianceId', 'reason'],
+  battle_finished: ['winnerPlayerId', 'winnerAllianceId', 'reason', 'winnerSide', 'attackerScore', 'defenderScore'],
 };
 
 function clipString(value: unknown, max = MAX_STRING): string | undefined {
@@ -107,6 +107,8 @@ export function sanitizeBattleEventMeta<T extends BattleEventType>(
       case 'amount':
       case 'score':
       case 'turn':
+      case 'attackerScore':
+      case 'defenderScore':
         {
           const num = clipInt(value);
           if (num !== undefined) out[key] = num;
@@ -114,6 +116,9 @@ export function sanitizeBattleEventMeta<T extends BattleEventType>(
         break;
       case 'scope':
         if (value === 'player' || value === 'alliance') out[key] = value;
+        break;
+      case 'winnerSide':
+        if (value === 'attacker' || value === 'defender') out[key] = value;
         break;
       default:
         {

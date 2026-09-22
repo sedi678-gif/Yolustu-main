@@ -104,6 +104,9 @@ export type BattleEventMetaMap = {
     winnerPlayerId?: string;
     winnerAllianceId?: string;
     reason?: string;
+    winnerSide?: string;
+    attackerScore?: number;
+    defenderScore?: number;
   };
 };
 
@@ -152,6 +155,10 @@ export interface BattleRecord {
   defenderScore?: number;
   scoreVersion?: number;
   lastScoreRequestId?: string;
+  winnerSide?: BattleSide | null;
+  winnerAllianceId?: string | null;
+  finishReason?: string;
+  finishedAt?: number;
 }
 
 export interface AppendBattleEventInput<T extends BattleEventType = BattleEventType> {

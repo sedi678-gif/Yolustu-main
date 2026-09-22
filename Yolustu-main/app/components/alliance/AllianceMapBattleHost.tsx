@@ -22,8 +22,10 @@ import {
 import {
   listenBattleReconnect,
   rememberLiveBattleHint,
+  clearLiveBattleHint,
   type BattleReconnectSnapshot,
 } from '@/app/lib/battleReconnect';
+import { finishBattle, officialFinishReason } from '@/app/lib/battleFinish';
 import BattleLoadoutPicker from './BattleLoadoutPicker';
 import BattleEnergyPanel from './BattleEnergyPanel';
 import BattleScorePanel from './BattleScorePanel';
@@ -176,11 +178,22 @@ export default function AllianceMapBattleHost({
   }, [view, userId]);
 
   useEffect(() => {
+    if (!view || !userId) return;
+    if (view.battle.status !== 'active') return;
+    if (!officialFinishReason(view.battle)) return;
+    void finishBattle({ battleId: view.battle.id, playerId: userId }).catch(() => {});
+  }, [view, userId]);
+
+  useEffect(() => {
     if (!userId || !view) return;
     const inBattle = [...(view.battle.attackerPlayerIds ?? []), ...(view.battle.defenderPlayerIds ?? [])].includes(
       userId
     );
     if (!inBattle) return;
+    if (view.battle.status === 'finished') {
+      clearLiveBattleHint(userId);
+      return;
+    }
     if (view.battle.status === 'joining' || view.battle.status === 'locked' || view.battle.status === 'active') {
       rememberLiveBattleHint(userId, view.battle.id);
     }

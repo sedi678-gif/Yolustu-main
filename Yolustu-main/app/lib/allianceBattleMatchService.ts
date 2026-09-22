@@ -26,6 +26,7 @@ import { BATTLE_ENERGY_COLLECTION, initialBattleEnergyDoc } from '@/app/lib/batt
 import { BATTLE_SCORE_COLLECTION, initialBattleScoreDoc } from '@/app/lib/battleScore/battleScoreConfig';
 import { BATTLE_TURN_DURATION_MS, initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
+import { stampJoinFailedResult } from '@/app/lib/battleFinish/battleFinishService';
 import type { AllianceData } from '@/app/components/alliance/types';
 
 export const ALLIANCE_BATTLE_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -424,11 +425,20 @@ export async function lockAllianceMapBattle(battleId: string, actorId: string): 
       const eventDoc = newBattleEventRef(id);
       const status = ok ? 'locked' : 'finished';
 
-      tx.update(parentRef, {
-        eventSeq: seq,
-        updatedAt: serverTimestamp(),
-        status,
-      });
+      tx.update(parentRef, ok
+        ? {
+            eventSeq: seq,
+            updatedAt: serverTimestamp(),
+            status,
+          }
+        : {
+            eventSeq: seq,
+            updatedAt: serverTimestamp(),
+            status,
+            finishReason: 'join_failed',
+            winnerSide: null,
+            winnerAllianceId: null,
+          });
       tx.set(
         eventDoc,
         ok
@@ -449,6 +459,7 @@ export async function lockAllianceMapBattle(battleId: string, actorId: string): 
               meta: { reason: 'join_failed' },
             })
       );
+      if (!ok) stampJoinFailedResult(tx, { ...battle, eventSeq: battle.eventSeq });
 
       return { ...battle, eventSeq: seq, updatedAt: Date.now(), status };
     }),
