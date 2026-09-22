@@ -15,9 +15,15 @@ import {
   lockAllianceMapBattle,
   startAllianceMapBattle,
   viewAllianceBattleGate,
+  viewAllianceBattle,
   type AllianceBattleGate,
   type AllianceBattleView,
 } from '@/app/lib/allianceBattleMatchService';
+import {
+  listenBattleReconnect,
+  rememberLiveBattleHint,
+  type BattleReconnectSnapshot,
+} from '@/app/lib/battleReconnect';
 import BattleLoadoutPicker from './BattleLoadoutPicker';
 import BattleEnergyPanel from './BattleEnergyPanel';
 import BattleScorePanel from './BattleScorePanel';
@@ -87,12 +93,29 @@ export default function AllianceMapBattleHost({
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [restored, setRestored] = useState(false);
+  const [reconnectSnap, setReconnectSnap] = useState<BattleReconnectSnapshot | null>(null);
   const attackLock = useRef(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    return listenBattleReconnect(userId, (snap) => {
+      if (!snap) {
+        setRestored(false);
+        setReconnectSnap(null);
+        return;
+      }
+      setReconnectSnap(snap);
+      setLobbyId(snap.battle.id);
+      setView(viewAllianceBattle(snap.battle, snap.serverNow || Date.now()));
+      setRestored(true);
+    });
+  }, [userId]);
 
   useEffect(() => {
     if (!selectedAllianceId) return;
@@ -152,6 +175,17 @@ export default function AllianceMapBattleHost({
     void activateAllianceBattle(view.battle.id, userId).catch(() => {});
   }, [view, userId]);
 
+  useEffect(() => {
+    if (!userId || !view) return;
+    const inBattle = [...(view.battle.attackerPlayerIds ?? []), ...(view.battle.defenderPlayerIds ?? [])].includes(
+      userId
+    );
+    if (!inBattle) return;
+    if (view.battle.status === 'joining' || view.battle.status === 'locked' || view.battle.status === 'active') {
+      rememberLiveBattleHint(userId, view.battle.id);
+    }
+  }, [userId, view]);
+
   const resolvedIdentified = selectedAllianceId ? identified : null;
   const resolvedIdentifyError = selectedAllianceId ? identifyError : null;
   const resolvedGate = selectedAllianceId ? gate : null;
@@ -201,6 +235,7 @@ export default function AllianceMapBattleHost({
         playerId: userId,
         defenderAllianceId: resolvedIdentified.id,
       });
+      rememberLiveBattleHint(userId, battle.id);
       setLobbyId(battle.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hücum başlamadı');
@@ -218,6 +253,7 @@ export default function AllianceMapBattleHost({
     setError(null);
     try {
       await joinAllianceMapBattle({ battleId: liveView.battle.id, playerId: userId });
+      rememberLiveBattleHint(userId, liveView.battle.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Qoşulmaq olmadı');
     } finally {
@@ -312,6 +348,9 @@ export default function AllianceMapBattleHost({
               />
             </div>
             {error ? <p className={styles.battleJoinWarn}>{error}</p> : null}
+            {restored ? (
+              <p className={styles.battleReconnectNote}>Döyüş server state-dən bərpa olundu.</p>
+            ) : null}
             {liveView.joinOpen && !alreadyIn ? (
               <button type="button" className={styles.battleAttackBtn} disabled={busy} onClick={() => void onJoin()}>
                 {busy ? 'Qoşulur…' : 'Döyüşə qoşul'}
@@ -329,9 +368,26 @@ export default function AllianceMapBattleHost({
                 players={players}
               />
             ) : null}
-            {alreadyIn ? <BattleEnergyPanel battle={liveView.battle} playerId={userId} /> : null}
+            {alreadyIn ? (
+              <BattleEnergyPanel
+                battle={liveView.battle}
+                playerId={userId}
+                restoredEnergy={
+                  reconnectSnap?.battle.id === liveView.battle.id ? reconnectSnap.energy : null
+                }
+              />
+            ) : null}
             <BattleScorePanel battle={liveView.battle} playerId={userId} />
-            {alreadyIn ? <BattleClickChallengePanel battleId={liveView.battle.id} playerId={userId} /> : null}
+            {alreadyIn ? (
+              <BattleClickChallengePanel
+                key={liveView.battle.id}
+                battleId={liveView.battle.id}
+                playerId={userId}
+                restoredChallenges={
+                  reconnectSnap?.battle.id === liveView.battle.id ? reconnectSnap.challenges : undefined
+                }
+              />
+            ) : null}
             <BattleEventLogPanel battleId={liveView.battle.id} />
             {liveView && !alreadyIn ? (
               <p className={styles.battleJoinHint}>Rəqib kart seçimi gizlidir.</p>

@@ -13,7 +13,7 @@ export {
   sanitizeEnergyRequestId,
 } from './battleEnergyConfig';
 
-export { battleEnergyRef, listenBattleEnergy, viewBattleEnergy } from './battleEnergyService';
+export { battleEnergyRef, getBattleEnergy, listenBattleEnergy, viewBattleEnergy } from './battleEnergyService';
 
 export type { BattleEnergy } from './battleEnergyService';
 

@@ -69,10 +69,22 @@ export function listenServerClock(onTick: (serverNow: number) => void): () => vo
     void syncServerClock().catch(() => {});
   }, 20_000);
 
+  const onVisible = () => {
+    if (document.visibilityState !== 'visible') return;
+    void syncServerClock().catch(() => {});
+  };
+  const onOnline = () => {
+    void syncServerClock().catch(() => {});
+  };
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('online', onOnline);
+
   return () => {
     cancelled = true;
     unsubSnap?.();
     if (tick != null) window.clearInterval(tick);
     window.clearInterval(resync);
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('online', onOnline);
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   BATTLE_CHALLENGE_DURATION_MS,
   expireBattleChallenge,
@@ -10,19 +10,32 @@ import {
 } from '@/app/lib/battleClick';
 import { listenServerClock } from '@/app/lib/battlePlay';
 import { BATTLE_LOADOUT_TITLES } from '@/app/lib/battleLoadout/battleLoadoutConfig';
+import {
+  clearPendingBattleRequest,
+  readPendingBattleRequest,
+  rememberPendingBattleRequest,
+} from '@/app/lib/battleReconnect';
 import styles from './alliance.module.css';
+
+function isTransientClickError(err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /vaxtı|timeout|network|offline|unavailable|yazılmadı|Failed to|internet/i.test(msg);
+}
 
 export default function BattleClickChallengePanel({
   battleId,
   playerId,
+  restoredChallenges,
 }: {
   battleId: string;
   playerId: string;
+  restoredChallenges?: BattleChallenge[];
 }) {
-  const [challenges, setChallenges] = useState<BattleChallenge[]>([]);
+  const [challenges, setChallenges] = useState<BattleChallenge[]>(() => restoredChallenges ?? []);
   const [serverNow, setServerNow] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const replayed = useRef(false);
 
   useEffect(() => listenServerClock(setServerNow), []);
   useEffect(() => listenBattleChallenges(battleId, setChallenges), [battleId]);
@@ -36,6 +49,26 @@ export default function BattleClickChallengePanel({
       void expireBattleChallenge({ battleId, challengeId: item.challengeId, playerId }).catch(() => {});
     });
   }, [battleId, challenges, playerId, serverNow]);
+
+  useEffect(() => {
+    if (replayed.current) return;
+    const pending = readPendingBattleRequest(playerId, 'click');
+    if (!pending || pending.kind !== 'click') return;
+    if (pending.battleId !== battleId) return;
+    replayed.current = true;
+    void submitChallengeClick({
+      battleId: pending.battleId,
+      challengeId: pending.challengeId,
+      playerId: pending.playerId,
+    })
+      .then(() => {
+        clearPendingBattleRequest(playerId, 'click');
+      })
+      .catch((err) => {
+        if (!isTransientClickError(err)) clearPendingBattleRequest(playerId, 'click');
+        setError(err instanceof Error ? err.message : 'Klik olmadı');
+      });
+  }, [battleId, playerId]);
 
   const live = challenges.filter((item) => item.status === 'active');
   if (live.length === 0 && !error) return null;
@@ -68,12 +101,22 @@ export default function BattleClickChallengePanel({
               onClick={() => {
                 setBusyId(item.challengeId);
                 setError(null);
+                rememberPendingBattleRequest(playerId, {
+                  kind: 'click',
+                  battleId,
+                  playerId,
+                  challengeId: item.challengeId,
+                });
                 void submitChallengeClick({
                   battleId,
                   challengeId: item.challengeId,
                   playerId,
                 })
-                  .catch((err) => setError(err instanceof Error ? err.message : 'Klik olmadı'))
+                  .then(() => clearPendingBattleRequest(playerId, 'click'))
+                  .catch((err) => {
+                    if (!isTransientClickError(err)) clearPendingBattleRequest(playerId, 'click');
+                    setError(err instanceof Error ? err.message : 'Klik olmadı');
+                  })
                   .finally(() => setBusyId(null));
               }}
             >

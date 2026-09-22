@@ -25,6 +25,7 @@ import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMe
 import { BATTLE_ENERGY_COLLECTION, initialBattleEnergyDoc } from '@/app/lib/battleEnergy/battleEnergyConfig';
 import { BATTLE_SCORE_COLLECTION, initialBattleScoreDoc } from '@/app/lib/battleScore/battleScoreConfig';
 import { BATTLE_TURN_DURATION_MS, initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
+import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
 import type { AllianceData } from '@/app/components/alliance/types';
 
 export const ALLIANCE_BATTLE_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -58,7 +59,6 @@ export interface AllianceBattleView {
 }
 
 const WRITE_MS = 12_000;
-const startLocks = new Set<string>();
 
 function cooldownRef(allianceId: string) {
   return doc(db, ALLIANCE_BATTLE_COOLDOWN_COLLECTION, allianceId);
@@ -174,12 +174,8 @@ export async function startAllianceMapBattle(input: {
   const defenderAllianceId = String(input.defenderAllianceId || '').trim();
   if (!defenderAllianceId) throw new Error('Hədəf ittifaq seçilməyib');
 
-  const lockKey = `${playerId}:${defenderAllianceId}`;
-  if (startLocks.has(lockKey)) throw new Error('Hücum artıq göndərilir');
-  startLocks.add(lockKey);
-
-  try {
-    return await withTimeout(
+  return replayBattleRequest(`start:${playerId}:${defenderAllianceId}`, () =>
+    withTimeout(
       runTransaction(db, async (tx) => {
         const playerSnap = await tx.get(playerRef(playerId));
         if (!playerSnap.exists()) throw new Error('Oyunçu tapılmadı');
@@ -296,10 +292,8 @@ export async function startAllianceMapBattle(input: {
       }),
       WRITE_MS,
       'Hücum sorğusu vaxtı bitdi.'
-    );
-  } finally {
-    startLocks.delete(lockKey);
-  }
+    )
+  );
 }
 
 export async function joinAllianceMapBattle(input: {
@@ -310,7 +304,8 @@ export async function joinAllianceMapBattle(input: {
   const playerId = sanitizePlayerId(input.playerId);
   const battleId = String(input.battleId || '').trim();
 
-  return withTimeout(
+  return replayBattleRequest(`join:${battleId}:${playerId}`, () =>
+    withTimeout(
     runTransaction(db, async (tx) => {
       const parentRef = battleRef(battleId);
       const parentSnap = await tx.get(parentRef);
@@ -399,6 +394,7 @@ export async function joinAllianceMapBattle(input: {
     }),
     WRITE_MS,
     'Qoşulma vaxtı bitdi.'
+    )
   );
 }
 
@@ -407,7 +403,8 @@ export async function lockAllianceMapBattle(battleId: string, actorId: string): 
   const playerId = sanitizePlayerId(actorId);
   const id = String(battleId || '').trim();
 
-  return withTimeout(
+  return replayBattleRequest(`lock:${id}`, () =>
+    withTimeout(
     runTransaction(db, async (tx) => {
       const parentRef = battleRef(id);
       const parentSnap = await tx.get(parentRef);
@@ -457,6 +454,7 @@ export async function lockAllianceMapBattle(battleId: string, actorId: string): 
     }),
     WRITE_MS,
     'Lock yazılması vaxtı bitdi.'
+    )
   );
 }
 
@@ -465,7 +463,8 @@ export async function activateAllianceBattle(battleId: string, actorId: string):
   const playerId = sanitizePlayerId(actorId);
   const id = String(battleId || '').trim();
 
-  return withTimeout(
+  return replayBattleRequest(`activate:${id}`, () =>
+    withTimeout(
     runTransaction(db, async (tx) => {
       const parentRef = battleRef(id);
       const parentSnap = await tx.get(parentRef);
@@ -525,6 +524,7 @@ export async function activateAllianceBattle(battleId: string, actorId: string):
     }),
     WRITE_MS,
     'Battle aktivləşdirilmədi.'
+    )
   );
 }
 

@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, type Unsubscribe } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { db } from '@/firebase';
 import {
   BATTLE_ENERGY_COLLECTION,
@@ -36,6 +36,15 @@ function energyFromData(battleId: string, playerId: string, data: Record<string,
     cardCooldownUntil: readCooldownUntil(data.cardCooldownUntil),
     lastRequestId: typeof data.lastRequestId === 'string' ? data.lastRequestId : null,
   };
+}
+
+export async function getBattleEnergy(battleId: string, playerId: string): Promise<BattleEnergy | null> {
+  const id = String(battleId || '').trim();
+  const pid = String(playerId || '').trim();
+  if (!id || !pid) return null;
+  const snap = await getDoc(battleEnergyRef(id, pid));
+  if (!snap.exists()) return null;
+  return energyFromData(id, pid, snap.data() as Record<string, unknown>);
 }
 
 /** Client yalnız bunu göstərir — local hesab yoxdur. */

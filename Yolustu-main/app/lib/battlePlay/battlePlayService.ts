@@ -41,6 +41,7 @@ import {
   officialClickTarget,
   officialRequiredClicks,
 } from '@/app/lib/battleClick';
+import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
 
 export interface PlayBattleCardInput {
   battleId: string;
@@ -81,7 +82,6 @@ export interface PlayBattleCardResult {
 
 const WRITE_MS = 12_000;
 const playLocks = new Set<string>();
-const inFlight = new Map<string, Promise<PlayBattleCardResult>>();
 
 function battleEnergyRef(battleId: string, playerId: string) {
   return doc(db, 'battles', battleId, BATTLE_ENERGY_COLLECTION, playerId);
@@ -189,15 +189,15 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
       ? Math.trunc(input.slotIndex)
       : undefined;
 
-  const flightKey = `${battleId}:${requestId}`;
-  const existing = inFlight.get(flightKey);
-  if (existing) return existing;
-
+  const flightKey = `play:${battleId}:${requestId}`;
   const playerLock = `${battleId}:${playerId}`;
-  if (playLocks.has(playerLock)) throw new Error('Kart artıq oynanılır');
-  playLocks.add(playerLock);
 
-  const work = withTimeout(
+  return replayBattleRequest(flightKey, async () => {
+    if (playLocks.has(playerLock)) throw new Error('Kart artıq oynanılır');
+    playLocks.add(playerLock);
+
+    try {
+      return await withTimeout(
     runTransaction(db, async (tx) => {
       const parentRef = battleRef(battleId);
       const energyRef = battleEnergyRef(battleId, playerId);
@@ -541,18 +541,12 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
     }),
     WRITE_MS,
     'Kart oynanılmadı.'
-  );
-
-  inFlight.set(flightKey, work);
-  try {
-    return await work;
-  } finally {
-    inFlight.delete(flightKey);
-    playLocks.delete(playerLock);
-  }
+      );
+    } finally {
+      playLocks.delete(playerLock);
+    }
+  });
 }
-
-const timeoutLocks = new Set<string>();
 
 export async function timeoutBattleTurn(input: {
   battleId: string;
@@ -565,12 +559,9 @@ export async function timeoutBattleTurn(input: {
   if (!battleId) throw new Error('Battle ID tələb olunur');
   const expectedStateVersion = requireInt(input.expectedStateVersion, 'Battle state version');
 
-  const lockKey = `${battleId}:${expectedStateVersion}`;
-  if (timeoutLocks.has(lockKey)) throw new Error('Timeout artıq göndərilir');
-  timeoutLocks.add(lockKey);
-
-  try {
-    return await withTimeout(
+  const lockKey = `timeout:${battleId}:${expectedStateVersion}`;
+  return replayBattleRequest(lockKey, () =>
+    withTimeout(
       runTransaction(db, async (tx) => {
         const parentRef = battleRef(battleId);
         const parentSnap = await tx.get(parentRef);
@@ -627,8 +618,6 @@ export async function timeoutBattleTurn(input: {
       }),
       WRITE_MS,
       'Turn timeout yazılmadı.'
-    );
-  } finally {
-    timeoutLocks.delete(lockKey);
-  }
+    )
+  );
 }

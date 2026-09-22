@@ -11,6 +11,7 @@ import {
 import type { BattleRecord } from '@/app/lib/battleEventLog/battleEventTypes';
 import { db } from '@/firebase';
 import { requireFirebaseAuth } from '@/app/lib/firebaseAuth';
+import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
 import { battleEventWrite, battleFromData, battleRef, newBattleEventRef } from '@/app/lib/battleEventLog/battleEventLog';
 import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
 import {
@@ -162,7 +163,8 @@ export async function submitChallengeClick(input: {
   const challengeId = String(input.challengeId || '').trim();
   if (!battleId || !challengeId) throw new Error('Challenge tapılmadı');
 
-  return withTimeout(
+  return replayBattleRequest(`click:${battleId}:${challengeId}:${user.uid}`, () =>
+    withTimeout(
     runTransaction(db, async (tx) => {
       const chRef = challengeRef(battleId, challengeId);
       const clkRef = clickRef(battleId, challengeId, user.uid);
@@ -235,6 +237,7 @@ export async function submitChallengeClick(input: {
     }),
     WRITE_MS,
     'Klik yazılmadı.'
+    )
   );
 }
 
@@ -248,7 +251,8 @@ export async function expireBattleChallenge(input: {
   const battleId = String(input.battleId || '').trim();
   const challengeId = String(input.challengeId || '').trim();
 
-  return withTimeout(
+  return replayBattleRequest(`expire:${battleId}:${challengeId}`, () =>
+    withTimeout(
     runTransaction(db, async (tx) => {
       const chRef = challengeRef(battleId, challengeId);
       const parentRef = battleRef(battleId);
@@ -273,6 +277,7 @@ export async function expireBattleChallenge(input: {
     }),
     WRITE_MS,
     'Challenge bağlanmadı.'
+    )
   );
 }
 

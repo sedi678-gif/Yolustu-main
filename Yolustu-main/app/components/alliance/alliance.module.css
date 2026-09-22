@@ -6395,8 +6395,15 @@
 }
 
 .battleJoinHint,
-.battleJoinWarn {
+.battleJoinWarn,
+.battleReconnectNote {
   margin: 0 0 12px;
+}
+
+.battleReconnectNote {
+  color: #86efac;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .loadoutBox {
