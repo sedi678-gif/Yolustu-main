@@ -14,6 +14,7 @@ import {
   type BattleLoadoutCardId,
   type BattleLoadoutView,
 } from '@/app/lib/battleLoadout';
+import { officialCardEnergyCost } from '@/app/lib/battleEnergy';
 import type { PlayerProfile } from './types';
 import styles from './alliance.module.css';
 
@@ -148,7 +149,9 @@ export default function BattleLoadoutPicker({
                 <span className={styles.loadoutCardEmoji}>{card.emoji}</span>
               )}
               <span className={styles.loadoutCardTitle}>{card.title}</span>
-              <span className={styles.loadoutCardQty}>{have > 999 ? '∞' : `${have}`}</span>
+              <span className={styles.loadoutCardQty}>
+                ⚡ {officialCardEnergyCost(card.id)} · {have > 999 ? '∞' : `${have}`}
+              </span>
             </button>
           );
         })}

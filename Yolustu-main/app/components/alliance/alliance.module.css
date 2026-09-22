@@ -6499,6 +6499,68 @@
   color: #cbd5e1;
 }
 
+.energyBox {
+  margin-top: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(8, 47, 73, 0.35);
+}
+
+.energyHead {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #7dd3fc;
+}
+
+.energyTrack {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.energyFill {
+  height: 100%;
+  background: linear-gradient(90deg, #0ea5e9, #67e8f9);
+}
+
+.energyHint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.energyHand {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.energyPlayBtn {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(15, 23, 42, 0.7);
+  color: #e0f2fe;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.energyPlayBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 @media (max-width: 320px) {
   .worldAllianceMap {
     --map-btn-gap: 4px;

@@ -50,11 +50,14 @@ export type BattleEventMetaMap = {
     slotIndex?: number;
     side?: string;
     instanceId?: string;
+    requestId?: string;
   };
   energy_changed: {
     energy?: number;
     delta?: number;
     reason?: string;
+    cardId?: string;
+    requestId?: string;
   };
   card_blocked: {
     cardId?: string;

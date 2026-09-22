@@ -4,7 +4,8 @@ service cloud.firestore {
     function isProtectedPath(path) {
       return path.size() > 0 && (
         path[0] == 'battles' ||
-        path[0] == 'alliance_battle_cooldowns'
+        path[0] == 'alliance_battle_cooldowns' ||
+        path[0] == 'battle_card_costs'
       );
     }
 
@@ -204,6 +205,8 @@ service cloud.firestore {
         && d.playerId.size() > 0
         && d.playerId.size() < 64
         && isBattleEventType(d.type)
+        && d.type != 'card_played'
+        && d.type != 'energy_changed'
         && d.seq is int
         && d.seq > 0
         && d.seq == parent.eventSeq
@@ -342,6 +345,174 @@ service cloud.firestore {
         );
     }
 
+    function officialCardCost(id) {
+      return id == '2x' ? 6
+        : id == 'casus' ? 4
+        : id == 'duman' ? 3
+        : id == 'guzgu' ? 7
+        : id == 'joker' ? 8
+        : id == 'ogru' ? 6
+        : id == 'qaya' ? 5
+        : id == 'qul' ? 9
+        : id == 'qutb' ? 8
+        : id == 'sehrbaz' ? 6
+        : id == 'tikanli' ? 7
+        : id == 'felaket' ? 9
+        : id == 'usyan' ? 8
+        : id == 'zombi' ? 7
+        : id == 'mutant' ? 7
+        : 0;
+    }
+
+    function isValidCardPlaySeqBump() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && after.eventSeq == before.eventSeq + 2
+        && after.createdAt == before.createdAt
+        && after.createdBy == before.createdBy
+        && after.schemaVersion == before.schemaVersion
+        && after.diff(before).affectedKeys().hasOnly(['eventSeq', 'updatedAt', 'status'])
+        && before.status in ['locked', 'active']
+        && after.status in ['locked', 'active']
+        && (after.status == before.status || (before.status == 'locked' && after.status == 'active'))
+        && after.updatedAt == request.time;
+    }
+
+    function energyReceipt(battleId, requestId) {
+      return getAfter(/databases/$(database)/documents/battles/$(battleId)/energy_requests/$(requestId)).data;
+    }
+
+    function isValidEnergyInit(battleId, playerId) {
+      let d = request.resource.data;
+      let b = getAfter(/databases/$(database)/documents/battles/$(battleId)).data;
+      return request.auth != null
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId))
+        && b.status in ['open', 'joining', 'locked']
+        && d.battleId == battleId
+        && d.playerId == playerId
+        && d.energy == 30
+        && d.maxEnergy == 30
+        && d.usedCardIds is list
+        && d.usedCardIds.size() == 0
+        && d.lastRequestId == null
+        && d.schemaVersion == 1
+        && d.createdAt == request.time
+        && d.updatedAt == request.time
+        && d.keys().hasOnly([
+          'battleId', 'playerId', 'energy', 'maxEnergy', 'usedCardIds',
+          'lastRequestId', 'schemaVersion', 'createdAt', 'updatedAt'
+        ])
+        && playerId in b.participantIds
+        && (
+          b.kind != 'alliance_map'
+          || uidOwnsBattleSlot(b, playerId, 'attacker')
+          || uidOwnsBattleSlot(b, playerId, 'defender')
+        );
+    }
+
+    function isValidEnergySpend(battleId, playerId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let reqId = after.lastRequestId;
+      let receipt = energyReceipt(battleId, reqId);
+      return request.auth != null
+        && exists(/databases/$(database)/documents/battles/$(battleId))
+        && battleData(battleId).status in ['locked', 'active']
+        && reqId is string
+        && reqId.size() >= 8
+        && receipt.playerId == playerId
+        && receipt.requestId == reqId
+        && receipt.cardId is string
+        && officialCardCost(receipt.cardId) > 0
+        && receipt.cost == officialCardCost(receipt.cardId)
+        && receipt.energyBefore == before.energy
+        && receipt.energyAfter == after.energy
+        && after.energy == before.energy - receipt.cost
+        && after.energy >= 0
+        && after.energy <= 30
+        && before.energy >= 0
+        && after.maxEnergy == 30
+        && after.usedCardIds is list
+        && after.usedCardIds.size() == before.usedCardIds.size() + 1
+        && after.usedCardIds[after.usedCardIds.size() - 1] == receipt.cardId
+        && !(receipt.cardId in before.usedCardIds)
+        && exists(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId))
+        && receipt.cardId in get(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId)).data.cardIds
+        && after.diff(before).affectedKeys().hasOnly(['energy', 'usedCardIds', 'lastRequestId', 'updatedAt'])
+        && after.updatedAt == request.time;
+    }
+
+    function isValidEnergyRequestCreate(battleId, requestId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && exists(/databases/$(database)/documents/battles/$(battleId))
+        && battleData(battleId).status in ['locked', 'active']
+        && d.requestId == requestId
+        && d.battleId == battleId
+        && d.playerId is string
+        && officialCardCost(d.cardId) > 0
+        && d.cost == officialCardCost(d.cardId)
+        && d.energyBefore is int
+        && d.energyAfter is int
+        && d.energyAfter == d.energyBefore - d.cost
+        && d.energyAfter >= 0
+        && d.energyBefore <= 30
+        && d.energyBefore >= d.cost
+        && d.schemaVersion == 1
+        && d.createdAt == request.time
+        && d.keys().hasOnly([
+          'requestId', 'battleId', 'playerId', 'cardId', 'cost',
+          'energyBefore', 'energyAfter', 'schemaVersion', 'createdAt'
+        ]);
+    }
+
+    function isValidEnergyPlayEvent(battleId, eventId) {
+      let d = request.resource.data;
+      let reqId = d.meta.requestId;
+      let receipt = energyReceipt(battleId, reqId);
+      return request.auth != null
+        && exists(/databases/$(database)/documents/battles/$(battleId))
+        && d.keys().hasOnly([
+          'eventId', 'battleId', 'playerId', 'type', 'seq',
+          'createdAt', 'schemaVersion', 'meta'
+        ])
+        && d.eventId == eventId
+        && d.battleId == battleId
+        && d.playerId is string
+        && d.seq is int
+        && d.seq > 0
+        && d.createdAt == request.time
+        && d.schemaVersion == 1
+        && d.meta is map
+        && reqId is string
+        && receipt.playerId == d.playerId
+        && receipt.requestId == reqId
+        && receipt.cardId == d.meta.cardId
+        && (
+          (
+            d.type == 'card_played'
+            && d.seq == battleData(battleId).eventSeq + 1
+          ) || (
+            d.type == 'energy_changed'
+            && d.seq == battleData(battleId).eventSeq + 2
+            && d.meta.energy == receipt.energyAfter
+            && d.meta.delta == -receipt.cost
+          )
+        );
+    }
+
+    function isValidCardCostCreate(cardId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && officialCardCost(cardId) > 0
+        && d.cardId == cardId
+        && d.energyCost == officialCardCost(cardId)
+        && d.energyCost is int
+        && d.schemaVersion == 1
+        && d.keys().hasOnly(['cardId', 'energyCost', 'schemaVersion', 'updatedAt']);
+    }
+
     function isValidLoadoutFreeze(battleId) {
       let b = battleData(battleId);
       return request.auth != null
@@ -360,12 +531,27 @@ service cloud.firestore {
     match /battles/{battleId} {
       allow read: if true;
       allow create: if isValidOpenBattleCreate() || isValidMapBattleCreate();
-      allow update: if isValidLegacySeqBump() || isValidMapBattleJoin() || isValidMapBattleLock();
+      allow update: if isValidLegacySeqBump() || isValidMapBattleJoin() || isValidMapBattleLock()
+        || isValidCardPlaySeqBump();
       allow delete: if false;
 
       match /events/{eventId} {
         allow read: if true;
-        allow create: if isValidBattleEventCreate(battleId, eventId);
+        allow create: if isValidBattleEventCreate(battleId, eventId)
+          || isValidEnergyPlayEvent(battleId, eventId);
+        allow update, delete: if false;
+      }
+
+      match /energy/{playerId} {
+        allow read: if true;
+        allow create: if isValidEnergyInit(battleId, playerId);
+        allow update: if isValidEnergySpend(battleId, playerId);
+        allow delete: if false;
+      }
+
+      match /energy_requests/{requestId} {
+        allow read: if true;
+        allow create: if isValidEnergyRequestCreate(battleId, requestId);
         allow update, delete: if false;
       }
 
@@ -376,6 +562,12 @@ service cloud.firestore {
           || isValidLoadoutFreeze(battleId);
         allow delete: if false;
       }
+    }
+
+    match /battle_card_costs/{cardId} {
+      allow read: if true;
+      allow create: if isValidCardCostCreate(cardId);
+      allow update, delete: if false;
     }
 
     match /alliance_battle_cooldowns/{allianceId} {

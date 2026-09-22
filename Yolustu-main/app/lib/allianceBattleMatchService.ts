@@ -21,6 +21,7 @@ import {
   timestampToMs,
 } from '@/app/lib/battleEventLog/battleEventLog';
 import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
+import { BATTLE_ENERGY_COLLECTION, initialBattleEnergyDoc } from '@/app/lib/battleEnergy/battleEnergyConfig';
 import type { AllianceData } from '@/app/components/alliance/types';
 
 export const ALLIANCE_BATTLE_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -249,6 +250,7 @@ export async function startAllianceMapBattle(input: {
           schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
           meta: { mode: 'alliance', maxPlayers: ALLIANCE_BATTLE_MAX_PER_SIDE * 2 },
         });
+        tx.set(doc(db, 'battles', battleId, BATTLE_ENERGY_COLLECTION, playerId), initialBattleEnergyDoc(battleId, playerId));
 
         tx.set(cdRef, {
           lastBattleId: battleId,
@@ -312,6 +314,8 @@ export async function joinAllianceMapBattle(input: {
       const defenders = battle.defenderPlayerIds ?? [];
       if (attackers.includes(playerId) || defenders.includes(playerId)) return battle;
 
+      const energyRef = doc(db, 'battles', battleId, BATTLE_ENERGY_COLLECTION, playerId);
+      const energySnap = await tx.get(energyRef);
       const playerSnap = await tx.get(playerRef(playerId));
       if (!playerSnap.exists()) throw new Error('Oyunçu tapılmadı');
       const allianceId = String(playerSnap.data().allianceId || '');
@@ -360,6 +364,9 @@ export async function joinAllianceMapBattle(input: {
         schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
         meta: { side },
       });
+      if (!energySnap.exists()) {
+        tx.set(energyRef, initialBattleEnergyDoc(battleId, playerId));
+      }
 
       return {
         ...battle,

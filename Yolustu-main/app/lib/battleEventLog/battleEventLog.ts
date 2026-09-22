@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { ensureFirebaseAuth } from '@/app/lib/firebaseAuth';
+import { BATTLE_ENERGY_COLLECTION, initialBattleEnergyDoc } from '@/app/lib/battleEnergy/battleEnergyConfig';
 import {
   BATTLE_EVENTS_COLLECTION,
   BATTLE_EVENT_SCHEMA_VERSION,
@@ -160,6 +161,9 @@ export async function appendBattleEvent<T extends BattleEventType>(
       if (type === 'battle_created') {
         throw new Error('battle_created yalnız createBattleWithLog ilə yazılır');
       }
+      if (type === 'card_played' || type === 'energy_changed') {
+        throw new Error('Kart/energy yalnız playBattleCard ilə yazılır');
+      }
       if (parent.status === 'finished') {
         throw new Error('Bitmiş battle-ə event yazıla bilməz');
       }
@@ -241,6 +245,7 @@ export async function createBattleWithLog(input: {
         schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
         meta,
       });
+      tx.set(doc(db, BATTLE_EVENTS_COLLECTION, battleId, BATTLE_ENERGY_COLLECTION, playerId), initialBattleEnergyDoc(battleId, playerId));
     }),
     EVENT_WRITE_TIMEOUT_MS,
     'Battle yaradılması vaxtı bitdi.'

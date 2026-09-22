@@ -18,6 +18,7 @@ import {
   type AllianceBattleView,
 } from '@/app/lib/allianceBattleMatchService';
 import BattleLoadoutPicker from './BattleLoadoutPicker';
+import BattleEnergyPanel from './BattleEnergyPanel';
 import styles from './alliance.module.css';
 
 function playerName(players: PlayerProfile[], id: string) {
@@ -316,6 +317,13 @@ export default function AllianceMapBattleHost({
                 side={mySide}
                 battleStatus={liveView.battle.status}
                 players={players}
+              />
+            ) : null}
+            {alreadyIn ? (
+              <BattleEnergyPanel
+                battleId={liveView.battle.id}
+                playerId={userId}
+                battleStatus={liveView.battle.status}
               />
             ) : null}
             {liveView && !alreadyIn ? (
