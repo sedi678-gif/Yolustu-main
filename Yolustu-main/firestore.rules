@@ -135,7 +135,8 @@ service cloud.firestore {
         && after.schemaVersion == before.schemaVersion
         && after.diff(before).affectedKeys()
           .hasOnly(['eventSeq', 'updatedAt', 'status', 'participantIds'])
-        && after.status in ['open', 'joining', 'locked', 'active', 'finished']
+        && after.status == before.status
+        && after.status in ['open', 'joining', 'locked', 'active']
         && after.participantIds is list
         && after.participantIds.size() <= 10
         && after.updatedAt == request.time;
@@ -876,7 +877,8 @@ service cloud.firestore {
         && cdReady
         && after.cardCooldownUntil is map
         && after.cardCooldownUntil[cid] is int
-        && after.cardCooldownUntil[cid] > request.time.toMillis()
+        && after.cardCooldownUntil[cid] >= request.time.toMillis() + officialCardCooldownSec(cid) * 1000 - 3000
+        && after.cardCooldownUntil[cid] <= request.time.toMillis() + officialCardCooldownSec(cid) * 1000 + 8000
         && exists(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId))
         && cid in get(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId)).data.cardIds
         && after.diff(before).affectedKeys()
@@ -894,6 +896,8 @@ service cloud.firestore {
       return request.auth != null
         && exists(/databases/$(database)/documents/battles/$(battleId))
         && battleData(battleId).status == 'active'
+        && battleData(battleId).turnPlayerId == d.playerId
+        && uidOwnsBattleSlot(battleData(battleId), d.playerId, d.side)
         && request.time < battleData(battleId).turnStartAt + duration.value(15, 's')
         && d.requestId == requestId
         && d.battleId == battleId
@@ -1200,6 +1204,13 @@ service cloud.firestore {
         )
         && !exists(/databases/$(database)/documents/battles/$(battleId)/challenges/$(challengeId)/clicks/$(request.auth.uid))
         && existsAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(challengeId)/clicks/$(request.auth.uid))
+        && exists(/databases/$(database)/documents/alliances/$(before.targetAllianceId))
+        && (
+          getAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(challengeId)/clicks/$(request.auth.uid)).data.playerId
+            in get(/databases/$(database)/documents/alliances/$(before.targetAllianceId)).data.members
+          || get(/databases/$(database)/documents/alliances/$(before.targetAllianceId)).data.leaderId
+            == getAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(challengeId)/clicks/$(request.auth.uid)).data.playerId
+        )
         && after.diff(before).affectedKeys().hasOnly(['currentClicks', 'status', 'updatedAt']);
     }
 
@@ -1240,8 +1251,29 @@ service cloud.firestore {
         && d.playerId is string
         && d.createdAt == request.time
         && d.schemaVersion == 1
+        && exists(/databases/$(database)/documents/alliances/$(ch.targetAllianceId))
+        && (
+          d.playerId in get(/databases/$(database)/documents/alliances/$(ch.targetAllianceId)).data.members
+          || get(/databases/$(database)/documents/alliances/$(ch.targetAllianceId)).data.leaderId == d.playerId
+        )
         && getAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(challengeId)).data.currentClicks
           == ch.currentClicks + 1;
+    }
+
+    function canReadBattle(battleId) {
+      return exists(/databases/$(database)/documents/battles/$(battleId))
+        && request.auth != null
+        && (
+          battleData(battleId).status == 'joining'
+          || (
+            battleData(battleId).keys().hasAny(['attackerUids'])
+            && request.auth.uid in battleData(battleId).attackerUids
+          )
+          || (
+            battleData(battleId).keys().hasAny(['defenderUids'])
+            && request.auth.uid in battleData(battleId).defenderUids
+          )
+        );
     }
 
     function isValidClickCompleteEvent(battleId, eventId) {
@@ -1279,7 +1311,12 @@ service cloud.firestore {
     }
 
     match /battles/{battleId} {
-      allow read: if true;
+      allow read: if request.auth != null
+        && (
+          resource.data.status == 'joining'
+          || (resource.data.keys().hasAny(['attackerUids']) && request.auth.uid in resource.data.attackerUids)
+          || (resource.data.keys().hasAny(['defenderUids']) && request.auth.uid in resource.data.defenderUids)
+        );
       allow create: if isValidOpenBattleCreate() || isValidMapBattleCreate();
       allow update: if isValidLegacySeqBump() || isValidMapBattleJoin() || isValidMapBattleLock()
         || isValidBattleActivate() || isValidCardPlaySeqBump(battleId) || isValidTurnTimeout()
@@ -1287,7 +1324,7 @@ service cloud.firestore {
       allow delete: if false;
 
       match /events/{eventId} {
-        allow read: if true;
+        allow read: if canReadBattle(battleId);
         allow create: if isValidBattleEventCreate(battleId, eventId)
           || isValidBattleCreatedEvent(battleId, eventId)
           || isValidPlayerJoinedEvent(battleId, eventId)
@@ -1302,20 +1339,20 @@ service cloud.firestore {
       }
 
       match /energy/{playerId} {
-        allow read: if true;
+        allow read: if canReadBattle(battleId);
         allow create: if isValidEnergyInit(battleId, playerId);
         allow update: if isValidEnergySpend(battleId, playerId);
         allow delete: if false;
       }
 
       match /energy_requests/{requestId} {
-        allow read: if true;
+        allow read: if canReadBattle(battleId);
         allow create: if isValidEnergyRequestCreate(battleId, requestId);
         allow update, delete: if false;
       }
 
       match /scores/{playerId} {
-        allow read: if true;
+        allow read: if canReadBattle(battleId);
         allow create: if isValidScoreInit(battleId, playerId)
           || isValidScoreCreateOnPlay(battleId, playerId);
         allow update: if isValidScoreAward(battleId, playerId);
@@ -1323,7 +1360,14 @@ service cloud.firestore {
       }
 
       match /challenges/{challengeId} {
-        allow read: if true;
+        allow read: if request.auth != null
+          && (
+            canReadBattle(battleId)
+            || (
+              resource.data.keys().hasAny(['targetAllianceId'])
+              && exists(/databases/$(database)/documents/alliances/$(resource.data.targetAllianceId))
+            )
+          );
         allow create: if isValidChallengeCreate(battleId, challengeId);
         allow update: if isValidChallengeClick(battleId, challengeId)
           || isValidChallengeExpire(battleId, challengeId)
@@ -1331,14 +1375,14 @@ service cloud.firestore {
         allow delete: if false;
 
         match /clicks/{clickId} {
-          allow read: if true;
+          allow read: if canReadBattle(battleId);
           allow create: if isValidChallengeClickCreate(battleId, challengeId, clickId);
           allow update, delete: if false;
         }
       }
 
       match /result/{resultId} {
-        allow read: if true;
+        allow read: if canReadBattle(battleId);
         allow create: if isValidBattleResultCreate(battleId, resultId);
         allow update, delete: if false;
       }
@@ -1423,11 +1467,22 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    function leaderboardAwardFromBattle(battleId) {
+      return exists(/databases/$(database)/documents/battles/$(battleId)/result/final)
+        && get(/databases/$(database)/documents/battles/$(battleId)/result/final).data.status == 'finished'
+        && existsAfter(/databases/$(database)/documents/leaderboard_awards/$(battleId));
+    }
+
     match /leaderboard_daily/{dayKey} {
       allow read: if true;
-      allow create, update: if isLeaderboardPeriodKey(dayKey)
+      allow create: if isLeaderboardPeriodKey(dayKey)
         && request.resource.data.periodKey == dayKey
+        && request.resource.data.version == 1
         && isValidLeaderboardBoard('daily');
+      allow update: if isLeaderboardPeriodKey(dayKey)
+        && request.resource.data.periodKey == dayKey
+        && isValidLeaderboardBoard('daily')
+        && request.resource.data.version == resource.data.version + 1;
       allow delete: if false;
 
       match /entries/{playerId} {
@@ -1435,6 +1490,9 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.resource.data.playerId == playerId
           && request.resource.data.dayKey == dayKey
+          && request.resource.data.battleId is string
+          && leaderboardAwardFromBattle(request.resource.data.battleId)
+          && playerId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.participantIds
           && request.resource.data.score is int
           && request.resource.data.score >= 0
           && request.resource.data.score <= 8
@@ -1442,6 +1500,9 @@ service cloud.firestore {
         allow update: if request.auth != null
           && request.resource.data.playerId == playerId
           && request.resource.data.dayKey == dayKey
+          && request.resource.data.battleId is string
+          && leaderboardAwardFromBattle(request.resource.data.battleId)
+          && playerId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.participantIds
           && request.resource.data.score is int
           && request.resource.data.score >= resource.data.score
           && request.resource.data.score <= resource.data.score + 8
@@ -1453,9 +1514,14 @@ service cloud.firestore {
 
     match /leaderboard_weekly/{weekKey} {
       allow read: if true;
-      allow create, update: if isLeaderboardPeriodKey(weekKey)
+      allow create: if isLeaderboardPeriodKey(weekKey)
         && request.resource.data.periodKey == weekKey
+        && request.resource.data.version == 1
         && isValidLeaderboardBoard('weekly');
+      allow update: if isLeaderboardPeriodKey(weekKey)
+        && request.resource.data.periodKey == weekKey
+        && isValidLeaderboardBoard('weekly')
+        && request.resource.data.version == resource.data.version + 1;
       allow delete: if false;
 
       match /entries/{allianceId} {
@@ -1463,6 +1529,9 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.resource.data.allianceId == allianceId
           && request.resource.data.weekKey == weekKey
+          && request.resource.data.battleId is string
+          && leaderboardAwardFromBattle(request.resource.data.battleId)
+          && allianceId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.allianceDeltas
           && request.resource.data.rawScore is int
           && request.resource.data.rawScore >= 0
           && request.resource.data.rawScore <= 8
@@ -1473,6 +1542,9 @@ service cloud.firestore {
         allow update: if request.auth != null
           && request.resource.data.allianceId == allianceId
           && request.resource.data.weekKey == weekKey
+          && request.resource.data.battleId is string
+          && leaderboardAwardFromBattle(request.resource.data.battleId)
+          && allianceId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.allianceDeltas
           && request.resource.data.rawScore is int
           && request.resource.data.rawScore >= resource.data.rawScore
           && request.resource.data.rawScore <= resource.data.rawScore + 8
@@ -1491,8 +1563,61 @@ service cloud.firestore {
         && request.resource.data.status == 'done'
         && isLeaderboardPeriodKey(request.resource.data.dayKey)
         && isLeaderboardPeriodKey(request.resource.data.weekKey)
-        && request.resource.data.createdAt == request.time;
+        && request.resource.data.createdAt == request.time
+        && exists(/databases/$(database)/documents/battles/$(battleId)/result/final)
+        && get(/databases/$(database)/documents/battles/$(battleId)/result/final).data.status == 'finished';
       allow update, delete: if false;
+    }
+
+    match /players/{playerId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['score', 'dailyScore', 'lifetimeScore'])
+          || (
+            (!('score' in request.resource.data.diff(resource.data).affectedKeys())
+              || (
+                request.resource.data.score is int
+                && (
+                  (
+                    resource.data.keys().hasAny(['score'])
+                    && resource.data.score is int
+                    && request.resource.data.score >= resource.data.score
+                    && request.resource.data.score <= resource.data.score + 8
+                  )
+                  || (
+                    !resource.data.keys().hasAny(['score'])
+                    && request.resource.data.score >= 0
+                    && request.resource.data.score <= 8
+                  )
+                )
+              )
+            )
+            && (!('dailyScore' in request.resource.data.diff(resource.data).affectedKeys())
+              || (
+                request.resource.data.dailyScore is int
+                && request.resource.data.dailyScore >= 0
+                && request.resource.data.dailyScore <= 1000000
+              )
+            )
+            && (!('lifetimeScore' in request.resource.data.diff(resource.data).affectedKeys())
+              || (
+                request.resource.data.lifetimeScore is int
+                && resource.data.keys().hasAny(['lifetimeScore'])
+                && request.resource.data.lifetimeScore >= resource.data.lifetimeScore
+                && request.resource.data.lifetimeScore <= resource.data.lifetimeScore + 8
+              )
+              || (
+                request.resource.data.lifetimeScore is int
+                && !resource.data.keys().hasAny(['lifetimeScore'])
+                && request.resource.data.lifetimeScore >= 0
+                && request.resource.data.lifetimeScore <= 8
+              )
+            )
+          )
+        );
+      allow delete: if false;
     }
 
     match /{document=**} {

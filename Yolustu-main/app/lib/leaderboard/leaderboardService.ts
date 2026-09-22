@@ -152,6 +152,7 @@ function writeBoard(tx: Transaction, ref: ReturnType<typeof dailyBoardRef>, boar
 }
 
 export interface BattleLeaderboardAward {
+  battleId: string;
   dayKey: string;
   weekKey: string;
   players: { id: string; name: string; delta: number }[];
@@ -163,6 +164,7 @@ export async function applyBattleLeaderboardAwards(tx: Transaction, award: Battl
   if (!isPeriodKey(award.dayKey) || !isPeriodKey(award.weekKey)) {
     throw new Error('Period açarı yanlışdır');
   }
+  if (!award.battleId) throw new Error('Battle ID tələb olunur');
 
   const playerAwards = award.players.filter((item) => item.delta > 0);
   const allianceAwards = award.alliances.filter((item) => item.delta > 0);
@@ -197,6 +199,7 @@ export async function applyBattleLeaderboardAwards(tx: Transaction, award: Battl
         name: item.name,
         score,
         dayKey: award.dayKey,
+        battleId: award.battleId,
         schemaVersion: LEADERBOARD_SCHEMA,
         updatedAt: serverTimestamp(),
       },
@@ -228,6 +231,7 @@ export async function applyBattleLeaderboardAwards(tx: Transaction, award: Battl
         activeUsers: officialActiveUserCount(activeUserIds),
         score,
         weekKey: award.weekKey,
+        battleId: award.battleId,
         schemaVersion: LEADERBOARD_SCHEMA,
         updatedAt: serverTimestamp(),
       },

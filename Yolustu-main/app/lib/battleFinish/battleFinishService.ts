@@ -431,6 +431,7 @@ async function commitLeaderboardAwardsFromFinish(
         const playerIds = Object.keys(result.playerDeltas);
         const playerSnaps = await Promise.all(playerIds.map((id) => tx.get(doc(db, 'players', id))));
         await applyBattleLeaderboardAwards(tx, {
+          battleId: result.battleId,
           dayKey: period.dayKey,
           weekKey: period.weekKey,
           players: playerIds.map((id, index) => ({

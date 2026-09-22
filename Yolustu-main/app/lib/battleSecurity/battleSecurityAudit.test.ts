@@ -400,6 +400,34 @@ describe('battle security audit', () => {
     });
   });
 
+  describe('authorization / yad battle', () => {
+    it('yad uid slot-u və yad alliance klikini rədd edir', () => {
+      assert.throws(() => play({ uid: 'u-other' }), /loadout-u deyil/);
+      assert.throws(
+        () =>
+          assertChallengeClickAllowed({
+            battle: fixtureBattle(),
+            challenge: {
+              challengeId: 'ch1',
+              battleId: 'bat_audit_1',
+              targetAllianceId: 'a2',
+              requiredClicks: 3,
+              currentClicks: 0,
+              expiresAt: NOW + 5_000,
+              status: 'active',
+            },
+            playerId: 'p1',
+            playerAllianceId: 'a9',
+            allianceMemberIds: ['p9'],
+            allianceLeaderId: 'p9',
+            clickAlreadyExists: false,
+            serverNow: NOW,
+          }),
+        /hədəf ittifaq|üzvü/
+      );
+    });
+  });
+
   describe('click required client-dən gəlmir', () => {
     it('required klik sayı server bandındandır', () => {
       assert.equal(officialClickNeed('qul', new Array(3).fill('m')), 3);
