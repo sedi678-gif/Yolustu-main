@@ -88,7 +88,7 @@ export default function BattleEnergyPanel({
         setLastPlay(
           result.duplicate
             ? 'Eyni request təkrarlandı — energy yenidən çıxılmadı'
-            : `${cardId} oynandı. −${result.cost} energy · ${result.usage}/${result.usageMax}`
+            : `${cardId} oynandı. −${result.cost} energy · zərər ${result.damage} · xal +${result.playerDelta}`
         );
       } catch (err) {
         requestRef.current = null;

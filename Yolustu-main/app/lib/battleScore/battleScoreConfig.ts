@@ -1,0 +1,183 @@
+import { serverTimestamp } from 'firebase/firestore';
+import { BATTLE_LOADOUT_POOL, isBattleLoadoutCardId, type BattleLoadoutCardId } from '@/app/lib/battleLoadout/battleLoadoutConfig';
+import type { BattleRecord, BattleSide } from '@/app/lib/battleEventLog/battleEventTypes';
+
+export const BATTLE_SCORE_COLLECTION = 'scores';
+export const BATTLE_SCORE_SCHEMA_VERSION = 1;
+export const BATTLE_PLAY_EVENT_COUNT = 6;
+
+/** 2^31-1-dən aşağı — wrap/overflow yoxdur. */
+export const BATTLE_SCORE_MAX = 1_000_000;
+export const BATTLE_SCORE_MIN = 0;
+export const BATTLE_DAMAGE_MAX = 12;
+export const BATTLE_PLAYER_DELTA_MAX = 10;
+export const BATTLE_ALLIANCE_DELTA_MAX = 8;
+export const BATTLE_STEAL_MAX = 6;
+
+export type BattleCardEffectKind = 'damage' | 'steal' | 'support' | 'control';
+
+export interface OfficialCardEffect {
+  cardId: BattleLoadoutCardId;
+  kind: BattleCardEffectKind;
+  damage: number;
+  playerDelta: number;
+  allianceDelta: number;
+  steal: number;
+}
+
+/** Rəsmi effekt cədvəli — client damage/score/reward qəbul edilmir. */
+export const BATTLE_CARD_EFFECTS: Record<BattleLoadoutCardId, OfficialCardEffect> = {
+  '2x': { cardId: '2x', kind: 'support', damage: 0, playerDelta: 8, allianceDelta: 4, steal: 0 },
+  casus: { cardId: 'casus', kind: 'control', damage: 0, playerDelta: 3, allianceDelta: 1, steal: 0 },
+  duman: { cardId: 'duman', kind: 'control', damage: 0, playerDelta: 2, allianceDelta: 1, steal: 0 },
+  guzgu: { cardId: 'guzgu', kind: 'damage', damage: 4, playerDelta: 4, allianceDelta: 2, steal: 0 },
+  joker: { cardId: 'joker', kind: 'damage', damage: 5, playerDelta: 5, allianceDelta: 3, steal: 0 },
+  ogru: { cardId: 'ogru', kind: 'steal', damage: 0, playerDelta: 4, allianceDelta: 0, steal: 4 },
+  qaya: { cardId: 'qaya', kind: 'damage', damage: 6, playerDelta: 3, allianceDelta: 2, steal: 0 },
+  qul: { cardId: 'qul', kind: 'damage', damage: 3, playerDelta: 4, allianceDelta: 2, steal: 0 },
+  qutb: { cardId: 'qutb', kind: 'damage', damage: 7, playerDelta: 5, allianceDelta: 3, steal: 0 },
+  sehrbaz: { cardId: 'sehrbaz', kind: 'control', damage: 4, playerDelta: 4, allianceDelta: 2, steal: 0 },
+  tikanli: { cardId: 'tikanli', kind: 'steal', damage: 5, playerDelta: 3, allianceDelta: 2, steal: 2 },
+  felaket: { cardId: 'felaket', kind: 'damage', damage: 9, playerDelta: 6, allianceDelta: 4, steal: 0 },
+  usyan: { cardId: 'usyan', kind: 'steal', damage: 3, playerDelta: 5, allianceDelta: 3, steal: 2 },
+  zombi: { cardId: 'zombi', kind: 'damage', damage: 6, playerDelta: 4, allianceDelta: 2, steal: 0 },
+  mutant: { cardId: 'mutant', kind: 'damage', damage: 6, playerDelta: 4, allianceDelta: 2, steal: 0 },
+};
+
+function isSafeInt(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && Number.isSafeInteger(value);
+}
+
+export function officialCardEffect(cardId: string): OfficialCardEffect | null {
+  if (!isBattleLoadoutCardId(cardId)) return null;
+  const effect = BATTLE_CARD_EFFECTS[cardId];
+  if (!effect) return null;
+  if (!isSafeInt(effect.damage) || effect.damage < 0 || effect.damage > BATTLE_DAMAGE_MAX) return null;
+  if (!isSafeInt(effect.playerDelta) || effect.playerDelta < 0 || effect.playerDelta > BATTLE_PLAYER_DELTA_MAX) {
+    return null;
+  }
+  if (!isSafeInt(effect.allianceDelta) || effect.allianceDelta < 0 || effect.allianceDelta > BATTLE_ALLIANCE_DELTA_MAX) {
+    return null;
+  }
+  if (!isSafeInt(effect.steal) || effect.steal < 0 || effect.steal > BATTLE_STEAL_MAX) return null;
+  return effect;
+}
+
+export function readBoundedScore(value: unknown): number {
+  if (!isSafeInt(value)) return 0;
+  if (value < BATTLE_SCORE_MIN || value > BATTLE_SCORE_MAX) return 0;
+  return value;
+}
+
+/** Mükafat: mənfi, float, overflow və limit-dən böyük delta reject. */
+export function addOfficialScore(current: number, delta: number, maxDelta: number): number {
+  if (!isSafeInt(current) || current < BATTLE_SCORE_MIN || current > BATTLE_SCORE_MAX) {
+    throw new Error('Score vəziyyəti yanlışdır');
+  }
+  if (!isSafeInt(delta) || !isSafeInt(maxDelta)) throw new Error('Score dəyişməsi yanlışdır');
+  if (delta < 0) throw new Error('Mənfi score dəyişməsi rədd edildi');
+  if (delta > maxDelta) throw new Error('Qeyri-real score dəyişməsi rədd edildi');
+  if (delta > BATTLE_SCORE_MAX - current) throw new Error('Score overflow rədd edildi');
+  return current + delta;
+}
+
+/** Oğurluq: yalnız mövcud xal qədər; nəticə 0-dan aşağı düşə bilməz. */
+export function takeOfficialScore(current: number, amount: number, maxAmount: number): { next: number; taken: number } {
+  if (!isSafeInt(current) || current < BATTLE_SCORE_MIN || current > BATTLE_SCORE_MAX) {
+    throw new Error('Score vəziyyəti yanlışdır');
+  }
+  if (!isSafeInt(amount) || amount < 0 || amount > maxAmount) {
+    throw new Error('Qeyri-real oğurluq rədd edildi');
+  }
+  const taken = current < amount ? current : amount;
+  return { next: current - taken, taken };
+}
+
+export function applyOfficialBattleScores(input: {
+  side: BattleSide;
+  attackerScore: number;
+  defenderScore: number;
+  playerScore: number;
+  effect: OfficialCardEffect;
+}) {
+  const playerScore = addOfficialScore(input.playerScore, input.effect.playerDelta, BATTLE_PLAYER_DELTA_MAX);
+  const ownBefore = input.side === 'attacker' ? input.attackerScore : input.defenderScore;
+  const oppBefore = input.side === 'attacker' ? input.defenderScore : input.attackerScore;
+  const stolen = takeOfficialScore(oppBefore, input.effect.steal, BATTLE_STEAL_MAX);
+  const ownAfter = addOfficialScore(
+    ownBefore,
+    input.effect.allianceDelta + stolen.taken,
+    BATTLE_ALLIANCE_DELTA_MAX + BATTLE_STEAL_MAX
+  );
+
+  const attackerScore = input.side === 'attacker' ? ownAfter : stolen.next;
+  const defenderScore = input.side === 'defender' ? ownAfter : stolen.next;
+
+  return {
+    damage: input.effect.damage,
+    playerDelta: input.effect.playerDelta,
+    allianceDelta: input.effect.allianceDelta,
+    steal: input.effect.steal,
+    taken: stolen.taken,
+    playerScore,
+    attackerScore,
+    defenderScore,
+    ownAllianceAfter: ownAfter,
+    oppAllianceAfter: stolen.next,
+  };
+}
+
+export function officialBattleLeader(battle: Pick<BattleRecord, 'attackerScore' | 'defenderScore' | 'attackerAllianceId' | 'defenderAllianceId'>): {
+  attackerScore: number;
+  defenderScore: number;
+  leaderSide: BattleSide | null;
+  winnerAllianceId: string | null;
+  reason: 'attacker' | 'defender' | 'draw';
+} {
+  const attackerScore = readBoundedScore(battle.attackerScore);
+  const defenderScore = readBoundedScore(battle.defenderScore);
+  if (attackerScore > defenderScore) {
+    return {
+      attackerScore,
+      defenderScore,
+      leaderSide: 'attacker',
+      winnerAllianceId: battle.attackerAllianceId ?? null,
+      reason: 'attacker',
+    };
+  }
+  if (defenderScore > attackerScore) {
+    return {
+      attackerScore,
+      defenderScore,
+      leaderSide: 'defender',
+      winnerAllianceId: battle.defenderAllianceId ?? null,
+      reason: 'defender',
+    };
+  }
+  return {
+    attackerScore,
+    defenderScore,
+    leaderSide: null,
+    winnerAllianceId: null,
+    reason: 'draw',
+  };
+}
+
+export function initialBattleScoreDoc(battleId: string, playerId: string) {
+  return {
+    battleId,
+    playerId,
+    score: 0,
+    maxScore: BATTLE_SCORE_MAX,
+    lastRequestId: null as string | null,
+    schemaVersion: BATTLE_SCORE_SCHEMA_VERSION,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+}
+
+for (const id of BATTLE_LOADOUT_POOL) {
+  if (!officialCardEffect(id)) {
+    throw new Error(`Kart effekti tapılmadı: ${id}`);
+  }
+}

@@ -43,14 +43,14 @@ export default function BattleEventLogPanel({ battleId }: { battleId: string }) 
   const [events, setEvents] = useState<BattleEvent[]>([]);
 
   useEffect(() => {
-    if (!battleId) {
-      setEvents([]);
-      return;
-    }
+    if (!battleId) return;
     return listenBattleEvents(battleId, setEvents);
   }, [battleId]);
 
-  const audit = useMemo(() => auditBattleEvents(battleId, events), [battleId, events]);
+  const audit = useMemo(
+    () => auditBattleEvents(battleId, battleId ? events : []),
+    [battleId, events]
+  );
 
   return (
     <section className={styles.eventLogBox} aria-label="Battle event log">

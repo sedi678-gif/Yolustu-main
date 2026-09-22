@@ -25,6 +25,15 @@ import {
   readCardUsage,
   readCooldownUntil,
 } from './battlePlayConfig';
+import {
+  BATTLE_PLAY_EVENT_COUNT,
+  BATTLE_SCORE_MAX,
+  applyOfficialBattleScores,
+  initialBattleScoreDoc,
+  officialCardEffect,
+  readBoundedScore,
+} from '@/app/lib/battleScore/battleScoreConfig';
+import { battleScoreRef } from '@/app/lib/battleScore/battleScoreService';
 
 export interface PlayBattleCardInput {
   battleId: string;
@@ -52,6 +61,13 @@ export interface PlayBattleCardResult {
   turn: number;
   turnSide: BattleSide;
   turnPlayerId: string;
+  damage: number;
+  playerDelta: number;
+  allianceDelta: number;
+  steal: number;
+  playerScore: number;
+  attackerScore: number;
+  defenderScore: number;
 }
 
 const WRITE_MS = 12_000;
@@ -134,6 +150,13 @@ function resultFromReceipt(requestId: string, prev: Record<string, unknown>): Pl
     turn: Number(prev.turn) || 0,
     turnSide: prev.turnSide === 'defender' ? 'defender' : 'attacker',
     turnPlayerId: String(prev.turnPlayerId ?? ''),
+    damage: Number(prev.damage) || 0,
+    playerDelta: Number(prev.playerDelta) || 0,
+    allianceDelta: Number(prev.allianceDelta) || 0,
+    steal: Number(prev.steal) || 0,
+    playerScore: Number(prev.playerScoreAfter) || 0,
+    attackerScore: Number(prev.attackerScoreAfter) || 0,
+    defenderScore: Number(prev.defenderScoreAfter) || 0,
   };
 }
 
@@ -167,12 +190,14 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
     runTransaction(db, async (tx) => {
       const parentRef = battleRef(battleId);
       const energyRef = battleEnergyRef(battleId, playerId);
+      const scoreRef = battleScoreRef(battleId, playerId);
       const receiptRef = energyRequestRef(battleId, requestId);
       const costRef = cardCostRef(cardId);
       const handRef = loadoutRef(battleId, playerId);
 
       const parentSnap = await tx.get(parentRef);
       const energySnap = await tx.get(energyRef);
+      const scoreSnap = await tx.get(scoreRef);
       const receiptSnap = await tx.get(receiptRef);
       const costSnap = await tx.get(costRef);
       const handSnap = await tx.get(handRef);
@@ -232,14 +257,35 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
       const energyAfter = energy - cost;
       if (energyAfter < 0 || energyAfter > BATTLE_ENERGY_MAX) throw new Error('Energy mənfi ola bilməz');
 
+      const effect = officialCardEffect(cardId);
+      if (!effect) throw new Error('Kart effekti tapılmadı');
+
+      const applied = applyOfficialBattleScores({
+        side,
+        attackerScore: readBoundedScore(battle.attackerScore),
+        defenderScore: readBoundedScore(battle.defenderScore),
+        playerScore: scoreSnap.exists() ? readBoundedScore(scoreSnap.data()?.score) : 0,
+        effect,
+      });
+
       const usageAfter = used + 1;
       const cooldownUntil = now + cooldownMs;
       const nextTurn = nextTurnState(battle, side);
       const seq1 = battle.eventSeq + 1;
       const seq2 = battle.eventSeq + 2;
+      const seq3 = battle.eventSeq + 3;
+      const seq4 = battle.eventSeq + 4;
+      const seq5 = battle.eventSeq + 5;
+      const seq6 = battle.eventSeq + BATTLE_PLAY_EVENT_COUNT;
       const stateVersion = (battle.stateVersion ?? 0) + 1;
       const playEvent = newBattleEventRef(battleId);
       const energyEvent = newBattleEventRef(battleId);
+      const damageEvent = newBattleEventRef(battleId);
+      const playerScoreEvent = newBattleEventRef(battleId);
+      const ownScoreEvent = newBattleEventRef(battleId);
+      const oppScoreEvent = newBattleEventRef(battleId);
+      const oppAllianceId =
+        side === 'attacker' ? battle.defenderAllianceId : battle.attackerAllianceId;
 
       if (!costSnap.exists()) {
         tx.set(costRef, {
@@ -256,16 +302,27 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         battleId,
         playerId,
         cardId,
+        side,
         cost,
         energyBefore: energy,
         energyAfter,
         usageAfter,
         cooldownUntil,
-        eventSeq: seq2,
+        eventSeq: seq6,
         stateVersion,
         turn: nextTurn.turn,
         turnSide: nextTurn.turnSide,
         turnPlayerId: nextTurn.turnPlayerId,
+        damage: applied.damage,
+        playerDelta: applied.playerDelta,
+        allianceDelta: applied.allianceDelta,
+        steal: applied.steal,
+        taken: applied.taken,
+        playerScoreAfter: applied.playerScore,
+        attackerScoreAfter: applied.attackerScore,
+        defenderScoreAfter: applied.defenderScore,
+        ownAllianceAfter: applied.ownAllianceAfter,
+        oppAllianceAfter: applied.oppAllianceAfter,
         schemaVersion: 1,
         createdAt: serverTimestamp(),
       });
@@ -279,8 +336,23 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         updatedAt: serverTimestamp(),
       });
 
+      if (scoreSnap.exists()) {
+        tx.update(scoreRef, {
+          score: applied.playerScore,
+          maxScore: BATTLE_SCORE_MAX,
+          lastRequestId: requestId,
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        tx.set(scoreRef, {
+          ...initialBattleScoreDoc(battleId, playerId),
+          score: applied.playerScore,
+          lastRequestId: requestId,
+        });
+      }
+
       tx.update(parentRef, {
-        eventSeq: seq2,
+        eventSeq: seq6,
         updatedAt: serverTimestamp(),
         status: 'active',
         turn: nextTurn.turn,
@@ -289,6 +361,10 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         stateVersion,
         turnStartAt: serverTimestamp(),
         turnDurationMs: BATTLE_TURN_DURATION_MS,
+        attackerScore: applied.attackerScore,
+        defenderScore: applied.defenderScore,
+        scoreVersion: (battle.scoreVersion ?? 0) + 1,
+        lastScoreRequestId: requestId,
       });
 
       tx.set(
@@ -327,6 +403,77 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         })
       );
 
+      tx.set(
+        damageEvent,
+        battleEventWrite({
+          eventId: damageEvent.id,
+          battleId,
+          playerId,
+          type: 'damage_applied',
+          seq: seq3,
+          meta: {
+            amount: applied.damage,
+            source: cardId,
+            requestId,
+            ...(oppAllianceId ? { targetAllianceId: oppAllianceId } : {}),
+          },
+        })
+      );
+
+      tx.set(
+        playerScoreEvent,
+        battleEventWrite({
+          eventId: playerScoreEvent.id,
+          battleId,
+          playerId,
+          type: 'score_changed',
+          seq: seq4,
+          meta: {
+            score: applied.playerScore,
+            delta: applied.playerDelta,
+            scope: 'player',
+            requestId,
+            cardId,
+          },
+        })
+      );
+
+      tx.set(
+        ownScoreEvent,
+        battleEventWrite({
+          eventId: ownScoreEvent.id,
+          battleId,
+          playerId,
+          type: 'score_changed',
+          seq: seq5,
+          meta: {
+            score: applied.ownAllianceAfter,
+            delta: applied.allianceDelta + applied.taken,
+            scope: 'alliance',
+            requestId,
+            cardId,
+          },
+        })
+      );
+
+      tx.set(
+        oppScoreEvent,
+        battleEventWrite({
+          eventId: oppScoreEvent.id,
+          battleId,
+          playerId,
+          type: 'score_changed',
+          seq: seq6,
+          meta: {
+            score: applied.oppAllianceAfter,
+            delta: -applied.taken,
+            scope: 'alliance',
+            requestId,
+            cardId,
+          },
+        })
+      );
+
       return {
         accepted: true as const,
         duplicate: false,
@@ -338,11 +485,18 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         usageMax: BATTLE_CARD_MAX_USES,
         cooldownUntil,
         requestId,
-        eventSeq: seq2,
+        eventSeq: seq6,
         stateVersion,
         turn: nextTurn.turn,
         turnSide: nextTurn.turnSide,
         turnPlayerId: nextTurn.turnPlayerId,
+        damage: applied.damage,
+        playerDelta: applied.playerDelta,
+        allianceDelta: applied.allianceDelta,
+        steal: applied.taken,
+        playerScore: applied.playerScore,
+        attackerScore: applied.attackerScore,
+        defenderScore: applied.defenderScore,
       };
     }),
     WRITE_MS,

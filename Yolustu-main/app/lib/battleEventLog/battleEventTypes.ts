@@ -83,11 +83,14 @@ export type BattleEventMetaMap = {
     targetPlayerId?: string;
     targetAllianceId?: string;
     source?: string;
+    requestId?: string;
   };
   score_changed: {
     score?: number;
     delta?: number;
     scope?: 'player' | 'alliance';
+    requestId?: string;
+    cardId?: string;
   };
   turn_started: {
     turn?: number;
@@ -145,6 +148,10 @@ export interface BattleRecord {
   turnStartAt?: number;
   turnEndAt?: number;
   turnDurationMs?: number;
+  attackerScore?: number;
+  defenderScore?: number;
+  scoreVersion?: number;
+  lastScoreRequestId?: string;
 }
 
 export interface AppendBattleEventInput<T extends BattleEventType = BattleEventType> {

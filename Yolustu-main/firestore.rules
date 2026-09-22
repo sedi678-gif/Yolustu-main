@@ -40,7 +40,11 @@ service cloud.firestore {
           'status',
           'eventSeq',
           'participantIds',
-          'schemaVersion'
+          'schemaVersion',
+          'attackerScore',
+          'defenderScore',
+          'scoreVersion',
+          'lastScoreRequestId'
         ])
         && d.createdBy is string
         && d.createdBy.size() > 0
@@ -51,7 +55,11 @@ service cloud.firestore {
         && d.eventSeq == 1
         && d.participantIds is list
         && d.participantIds.size() == 1
-        && d.schemaVersion == 1;
+        && d.schemaVersion == 1
+        && d.attackerScore == 0
+        && d.defenderScore == 0
+        && d.scoreVersion == 0
+        && d.lastScoreRequestId == null;
     }
 
     function isValidMapBattleCreate() {
@@ -74,7 +82,11 @@ service cloud.firestore {
           'defenderPlayerIds',
           'attackerUids',
           'defenderUids',
-          'joinDurationMs'
+          'joinDurationMs',
+          'attackerScore',
+          'defenderScore',
+          'scoreVersion',
+          'lastScoreRequestId'
         ])
         && d.createdBy is string
         && d.createdBy.size() > 0
@@ -99,6 +111,10 @@ service cloud.firestore {
         && d.defenderUids is list
         && d.defenderUids.size() == 0
         && d.participantIds == d.attackerPlayerIds
+        && d.attackerScore == 0
+        && d.defenderScore == 0
+        && d.scoreVersion == 0
+        && d.lastScoreRequestId == null
         && exists(/databases/$(database)/documents/alliances/$(d.defenderAllianceId))
         && exists(/databases/$(database)/documents/alliances/$(d.attackerAllianceId));
     }
@@ -190,9 +206,7 @@ service cloud.firestore {
         'card_blocked',
         'card_countered',
         'click_started',
-        'click_completed',
-        'damage_applied',
-        'score_changed'
+        'click_completed'
       ];
     }
 
@@ -440,6 +454,82 @@ service cloud.firestore {
         : 0;
     }
 
+    function officialDamage(id) {
+      return id == '2x' ? 0
+        : id == 'casus' ? 0
+        : id == 'duman' ? 0
+        : id == 'guzgu' ? 4
+        : id == 'joker' ? 5
+        : id == 'ogru' ? 0
+        : id == 'qaya' ? 6
+        : id == 'qul' ? 3
+        : id == 'qutb' ? 7
+        : id == 'sehrbaz' ? 4
+        : id == 'tikanli' ? 5
+        : id == 'felaket' ? 9
+        : id == 'usyan' ? 3
+        : id == 'zombi' ? 6
+        : id == 'mutant' ? 6
+        : -1;
+    }
+
+    function officialPlayerDelta(id) {
+      return id == '2x' ? 8
+        : id == 'casus' ? 3
+        : id == 'duman' ? 2
+        : id == 'guzgu' ? 4
+        : id == 'joker' ? 5
+        : id == 'ogru' ? 4
+        : id == 'qaya' ? 3
+        : id == 'qul' ? 4
+        : id == 'qutb' ? 5
+        : id == 'sehrbaz' ? 4
+        : id == 'tikanli' ? 3
+        : id == 'felaket' ? 6
+        : id == 'usyan' ? 5
+        : id == 'zombi' ? 4
+        : id == 'mutant' ? 4
+        : -1;
+    }
+
+    function officialAllianceDelta(id) {
+      return id == '2x' ? 4
+        : id == 'casus' ? 1
+        : id == 'duman' ? 1
+        : id == 'guzgu' ? 2
+        : id == 'joker' ? 3
+        : id == 'ogru' ? 0
+        : id == 'qaya' ? 2
+        : id == 'qul' ? 2
+        : id == 'qutb' ? 3
+        : id == 'sehrbaz' ? 2
+        : id == 'tikanli' ? 2
+        : id == 'felaket' ? 4
+        : id == 'usyan' ? 3
+        : id == 'zombi' ? 2
+        : id == 'mutant' ? 2
+        : -1;
+    }
+
+    function officialSteal(id) {
+      return id == 'ogru' ? 4
+        : id == 'tikanli' ? 2
+        : id == 'usyan' ? 2
+        : id == '2x' ? 0
+        : id == 'casus' ? 0
+        : id == 'duman' ? 0
+        : id == 'guzgu' ? 0
+        : id == 'joker' ? 0
+        : id == 'qaya' ? 0
+        : id == 'qul' ? 0
+        : id == 'qutb' ? 0
+        : id == 'sehrbaz' ? 0
+        : id == 'felaket' ? 0
+        : id == 'zombi' ? 0
+        : id == 'mutant' ? 0
+        : -1;
+    }
+
     function officialCardCost(id) {
       return id == '2x' ? 6
         : id == 'casus' ? 4
@@ -459,13 +549,17 @@ service cloud.firestore {
         : 0;
     }
 
-    function isValidCardPlaySeqBump() {
+    function isValidCardPlaySeqBump(battleId) {
       let before = resource.data;
       let after = request.resource.data;
+      let receipt = getAfter(/databases/$(database)/documents/battles/$(battleId)/energy_requests/$(after.lastScoreRequestId)).data;
+      let atk0 = before.keys().hasAny(['attackerScore']) && before.attackerScore is int ? before.attackerScore : 0;
+      let def0 = before.keys().hasAny(['defenderScore']) && before.defenderScore is int ? before.defenderScore : 0;
+      let scoreV0 = before.keys().hasAny(['scoreVersion']) && before.scoreVersion is int ? before.scoreVersion : 0;
       return request.auth != null
         && before.status == 'active'
         && after.status == 'active'
-        && after.eventSeq == before.eventSeq + 2
+        && after.eventSeq == before.eventSeq + 6
         && after.stateVersion == before.stateVersion + 1
         && after.createdAt == before.createdAt
         && after.createdBy == before.createdBy
@@ -481,10 +575,35 @@ service cloud.firestore {
         && after.turnStartAt == request.time
         && after.turnDurationMs == 15000
         && request.time < before.turnStartAt + duration.value(15, 's')
+        && after.lastScoreRequestId is string
+        && receipt.requestId == after.lastScoreRequestId
+        && officialDamage(receipt.cardId) >= 0
+        && receipt.damage == officialDamage(receipt.cardId)
+        && receipt.playerDelta == officialPlayerDelta(receipt.cardId)
+        && receipt.allianceDelta == officialAllianceDelta(receipt.cardId)
+        && receipt.steal == officialSteal(receipt.cardId)
+        && receipt.playerDelta >= 0
+        && receipt.allianceDelta >= 0
+        && receipt.steal >= 0
+        && receipt.taken is int
+        && receipt.taken >= 0
+        && receipt.taken <= receipt.steal
+        && after.attackerScore is int
+        && after.defenderScore is int
+        && after.attackerScore == receipt.attackerScoreAfter
+        && after.defenderScore == receipt.defenderScoreAfter
+        && after.attackerScore >= 0
+        && after.defenderScore >= 0
+        && after.attackerScore <= 1000000
+        && after.defenderScore <= 1000000
+        && after.attackerScore >= atk0 - receipt.taken
+        && after.defenderScore >= def0 - receipt.taken
+        && after.scoreVersion == scoreV0 + 1
         && after.diff(before).affectedKeys()
           .hasOnly([
             'eventSeq', 'updatedAt', 'status', 'turn', 'turnSide', 'turnPlayerId',
-            'stateVersion', 'turnStartAt', 'turnDurationMs'
+            'stateVersion', 'turnStartAt', 'turnDurationMs',
+            'attackerScore', 'defenderScore', 'scoreVersion', 'lastScoreRequestId'
           ])
         && after.updatedAt == request.time;
     }
@@ -637,6 +756,11 @@ service cloud.firestore {
 
     function isValidEnergyRequestCreate(battleId, requestId) {
       let d = request.resource.data;
+      let b = battleData(battleId);
+      let atk0 = b.keys().hasAny(['attackerScore']) && b.attackerScore is int ? b.attackerScore : 0;
+      let def0 = b.keys().hasAny(['defenderScore']) && b.defenderScore is int ? b.defenderScore : 0;
+      let own0 = d.side == 'attacker' ? atk0 : def0;
+      let opp0 = d.side == 'attacker' ? def0 : atk0;
       return request.auth != null
         && exists(/databases/$(database)/documents/battles/$(battleId))
         && battleData(battleId).status == 'active'
@@ -657,10 +781,64 @@ service cloud.firestore {
         && d.usageAfter <= 3
         && d.schemaVersion == 1
         && d.createdAt == request.time
+        && d.side in ['attacker', 'defender']
+        && (
+          (d.side == 'attacker' && d.playerId in battleData(battleId).attackerPlayerIds)
+          || (d.side == 'defender' && d.playerId in battleData(battleId).defenderPlayerIds)
+        )
+        && officialDamage(d.cardId) >= 0
+        && d.damage == officialDamage(d.cardId)
+        && d.playerDelta == officialPlayerDelta(d.cardId)
+        && d.allianceDelta == officialAllianceDelta(d.cardId)
+        && d.steal == officialSteal(d.cardId)
+        && d.damage is int
+        && d.playerDelta is int
+        && d.allianceDelta is int
+        && d.steal is int
+        && d.taken is int
+        && d.damage >= 0
+        && d.damage <= 12
+        && d.playerDelta >= 0
+        && d.playerDelta <= 10
+        && d.allianceDelta >= 0
+        && d.allianceDelta <= 8
+        && d.steal >= 0
+        && d.steal <= 6
+        && d.taken >= 0
+        && d.taken <= d.steal
+        && d.playerScoreAfter is int
+        && d.attackerScoreAfter is int
+        && d.defenderScoreAfter is int
+        && d.ownAllianceAfter is int
+        && d.oppAllianceAfter is int
+        && (
+          (
+            exists(/databases/$(database)/documents/battles/$(battleId)/scores/$(d.playerId))
+            && d.playerScoreAfter == get(/databases/$(database)/documents/battles/$(battleId)/scores/$(d.playerId)).data.score + d.playerDelta
+          ) || (
+            !exists(/databases/$(database)/documents/battles/$(battleId)/scores/$(d.playerId))
+            && d.playerScoreAfter == d.playerDelta
+          )
+        )
+        && d.playerScoreAfter >= d.playerDelta
+        && d.playerScoreAfter <= 1000000
+        && d.attackerScoreAfter >= 0
+        && d.defenderScoreAfter >= 0
+        && d.attackerScoreAfter <= 1000000
+        && d.defenderScoreAfter <= 1000000
+        && d.taken == (d.steal < opp0 ? d.steal : opp0)
+        && d.ownAllianceAfter == own0 + d.allianceDelta + d.taken
+        && d.oppAllianceAfter == opp0 - d.taken
+        && d.ownAllianceAfter == (d.side == 'attacker' ? d.attackerScoreAfter : d.defenderScoreAfter)
+        && d.oppAllianceAfter == (d.side == 'attacker' ? d.defenderScoreAfter : d.attackerScoreAfter)
+        && d.eventSeq == battleData(battleId).eventSeq + 6
         && d.keys().hasOnly([
-          'requestId', 'battleId', 'playerId', 'cardId', 'cost',
+          'requestId', 'battleId', 'playerId', 'cardId', 'side', 'cost',
           'energyBefore', 'energyAfter', 'usageAfter', 'cooldownUntil',
           'eventSeq', 'stateVersion', 'turn', 'turnSide', 'turnPlayerId',
+          'damage', 'playerDelta', 'allianceDelta', 'steal', 'taken',
+          'playerScoreAfter', 'attackerScoreAfter', 'defenderScoreAfter',
+          'ownAllianceAfter', 'oppAllianceAfter',
           'schemaVersion', 'createdAt'
         ]);
     }
@@ -673,7 +851,7 @@ service cloud.firestore {
         && isBattleEventDoc(battleId, eventId)
         && exists(/databases/$(database)/documents/battles/$(battleId))
         && existsAfter(/databases/$(database)/documents/battles/$(battleId))
-        && battleAfter(battleId).eventSeq == battleData(battleId).eventSeq + 2
+        && battleAfter(battleId).eventSeq == battleData(battleId).eventSeq + 6
         && reqId is string
         && receipt.playerId == d.playerId
         && receipt.requestId == reqId
@@ -689,6 +867,128 @@ service cloud.firestore {
             && d.meta.delta == -receipt.cost
           )
         );
+    }
+
+    function isValidScorePlayEvent(battleId, eventId) {
+      let d = request.resource.data;
+      let reqId = d.meta.requestId;
+      let receipt = energyReceipt(battleId, reqId);
+      return request.auth != null
+        && isBattleEventDoc(battleId, eventId)
+        && exists(/databases/$(database)/documents/battles/$(battleId))
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId))
+        && battleAfter(battleId).eventSeq == battleData(battleId).eventSeq + 6
+        && reqId is string
+        && receipt.playerId == d.playerId
+        && receipt.requestId == reqId
+        && officialDamage(receipt.cardId) >= 0
+        && (
+          (
+            d.type == 'damage_applied'
+            && d.seq == battleData(battleId).eventSeq + 3
+            && d.meta.amount == receipt.damage
+            && d.meta.amount == officialDamage(receipt.cardId)
+            && d.meta.source == receipt.cardId
+          ) || (
+            d.type == 'score_changed'
+            && d.meta.scope == 'player'
+            && d.seq == battleData(battleId).eventSeq + 4
+            && d.meta.delta == receipt.playerDelta
+            && d.meta.delta == officialPlayerDelta(receipt.cardId)
+            && d.meta.delta >= 0
+            && d.meta.score == receipt.playerScoreAfter
+            && d.meta.cardId == receipt.cardId
+          ) || (
+            d.type == 'score_changed'
+            && d.meta.scope == 'alliance'
+            && d.seq == battleData(battleId).eventSeq + 5
+            && d.meta.delta == receipt.allianceDelta + receipt.taken
+            && d.meta.delta >= 0
+            && d.meta.score == receipt.ownAllianceAfter
+            && d.meta.cardId == receipt.cardId
+          ) || (
+            d.type == 'score_changed'
+            && d.meta.scope == 'alliance'
+            && d.seq == battleData(battleId).eventSeq + 6
+            && d.meta.delta == 0 - receipt.taken
+            && d.meta.score == receipt.oppAllianceAfter
+            && d.meta.cardId == receipt.cardId
+          )
+        );
+    }
+
+    function isValidScoreInit(battleId, playerId) {
+      let d = request.resource.data;
+      let b = getAfter(/databases/$(database)/documents/battles/$(battleId)).data;
+      return request.auth != null
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId))
+        && b.status in ['open', 'joining', 'locked']
+        && d.battleId == battleId
+        && d.playerId == playerId
+        && d.score == 0
+        && d.maxScore == 1000000
+        && d.lastRequestId == null
+        && d.schemaVersion == 1
+        && d.createdAt == request.time
+        && d.updatedAt == request.time
+        && d.keys().hasOnly([
+          'battleId', 'playerId', 'score', 'maxScore', 'lastRequestId',
+          'schemaVersion', 'createdAt', 'updatedAt'
+        ])
+        && playerId in b.participantIds;
+    }
+
+    function isValidScoreCreateOnPlay(battleId, playerId) {
+      let d = request.resource.data;
+      let receipt = energyReceipt(battleId, d.lastRequestId);
+      return request.auth != null
+        && exists(/databases/$(database)/documents/battles/$(battleId))
+        && battleData(battleId).status == 'active'
+        && playerId in battleData(battleId).participantIds
+        && d.battleId == battleId
+        && d.playerId == playerId
+        && d.lastRequestId is string
+        && receipt.playerId == playerId
+        && receipt.requestId == d.lastRequestId
+        && receipt.playerDelta == officialPlayerDelta(receipt.cardId)
+        && d.score == receipt.playerDelta
+        && d.score == receipt.playerScoreAfter
+        && d.score >= 0
+        && d.score <= 1000000
+        && d.maxScore == 1000000
+        && d.schemaVersion == 1
+        && d.createdAt == request.time
+        && d.updatedAt == request.time
+        && d.keys().hasOnly([
+          'battleId', 'playerId', 'score', 'maxScore', 'lastRequestId',
+          'schemaVersion', 'createdAt', 'updatedAt'
+        ]);
+    }
+
+    function isValidScoreAward(battleId, playerId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let reqId = after.lastRequestId;
+      let receipt = energyReceipt(battleId, reqId);
+      return request.auth != null
+        && exists(/databases/$(database)/documents/battles/$(battleId))
+        && battleData(battleId).status == 'active'
+        && reqId is string
+        && receipt.playerId == playerId
+        && receipt.requestId == reqId
+        && receipt.playerDelta == officialPlayerDelta(receipt.cardId)
+        && receipt.playerDelta >= 0
+        && receipt.playerDelta <= 10
+        && before.score is int
+        && after.score is int
+        && after.score == before.score + receipt.playerDelta
+        && after.score == receipt.playerScoreAfter
+        && after.score >= 0
+        && after.score <= 1000000
+        && after.score >= before.score
+        && after.maxScore == 1000000
+        && after.diff(before).affectedKeys().hasOnly(['score', 'lastRequestId', 'updatedAt'])
+        && after.updatedAt == request.time;
     }
 
     function isValidCardCostCreate(cardId) {
@@ -727,7 +1027,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isValidOpenBattleCreate() || isValidMapBattleCreate();
       allow update: if isValidLegacySeqBump() || isValidMapBattleJoin() || isValidMapBattleLock()
-        || isValidBattleActivate() || isValidCardPlaySeqBump() || isValidTurnTimeout();
+        || isValidBattleActivate() || isValidCardPlaySeqBump(battleId) || isValidTurnTimeout();
       allow delete: if false;
 
       match /events/{eventId} {
@@ -739,6 +1039,7 @@ service cloud.firestore {
           || isValidBattleFinishedEvent(battleId, eventId)
           || isValidTurnStartedEvent(battleId, eventId)
           || isValidEnergyPlayEvent(battleId, eventId)
+          || isValidScorePlayEvent(battleId, eventId)
           || isValidTurnTimeoutEvent(battleId, eventId);
         allow update, delete: if false;
       }
@@ -754,6 +1055,14 @@ service cloud.firestore {
         allow read: if true;
         allow create: if isValidEnergyRequestCreate(battleId, requestId);
         allow update, delete: if false;
+      }
+
+      match /scores/{playerId} {
+        allow read: if true;
+        allow create: if isValidScoreInit(battleId, playerId)
+          || isValidScoreCreateOnPlay(battleId, playerId);
+        allow update: if isValidScoreAward(battleId, playerId);
+        allow delete: if false;
       }
 
       match /loadouts/{playerId} {

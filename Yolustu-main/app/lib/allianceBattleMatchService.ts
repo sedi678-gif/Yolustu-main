@@ -23,6 +23,7 @@ import {
 } from '@/app/lib/battleEventLog/battleEventLog';
 import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
 import { BATTLE_ENERGY_COLLECTION, initialBattleEnergyDoc } from '@/app/lib/battleEnergy/battleEnergyConfig';
+import { BATTLE_SCORE_COLLECTION, initialBattleScoreDoc } from '@/app/lib/battleScore/battleScoreConfig';
 import { BATTLE_TURN_DURATION_MS, initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
 import type { AllianceData } from '@/app/components/alliance/types';
 
@@ -240,6 +241,10 @@ export async function startAllianceMapBattle(input: {
           attackerUids: [authUser.uid],
           defenderUids: [],
           joinDurationMs: ALLIANCE_BATTLE_JOIN_MS,
+          attackerScore: 0,
+          defenderScore: 0,
+          scoreVersion: 0,
+          lastScoreRequestId: null,
         });
 
         tx.set(
@@ -254,6 +259,7 @@ export async function startAllianceMapBattle(input: {
           })
         );
         tx.set(doc(db, 'battles', battleId, BATTLE_ENERGY_COLLECTION, playerId), initialBattleEnergyDoc(battleId, playerId));
+        tx.set(doc(db, 'battles', battleId, BATTLE_SCORE_COLLECTION, playerId), initialBattleScoreDoc(battleId, playerId));
 
         tx.set(cdRef, {
           lastBattleId: battleId,
@@ -283,6 +289,9 @@ export async function startAllianceMapBattle(input: {
           defenderUids: [],
           joinEndsAt: Date.now() + ALLIANCE_BATTLE_JOIN_MS,
           joinDurationMs: ALLIANCE_BATTLE_JOIN_MS,
+          attackerScore: 0,
+          defenderScore: 0,
+          scoreVersion: 0,
         };
       }),
       WRITE_MS,
@@ -318,7 +327,9 @@ export async function joinAllianceMapBattle(input: {
       if (attackers.includes(playerId) || defenders.includes(playerId)) return battle;
 
       const energyRef = doc(db, 'battles', battleId, BATTLE_ENERGY_COLLECTION, playerId);
+      const scoreRef = doc(db, 'battles', battleId, BATTLE_SCORE_COLLECTION, playerId);
       const energySnap = await tx.get(energyRef);
+      const scoreSnap = await tx.get(scoreRef);
       const playerSnap = await tx.get(playerRef(playerId));
       if (!playerSnap.exists()) throw new Error('Oyunçu tapılmadı');
       const allianceId = String(playerSnap.data().allianceId || '');
@@ -370,6 +381,9 @@ export async function joinAllianceMapBattle(input: {
       );
       if (!energySnap.exists()) {
         tx.set(energyRef, initialBattleEnergyDoc(battleId, playerId));
+      }
+      if (!scoreSnap.exists()) {
+        tx.set(scoreRef, initialBattleScoreDoc(battleId, playerId));
       }
 
       return {

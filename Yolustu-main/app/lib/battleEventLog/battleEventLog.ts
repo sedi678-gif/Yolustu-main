@@ -15,6 +15,7 @@ import {
 import { db } from '@/firebase';
 import { ensureFirebaseAuth } from '@/app/lib/firebaseAuth';
 import { BATTLE_ENERGY_COLLECTION, initialBattleEnergyDoc } from '@/app/lib/battleEnergy/battleEnergyConfig';
+import { BATTLE_SCORE_COLLECTION, initialBattleScoreDoc } from '@/app/lib/battleScore/battleScoreConfig';
 import {
   BATTLE_EVENTS_COLLECTION,
   BATTLE_EVENT_SCHEMA_VERSION,
@@ -58,6 +59,8 @@ const SERVICE_ONLY_EVENT_TYPES: readonly BattleEventType[] = [
   'turn_started',
   'turn_timeout',
   'battle_finished',
+  'damage_applied',
+  'score_changed',
 ];
 
 /** Event yalnız create olunur — update/delete yoxdur. createdAt server timestamp-dır. */
@@ -155,6 +158,10 @@ export function battleFromData(id: string, data: DocumentData): BattleRecord {
       (timestampToMs(data.turnStartAt) > 0
         ? timestampToMs(data.turnStartAt) + (Number(data.turnDurationMs) || 15_000)
         : undefined),
+    attackerScore: Number.isFinite(Number(data.attackerScore)) ? Math.trunc(Number(data.attackerScore)) : 0,
+    defenderScore: Number.isFinite(Number(data.defenderScore)) ? Math.trunc(Number(data.defenderScore)) : 0,
+    scoreVersion: Number(data.scoreVersion) || 0,
+    lastScoreRequestId: data.lastScoreRequestId ? String(data.lastScoreRequestId) : undefined,
   };
 }
 
@@ -281,6 +288,10 @@ export async function createBattleWithLog(input: {
         eventSeq: 1,
         participantIds: [playerId],
         schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
+        attackerScore: 0,
+        defenderScore: 0,
+        scoreVersion: 0,
+        lastScoreRequestId: null,
       });
       tx.set(
         eventRef,
@@ -294,6 +305,7 @@ export async function createBattleWithLog(input: {
         })
       );
       tx.set(doc(db, BATTLE_EVENTS_COLLECTION, battleId, BATTLE_ENERGY_COLLECTION, playerId), initialBattleEnergyDoc(battleId, playerId));
+      tx.set(doc(db, BATTLE_EVENTS_COLLECTION, battleId, BATTLE_SCORE_COLLECTION, playerId), initialBattleScoreDoc(battleId, playerId));
     }),
     EVENT_WRITE_TIMEOUT_MS,
     'Battle yaradılması vaxtı bitdi.'
@@ -309,6 +321,9 @@ export async function createBattleWithLog(input: {
       eventSeq: 1,
       participantIds: [playerId],
       schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
+      attackerScore: 0,
+      defenderScore: 0,
+      scoreVersion: 0,
     },
     event: {
       eventId: eventRef.id,

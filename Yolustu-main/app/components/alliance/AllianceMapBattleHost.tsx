@@ -20,6 +20,7 @@ import {
 } from '@/app/lib/allianceBattleMatchService';
 import BattleLoadoutPicker from './BattleLoadoutPicker';
 import BattleEnergyPanel from './BattleEnergyPanel';
+import BattleScorePanel from './BattleScorePanel';
 import BattleEventLogPanel from './BattleEventLogPanel';
 import styles from './alliance.module.css';
 
@@ -93,17 +94,14 @@ export default function AllianceMapBattleHost({
   }, []);
 
   useEffect(() => {
-    if (!selectedAllianceId) {
-      setIdentified(null);
-      setIdentifyError(null);
-      setGate(null);
-      return;
-    }
+    if (!selectedAllianceId) return;
     let cancelled = false;
-    setIdentifyError(null);
     void identifyAlliance(selectedAllianceId)
       .then((alliance) => {
-        if (!cancelled) setIdentified(alliance);
+        if (!cancelled) {
+          setIdentified(alliance);
+          setIdentifyError(null);
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -136,10 +134,7 @@ export default function AllianceMapBattleHost({
   }, [selectedAllianceId]);
 
   useEffect(() => {
-    if (!lobbyId) {
-      setView(null);
-      return;
-    }
+    if (!lobbyId) return;
     return listenAllianceMapBattle(lobbyId, setView);
   }, [lobbyId]);
 
@@ -156,13 +151,17 @@ export default function AllianceMapBattleHost({
     void activateAllianceBattle(view.battle.id, userId).catch(() => {});
   }, [view, userId]);
 
+  const resolvedIdentified = selectedAllianceId ? identified : null;
+  const resolvedIdentifyError = selectedAllianceId ? identifyError : null;
+  const resolvedGate = selectedAllianceId ? gate : null;
+
   const liveGate = useMemo(
-    () => (selectedAllianceId ? viewAllianceBattleGate(selectedAllianceId, gate, now) : null),
-    [selectedAllianceId, gate, now]
+    () => (selectedAllianceId ? viewAllianceBattleGate(selectedAllianceId, resolvedGate, now) : null),
+    [selectedAllianceId, resolvedGate, now]
   );
 
   const liveView = useMemo(() => {
-    if (!view) return null;
+    if (!lobbyId || !view) return null;
     const remain = Math.max(0, (view.battle.joinEndsAt ?? 0) - now);
     const joining = view.battle.status === 'joining' && remain > 0;
     return {
@@ -177,10 +176,10 @@ export default function AllianceMapBattleHost({
             ? 'locked'
             : view.phase,
     } as AllianceBattleView;
-  }, [view, now]);
+  }, [lobbyId, view, now]);
 
-  const ownTarget = Boolean(identified && activeAlliance && identified.id === activeAlliance.id);
-  const showAttack = Boolean(liveGate?.canAttack && identified && !ownTarget && activeAlliance);
+  const ownTarget = Boolean(resolvedIdentified && activeAlliance && resolvedIdentified.id === activeAlliance.id);
+  const showAttack = Boolean(liveGate?.canAttack && resolvedIdentified && !ownTarget && activeAlliance);
   const alreadyIn =
     liveView &&
     [...(liveView.battle.attackerPlayerIds ?? []), ...(liveView.battle.defenderPlayerIds ?? [])].includes(userId);
@@ -192,14 +191,14 @@ export default function AllianceMapBattleHost({
         : null;
 
   const onAttack = useCallback(async () => {
-    if (!identified || attackLock.current || busy) return;
+    if (!resolvedIdentified || attackLock.current || busy) return;
     attackLock.current = true;
     setBusy(true);
     setError(null);
     try {
       const battle = await startAllianceMapBattle({
         playerId: userId,
-        defenderAllianceId: identified.id,
+        defenderAllianceId: resolvedIdentified.id,
       });
       setLobbyId(battle.id);
     } catch (err) {
@@ -210,7 +209,7 @@ export default function AllianceMapBattleHost({
         attackLock.current = false;
       }, 800);
     }
-  }, [identified, busy, userId]);
+  }, [resolvedIdentified, busy, userId]);
 
   const onJoin = useCallback(async () => {
     if (!liveView || busy) return;
@@ -225,7 +224,7 @@ export default function AllianceMapBattleHost({
     }
   }, [liveView, busy, userId]);
 
-  const localAlliance = identified || alliances.find((item) => item.id === selectedAllianceId) || null;
+  const localAlliance = resolvedIdentified || alliances.find((item) => item.id === selectedAllianceId) || null;
   const showInfo = Boolean(selectedAllianceId) && !lobbyId;
   const showLobby = Boolean(lobbyId && liveView);
 
@@ -236,7 +235,7 @@ export default function AllianceMapBattleHost({
         onClose={onClearSelected}
         title={localAlliance ? localAlliance.name : 'İttifaq'}
       >
-        {identifyError ? <p className={styles.battleJoinWarn}>{identifyError}</p> : null}
+        {resolvedIdentifyError ? <p className={styles.battleJoinWarn}>{resolvedIdentifyError}</p> : null}
         {localAlliance ? (
           <div className={styles.battleTargetInfo}>
             <p>📍 {localAlliance.region}</p>
@@ -264,7 +263,7 @@ export default function AllianceMapBattleHost({
           <button
             type="button"
             className={styles.battleAttackBtn}
-            disabled={busy || attackLock.current}
+            disabled={busy}
             onClick={() => void onAttack()}
           >
             {busy ? 'Göndərilir…' : 'Hücum et'}
@@ -330,6 +329,7 @@ export default function AllianceMapBattleHost({
               />
             ) : null}
             {alreadyIn ? <BattleEnergyPanel battle={liveView.battle} playerId={userId} /> : null}
+            <BattleScorePanel battle={liveView.battle} playerId={userId} />
             <BattleEventLogPanel battleId={liveView.battle.id} />
             {liveView && !alreadyIn ? (
               <p className={styles.battleJoinHint}>Rəqib kart seçimi gizlidir.</p>
