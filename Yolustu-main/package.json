@@ -13,6 +13,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:battle-security": "npx tsx --test app/lib/battleSecurity/battleSecurityAudit.test.ts",
+    "test:battle-e2e": "npx tsx --test --test-concurrency=1 app/lib/battleE2E/battlePipeline.e2e.test.ts",
     "firebase:login": "firebase login",
     "firebase:use": "firebase use youstu-cab15",
     "firebase:check": "node scripts/firebase-check.mjs",
@@ -68,6 +69,7 @@
     "eslint-config-next": "16.3.1",
     "firebase-tools": "^14.27.0",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
