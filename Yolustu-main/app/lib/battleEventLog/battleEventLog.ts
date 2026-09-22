@@ -22,6 +22,7 @@ import {
   type AppendBattleEventInput,
   type BattleAuditReport,
   type BattleEvent,
+  type BattleEventMeta,
   type BattleEventType,
   type BattleRecord,
   type BattleStatus,
@@ -41,6 +42,43 @@ export function battleRef(battleId: string) {
 
 export function eventsCol(battleId: string) {
   return collection(db, BATTLE_EVENTS_COLLECTION, battleId, BATTLE_EVENT_SUBCOLLECTION);
+}
+
+export function newBattleEventRef(battleId: string) {
+  return doc(eventsCol(battleId));
+}
+
+const SERVICE_ONLY_EVENT_TYPES: readonly BattleEventType[] = [
+  'battle_created',
+  'player_joined',
+  'player_left',
+  'loadout_locked',
+  'card_played',
+  'energy_changed',
+  'turn_started',
+  'turn_timeout',
+  'battle_finished',
+];
+
+/** Event yalnız create olunur — update/delete yoxdur. createdAt server timestamp-dır. */
+export function battleEventWrite<T extends BattleEventType>(input: {
+  eventId: string;
+  battleId: string;
+  playerId: string;
+  type: T;
+  seq: number;
+  meta?: BattleEventMeta<T>;
+}) {
+  return {
+    eventId: input.eventId,
+    battleId: input.battleId,
+    playerId: sanitizePlayerId(input.playerId),
+    type: input.type,
+    seq: input.seq,
+    createdAt: serverTimestamp(),
+    schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
+    meta: sanitizeBattleEventMeta(input.type, input.meta),
+  };
 }
 
 export function makeBattleId(): string {
@@ -169,14 +207,8 @@ export async function appendBattleEvent<T extends BattleEventType>(
       }
 
       const parent = battleFromData(parentSnap.id, parentSnap.data());
-      if (type === 'battle_created') {
-        throw new Error('battle_created yalnız createBattleWithLog ilə yazılır');
-      }
-      if (type === 'card_played' || type === 'energy_changed') {
-        throw new Error('Kart/energy yalnız playBattleCard ilə yazılır');
-      }
-      if (type === 'turn_timeout') {
-        throw new Error('Turn timeout yalnız timeoutBattleTurn ilə yazılır');
+      if (SERVICE_ONLY_EVENT_TYPES.includes(type)) {
+        throw new Error(`${type} yalnız öz servisi ilə yazılır`);
       }
       if (parent.status === 'finished') {
         throw new Error('Bitmiş battle-ə event yazıla bilməz');
@@ -197,16 +229,17 @@ export async function appendBattleEvent<T extends BattleEventType>(
         participantIds,
       });
 
-      tx.set(eventRef, {
-        eventId: eventRef.id,
-        battleId,
-        playerId,
-        type,
-        seq,
-        createdAt: serverTimestamp(),
-        schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
-        meta,
-      });
+      tx.set(
+        eventRef,
+        battleEventWrite({
+          eventId: eventRef.id,
+          battleId,
+          playerId,
+          type,
+          seq,
+          meta,
+        })
+      );
 
       return { eventId: eventRef.id, seq };
     }),
@@ -249,16 +282,17 @@ export async function createBattleWithLog(input: {
         participantIds: [playerId],
         schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
       });
-      tx.set(eventRef, {
-        eventId: eventRef.id,
-        battleId,
-        playerId,
-        type: 'battle_created',
-        seq: 1,
-        createdAt: serverTimestamp(),
-        schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
-        meta,
-      });
+      tx.set(
+        eventRef,
+        battleEventWrite({
+          eventId: eventRef.id,
+          battleId,
+          playerId,
+          type: 'battle_created',
+          seq: 1,
+          meta,
+        })
+      );
       tx.set(doc(db, BATTLE_EVENTS_COLLECTION, battleId, BATTLE_ENERGY_COLLECTION, playerId), initialBattleEnergyDoc(battleId, playerId));
     }),
     EVENT_WRITE_TIMEOUT_MS,
@@ -322,16 +356,21 @@ export function listenBattleEvents(
 }
 
 export function auditBattleEvents(battleId: string, events: BattleEvent[]): BattleAuditReport {
-  const ordered = [...events].sort((a, b) => a.seq - b.seq);
+  const ordered = [...events].sort((a, b) => a.seq - b.seq || a.createdAt - b.createdAt);
   const missingSeq: number[] = [];
+  const duplicateSeq: number[] = [];
   const lastSeq = ordered.length ? ordered[ordered.length - 1].seq : null;
   const firstSeq = ordered.length ? ordered[0].seq : null;
+  const seen = new Set<number>();
+
+  for (const event of ordered) {
+    if (seen.has(event.seq)) duplicateSeq.push(event.seq);
+    else seen.add(event.seq);
+  }
 
   if (ordered.length) {
-    const start = 1;
     const end = lastSeq ?? 1;
-    const seen = new Set(ordered.map((item) => item.seq));
-    for (let seq = start; seq <= end; seq += 1) {
+    for (let seq = 1; seq <= end; seq += 1) {
       if (!seen.has(seq)) missingSeq.push(seq);
     }
   }
@@ -341,8 +380,14 @@ export function auditBattleEvents(battleId: string, events: BattleEvent[]): Batt
     eventCount: ordered.length,
     firstSeq,
     lastSeq,
-    contiguous: missingSeq.length === 0 && (firstSeq == null || firstSeq === 1),
+    contiguous:
+      ordered.length === 0 ||
+      (missingSeq.length === 0 &&
+        duplicateSeq.length === 0 &&
+        firstSeq === 1 &&
+        lastSeq === ordered.length),
     missingSeq,
+    duplicateSeq,
     events: ordered,
   };
 }

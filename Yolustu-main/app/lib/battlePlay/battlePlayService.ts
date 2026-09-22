@@ -1,8 +1,8 @@
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { requireFirebaseAuth } from '@/app/lib/firebaseAuth';
-import { battleFromData, battleRef, eventsCol } from '@/app/lib/battleEventLog/battleEventLog';
-import { BATTLE_EVENT_SCHEMA_VERSION, type BattleRecord, type BattleSide } from '@/app/lib/battleEventLog/battleEventTypes';
+import { battleEventWrite, battleFromData, battleRef, newBattleEventRef } from '@/app/lib/battleEventLog/battleEventLog';
+import type { BattleRecord, BattleSide } from '@/app/lib/battleEventLog/battleEventTypes';
 import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
 import { BATTLE_LOADOUT_COLLECTION, isBattleLoadoutCardId } from '@/app/lib/battleLoadout/battleLoadoutConfig';
 import {
@@ -238,8 +238,8 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
       const seq1 = battle.eventSeq + 1;
       const seq2 = battle.eventSeq + 2;
       const stateVersion = (battle.stateVersion ?? 0) + 1;
-      const playEvent = doc(eventsCol(battleId));
-      const energyEvent = doc(eventsCol(battleId));
+      const playEvent = newBattleEventRef(battleId);
+      const energyEvent = newBattleEventRef(battleId);
 
       if (!costSnap.exists()) {
         tx.set(costRef, {
@@ -291,39 +291,41 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         turnDurationMs: BATTLE_TURN_DURATION_MS,
       });
 
-      tx.set(playEvent, {
-        eventId: playEvent.id,
-        battleId,
-        playerId,
-        type: 'card_played',
-        seq: seq1,
-        createdAt: serverTimestamp(),
-        schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
-        meta: {
-          cardId,
-          side,
-          requestId,
-          usage: usageAfter,
-          ...(slotIndex !== undefined ? { slotIndex } : {}),
-        },
-      });
+      tx.set(
+        playEvent,
+        battleEventWrite({
+          eventId: playEvent.id,
+          battleId,
+          playerId,
+          type: 'card_played',
+          seq: seq1,
+          meta: {
+            cardId,
+            side,
+            requestId,
+            usage: usageAfter,
+            ...(slotIndex !== undefined ? { slotIndex } : {}),
+          },
+        })
+      );
 
-      tx.set(energyEvent, {
-        eventId: energyEvent.id,
-        battleId,
-        playerId,
-        type: 'energy_changed',
-        seq: seq2,
-        createdAt: serverTimestamp(),
-        schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
-        meta: {
-          energy: energyAfter,
-          delta: -cost,
-          reason: 'card_played',
-          cardId,
-          requestId,
-        },
-      });
+      tx.set(
+        energyEvent,
+        battleEventWrite({
+          eventId: energyEvent.id,
+          battleId,
+          playerId,
+          type: 'energy_changed',
+          seq: seq2,
+          meta: {
+            energy: energyAfter,
+            delta: -cost,
+            reason: 'card_played',
+            cardId,
+            requestId,
+          },
+        })
+      );
 
       return {
         accepted: true as const,
@@ -393,7 +395,7 @@ export async function timeoutBattleTurn(input: {
         const nextTurn = nextTurnState(battle, timedSide);
         const seq = battle.eventSeq + 1;
         const stateVersion = (battle.stateVersion ?? 0) + 1;
-        const eventDoc = doc(eventsCol(battleId));
+        const eventDoc = newBattleEventRef(battleId);
 
         tx.update(parentRef, {
           eventSeq: seq,
@@ -406,16 +408,17 @@ export async function timeoutBattleTurn(input: {
           turnStartAt: serverTimestamp(),
           turnDurationMs: BATTLE_TURN_DURATION_MS,
         });
-        tx.set(eventDoc, {
-          eventId: eventDoc.id,
-          battleId,
-          playerId,
-          type: 'turn_timeout',
-          seq,
-          createdAt: serverTimestamp(),
-          schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
-          meta: { turn: battle.turn, side: timedSide },
-        });
+        tx.set(
+          eventDoc,
+          battleEventWrite({
+            eventId: eventDoc.id,
+            battleId,
+            playerId,
+            type: 'turn_timeout',
+            seq,
+            meta: { turn: battle.turn, side: timedSide },
+          })
+        );
 
         return {
           ...battle,

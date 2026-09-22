@@ -16,8 +16,9 @@ import {
 import {
   battleFromData,
   battleRef,
-  eventsCol,
+  battleEventWrite,
   makeBattleId,
+  newBattleEventRef,
   timestampToMs,
 } from '@/app/lib/battleEventLog/battleEventLog';
 import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
@@ -219,7 +220,7 @@ export async function startAllianceMapBattle(input: {
 
         const battleId = makeBattleId();
         const parent = battleRef(battleId);
-        const eventDoc = doc(eventsCol(battleId));
+        const eventDoc = newBattleEventRef(battleId);
 
         tx.set(parent, {
           createdBy: playerId,
@@ -241,16 +242,17 @@ export async function startAllianceMapBattle(input: {
           joinDurationMs: ALLIANCE_BATTLE_JOIN_MS,
         });
 
-        tx.set(eventDoc, {
-          eventId: eventDoc.id,
-          battleId,
-          playerId,
-          type: 'battle_created',
-          seq: 1,
-          createdAt: serverTimestamp(),
-          schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
-          meta: { mode: 'alliance', maxPlayers: ALLIANCE_BATTLE_MAX_PER_SIDE * 2 },
-        });
+        tx.set(
+          eventDoc,
+          battleEventWrite({
+            eventId: eventDoc.id,
+            battleId,
+            playerId,
+            type: 'battle_created',
+            seq: 1,
+            meta: { mode: 'alliance', maxPlayers: ALLIANCE_BATTLE_MAX_PER_SIDE * 2 },
+          })
+        );
         tx.set(doc(db, 'battles', battleId, BATTLE_ENERGY_COLLECTION, playerId), initialBattleEnergyDoc(battleId, playerId));
 
         tx.set(cdRef, {
@@ -344,7 +346,7 @@ export async function joinAllianceMapBattle(input: {
       if (nextDefenders.length > ALLIANCE_BATTLE_MAX_PER_SIDE) throw new Error('Müdafiə tərəfi doludur (5/5)');
 
       const seq = battle.eventSeq + 1;
-      const eventDoc = doc(eventsCol(battleId));
+      const eventDoc = newBattleEventRef(battleId);
       tx.update(parentRef, {
         eventSeq: seq,
         updatedAt: serverTimestamp(),
@@ -355,16 +357,17 @@ export async function joinAllianceMapBattle(input: {
         attackerUids: nextAtkUids,
         defenderUids: nextDefUids,
       });
-      tx.set(eventDoc, {
-        eventId: eventDoc.id,
-        battleId,
-        playerId,
-        type: 'player_joined',
-        seq,
-        createdAt: serverTimestamp(),
-        schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
-        meta: { side },
-      });
+      tx.set(
+        eventDoc,
+        battleEventWrite({
+          eventId: eventDoc.id,
+          battleId,
+          playerId,
+          type: 'player_joined',
+          seq,
+          meta: { side },
+        })
+      );
       if (!energySnap.exists()) {
         tx.set(energyRef, initialBattleEnergyDoc(battleId, playerId));
       }
@@ -407,7 +410,7 @@ export async function lockAllianceMapBattle(battleId: string, actorId: string): 
         attackers.length >= ALLIANCE_BATTLE_MIN_PER_SIDE &&
         defenders.length >= ALLIANCE_BATTLE_MIN_PER_SIDE;
       const seq = battle.eventSeq + 1;
-      const eventDoc = doc(eventsCol(id));
+      const eventDoc = newBattleEventRef(id);
       const status = ok ? 'locked' : 'finished';
 
       tx.update(parentRef, {
@@ -415,18 +418,26 @@ export async function lockAllianceMapBattle(battleId: string, actorId: string): 
         updatedAt: serverTimestamp(),
         status,
       });
-      tx.set(eventDoc, {
-        eventId: eventDoc.id,
-        battleId: id,
-        playerId,
-        type: ok ? 'loadout_locked' : 'battle_finished',
-        seq,
-        createdAt: serverTimestamp(),
-        schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
-        meta: ok
-          ? { slotCount: attackers.length + defenders.length }
-          : { reason: 'join_failed' },
-      });
+      tx.set(
+        eventDoc,
+        ok
+          ? battleEventWrite({
+              eventId: eventDoc.id,
+              battleId: id,
+              playerId,
+              type: 'loadout_locked',
+              seq,
+              meta: { slotCount: attackers.length + defenders.length },
+            })
+          : battleEventWrite({
+              eventId: eventDoc.id,
+              battleId: id,
+              playerId,
+              type: 'battle_finished',
+              seq,
+              meta: { reason: 'join_failed' },
+            })
+      );
 
       return { ...battle, eventSeq: seq, updatedAt: Date.now(), status };
     }),
@@ -460,7 +471,7 @@ export async function activateAllianceBattle(battleId: string, actorId: string):
       if (!turn.turnPlayerId) throw new Error('Növbə təyin olunmadı');
 
       const seq = battle.eventSeq + 1;
-      const eventDoc = doc(eventsCol(id));
+      const eventDoc = newBattleEventRef(id);
       tx.update(parentRef, {
         eventSeq: seq,
         updatedAt: serverTimestamp(),
@@ -472,16 +483,17 @@ export async function activateAllianceBattle(battleId: string, actorId: string):
         turnStartAt: serverTimestamp(),
         turnDurationMs: BATTLE_TURN_DURATION_MS,
       });
-      tx.set(eventDoc, {
-        eventId: eventDoc.id,
-        battleId: id,
-        playerId,
-        type: 'turn_started',
-        seq,
-        createdAt: serverTimestamp(),
-        schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
-        meta: { turn: turn.turn, side: turn.turnSide },
-      });
+      tx.set(
+        eventDoc,
+        battleEventWrite({
+          eventId: eventDoc.id,
+          battleId: id,
+          playerId,
+          type: 'turn_started',
+          seq,
+          meta: { turn: turn.turn, side: turn.turnSide },
+        })
+      );
 
       return {
         ...battle,

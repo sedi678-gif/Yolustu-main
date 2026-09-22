@@ -20,6 +20,7 @@ import {
 } from '@/app/lib/allianceBattleMatchService';
 import BattleLoadoutPicker from './BattleLoadoutPicker';
 import BattleEnergyPanel from './BattleEnergyPanel';
+import BattleEventLogPanel from './BattleEventLogPanel';
 import styles from './alliance.module.css';
 
 function playerName(players: PlayerProfile[], id: string) {
@@ -329,6 +330,7 @@ export default function AllianceMapBattleHost({
               />
             ) : null}
             {alreadyIn ? <BattleEnergyPanel battle={liveView.battle} playerId={userId} /> : null}
+            <BattleEventLogPanel battleId={liveView.battle.id} />
             {liveView && !alreadyIn ? (
               <p className={styles.battleJoinHint}>Rəqib kart seçimi gizlidir.</p>
             ) : null}

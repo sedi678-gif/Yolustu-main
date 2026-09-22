@@ -185,12 +185,20 @@ service cloud.firestore {
         && after.updatedAt == request.time;
     }
 
-    function isValidBattleEventCreate(battleId, eventId) {
+    function isGenericBattleEventType(t) {
+      return t in [
+        'card_blocked',
+        'card_countered',
+        'click_started',
+        'click_completed',
+        'damage_applied',
+        'score_changed'
+      ];
+    }
+
+    function isBattleEventDoc(battleId, eventId) {
       let d = request.resource.data;
-      let parent = get(/databases/$(database)/documents/battles/$(battleId)).data;
-      return request.auth != null
-        && exists(/databases/$(database)/documents/battles/$(battleId))
-        && d.keys().hasOnly([
+      return d.keys().hasOnly([
           'eventId',
           'battleId',
           'playerId',
@@ -205,17 +213,83 @@ service cloud.firestore {
         && d.playerId is string
         && d.playerId.size() > 0
         && d.playerId.size() < 64
-        && isBattleEventType(d.type)
-        && d.type != 'card_played'
-        && d.type != 'energy_changed'
-        && d.type != 'turn_timeout'
         && d.seq is int
         && d.seq > 0
-        && d.seq == parent.eventSeq
         && d.createdAt == request.time
         && d.schemaVersion == 1
         && d.meta is map
         && d.meta.size() <= 8;
+    }
+
+    function battleAfter(battleId) {
+      return getAfter(/databases/$(database)/documents/battles/$(battleId)).data;
+    }
+
+    function isNextEventSeq(battleId) {
+      return exists(/databases/$(database)/documents/battles/$(battleId))
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId))
+        && request.resource.data.seq == battleData(battleId).eventSeq + 1
+        && request.resource.data.seq == battleAfter(battleId).eventSeq;
+    }
+
+    function isValidBattleEventCreate(battleId, eventId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && isBattleEventDoc(battleId, eventId)
+        && isGenericBattleEventType(d.type)
+        && isNextEventSeq(battleId)
+        && battleData(battleId).status != 'finished';
+    }
+
+    function isValidBattleCreatedEvent(battleId, eventId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && !exists(/databases/$(database)/documents/battles/$(battleId))
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId))
+        && battleAfter(battleId).eventSeq == 1
+        && isBattleEventDoc(battleId, eventId)
+        && d.type == 'battle_created'
+        && d.seq == 1;
+    }
+
+    function isValidPlayerJoinedEvent(battleId, eventId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && isBattleEventDoc(battleId, eventId)
+        && d.type == 'player_joined'
+        && isNextEventSeq(battleId)
+        && battleData(battleId).status == 'joining'
+        && battleAfter(battleId).status == 'joining'
+        && d.playerId in battleAfter(battleId).participantIds;
+    }
+
+    function isValidLoadoutLockedEvent(battleId, eventId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && isBattleEventDoc(battleId, eventId)
+        && d.type == 'loadout_locked'
+        && isNextEventSeq(battleId)
+        && battleData(battleId).status == 'joining'
+        && battleAfter(battleId).status == 'locked';
+    }
+
+    function isValidBattleFinishedEvent(battleId, eventId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && isBattleEventDoc(battleId, eventId)
+        && d.type == 'battle_finished'
+        && isNextEventSeq(battleId)
+        && battleAfter(battleId).status == 'finished';
+    }
+
+    function isValidTurnStartedEvent(battleId, eventId) {
+      let d = request.resource.data;
+      return request.auth != null
+        && isBattleEventDoc(battleId, eventId)
+        && d.type == 'turn_started'
+        && isNextEventSeq(battleId)
+        && battleData(battleId).status == 'locked'
+        && battleAfter(battleId).status == 'active';
     }
 
     function isValidCooldownWrite(allianceId) {
@@ -470,15 +544,11 @@ service cloud.firestore {
     function isValidTurnTimeoutEvent(battleId, eventId) {
       let d = request.resource.data;
       return request.auth != null
-        && exists(/databases/$(database)/documents/battles/$(battleId))
-        && battleData(battleId).status == 'active'
-        && request.time >= battleData(battleId).turnStartAt + duration.value(15, 's')
+        && isBattleEventDoc(battleId, eventId)
         && d.type == 'turn_timeout'
-        && d.eventId == eventId
-        && d.battleId == battleId
-        && d.seq == battleData(battleId).eventSeq + 1
-        && d.createdAt == request.time
-        && d.schemaVersion == 1;
+        && isNextEventSeq(battleId)
+        && battleData(battleId).status == 'active'
+        && request.time >= battleData(battleId).turnStartAt + duration.value(15, 's');
     }
 
     function energyReceipt(battleId, requestId) {
@@ -600,19 +670,10 @@ service cloud.firestore {
       let reqId = d.meta.requestId;
       let receipt = energyReceipt(battleId, reqId);
       return request.auth != null
+        && isBattleEventDoc(battleId, eventId)
         && exists(/databases/$(database)/documents/battles/$(battleId))
-        && d.keys().hasOnly([
-          'eventId', 'battleId', 'playerId', 'type', 'seq',
-          'createdAt', 'schemaVersion', 'meta'
-        ])
-        && d.eventId == eventId
-        && d.battleId == battleId
-        && d.playerId is string
-        && d.seq is int
-        && d.seq > 0
-        && d.createdAt == request.time
-        && d.schemaVersion == 1
-        && d.meta is map
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId))
+        && battleAfter(battleId).eventSeq == battleData(battleId).eventSeq + 2
         && reqId is string
         && receipt.playerId == d.playerId
         && receipt.requestId == reqId
@@ -672,6 +733,11 @@ service cloud.firestore {
       match /events/{eventId} {
         allow read: if true;
         allow create: if isValidBattleEventCreate(battleId, eventId)
+          || isValidBattleCreatedEvent(battleId, eventId)
+          || isValidPlayerJoinedEvent(battleId, eventId)
+          || isValidLoadoutLockedEvent(battleId, eventId)
+          || isValidBattleFinishedEvent(battleId, eventId)
+          || isValidTurnStartedEvent(battleId, eventId)
           || isValidEnergyPlayEvent(battleId, eventId)
           || isValidTurnTimeoutEvent(battleId, eventId);
         allow update, delete: if false;

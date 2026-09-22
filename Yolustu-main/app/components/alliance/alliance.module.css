@@ -6598,6 +6598,79 @@
   background: linear-gradient(90deg, #38bdf8, #e0f2fe);
 }
 
+.eventLogBox {
+  margin-top: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(2, 6, 23, 0.42);
+}
+
+.eventLogHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #e2e8f0;
+}
+
+.eventLogHead span[data-ok='1'] {
+  color: #86efac;
+}
+
+.eventLogHead span[data-ok='0'] {
+  color: #fda4af;
+}
+
+.eventLogHint,
+.eventLogEmpty {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.eventLogList {
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.eventLogRow {
+  padding: 6px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.eventLogMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.eventLogSeq {
+  color: #fde68a;
+}
+
+.eventLogType {
+  color: #e2e8f0;
+}
+
+.eventLogDetail {
+  margin-top: 2px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
 @media (max-width: 320px) {
   .worldAllianceMap {
     --map-btn-gap: 4px;

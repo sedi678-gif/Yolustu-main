@@ -1,6 +1,7 @@
 export {
   appendBattleEvent,
   auditBattleEvents,
+  battleEventWrite,
   battleFromData,
   createBattleWithLog,
   getBattleAuditLog,
@@ -8,6 +9,7 @@ export {
   listBattleEvents,
   listenBattleEvents,
   listenBattleRecord,
+  newBattleEventRef,
   timestampToMs,
 } from './battleEventLog';
 

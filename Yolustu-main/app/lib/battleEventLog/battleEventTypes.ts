@@ -161,6 +161,7 @@ export interface BattleAuditReport {
   lastSeq: number | null;
   contiguous: boolean;
   missingSeq: number[];
+  duplicateSeq: number[];
   events: BattleEvent[];
 }
 
