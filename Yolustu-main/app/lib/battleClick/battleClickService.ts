@@ -13,7 +13,8 @@ import { db } from '@/firebase';
 import { requireFirebaseAuth } from '@/app/lib/firebaseAuth';
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
 import { battleEventWrite, battleFromData, battleRef, newBattleEventRef } from '@/app/lib/battleEventLog/battleEventLog';
-import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
+import { sanitizeBattleId, sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
+import { serverNowMs, syncServerClock } from '@/app/lib/battlePlay/battleServerClock';
 import {
   BATTLE_CHALLENGE_CLICKS,
   BATTLE_CHALLENGE_COLLECTION,
@@ -159,9 +160,13 @@ export async function submitChallengeClick(input: {
 }): Promise<BattleChallenge> {
   const user = await requireFirebaseAuth();
   const playerId = sanitizePlayerId(input.playerId);
-  const battleId = String(input.battleId || '').trim();
+  const battleId = sanitizeBattleId(input.battleId);
   const challengeId = String(input.challengeId || '').trim();
-  if (!battleId || !challengeId) throw new Error('Challenge tapılmadı');
+  if (!challengeId) throw new Error('Challenge tapılmadı');
+
+  await syncServerClock().catch(() => {});
+  const now = serverNowMs();
+  if (now <= 0) throw new Error('Server saatı yoxdur');
 
   return replayBattleRequest(`click:${battleId}:${challengeId}:${user.uid}`, () =>
     withTimeout(
@@ -185,8 +190,8 @@ export async function submitChallengeClick(input: {
 
       if (clkSnap.exists()) return challenge;
       if (challenge.status !== 'active') throw new Error('Challenge bitib');
+      if (battle?.status === 'finished') throw new Error('Battle aktiv deyil');
 
-      const now = Date.now();
       if (challenge.expiresAt > 0 && now >= challenge.expiresAt) {
         const expired = { ...challenge, status: 'expired' as const };
         tx.update(chRef, { status: 'expired', updatedAt: serverTimestamp() });
@@ -248,8 +253,13 @@ export async function expireBattleChallenge(input: {
 }): Promise<BattleChallenge> {
   await requireFirebaseAuth();
   const playerId = sanitizePlayerId(input.playerId);
-  const battleId = String(input.battleId || '').trim();
+  const battleId = sanitizeBattleId(input.battleId);
   const challengeId = String(input.challengeId || '').trim();
+  if (!challengeId) throw new Error('Challenge tapılmadı');
+
+  await syncServerClock().catch(() => {});
+  const now = serverNowMs();
+  if (now <= 0) throw new Error('Server saatı yoxdur');
 
   return replayBattleRequest(`expire:${battleId}:${challengeId}`, () =>
     withTimeout(
@@ -261,7 +271,7 @@ export async function expireBattleChallenge(input: {
       if (!chSnap.exists()) throw new Error('Challenge tapılmadı');
       const challenge = viewBattleChallenge(chSnap.id, chSnap.data() as Record<string, unknown>);
       if (challenge.status !== 'active') return challenge;
-      if (Date.now() < challenge.expiresAt) throw new Error('Challenge hələ bitməyib');
+      if (now < challenge.expiresAt) throw new Error('Challenge hələ bitməyib');
 
       const expired = { ...challenge, status: 'expired' as const };
       tx.update(chRef, { status: 'expired', updatedAt: serverTimestamp() });

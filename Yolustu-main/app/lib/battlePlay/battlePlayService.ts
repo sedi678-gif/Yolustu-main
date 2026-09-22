@@ -3,7 +3,7 @@ import { db } from '@/firebase';
 import { requireFirebaseAuth } from '@/app/lib/firebaseAuth';
 import { battleEventWrite, battleFromData, battleRef, newBattleEventRef } from '@/app/lib/battleEventLog/battleEventLog';
 import type { BattleRecord, BattleSide } from '@/app/lib/battleEventLog/battleEventTypes';
-import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
+import { sanitizeBattleId, sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
 import { BATTLE_LOADOUT_COLLECTION, isBattleLoadoutCardId } from '@/app/lib/battleLoadout/battleLoadoutConfig';
 import {
   BATTLE_CARD_COSTS_COLLECTION,
@@ -24,7 +24,10 @@ import {
   officialCardCooldownMs,
   readCardUsage,
   readCooldownUntil,
+  viewTurnTimer,
 } from './battlePlayConfig';
+import { serverNowMs, syncServerClock } from './battleServerClock';
+import { assertTurnTimeoutAllowed } from '@/app/lib/battleSecurity/battleSecurityPolicy';
 import {
   BATTLE_PLAY_EVENT_COUNT,
   BATTLE_SCORE_MAX,
@@ -176,8 +179,7 @@ function resultFromReceipt(requestId: string, prev: Record<string, unknown>): Pl
 export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBattleCardResult> {
   const user = await requireFirebaseAuth();
   const playerId = sanitizePlayerId(input.playerId);
-  const battleId = String(input.battleId || '').trim();
-  if (!battleId) throw new Error('Battle ID tələb olunur');
+  const battleId = sanitizeBattleId(input.battleId);
   if (typeof input.cardId !== 'string' || !isBattleLoadoutCardId(input.cardId.trim())) {
     throw new Error('Bu kart battle hovuzunda yoxdur');
   }
@@ -190,6 +192,10 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
     typeof input.slotIndex === 'number' && Number.isFinite(input.slotIndex)
       ? Math.trunc(input.slotIndex)
       : undefined;
+
+  await syncServerClock().catch(() => {});
+  const now = serverNowMs();
+  if (now <= 0) throw new Error('Server saatı yoxdur');
 
   const flightKey = `play:${battleId}:${requestId}`;
   const playerLock = `${battleId}:${playerId}`;
@@ -225,6 +231,7 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
       if (!(battle.participantIds ?? []).includes(playerId)) throw new Error('Bu döyüşdə deyilsən');
       if (battle.status !== 'active') throw new Error('Battle aktiv deyil');
       if (!canPlayOnTurn(battle, playerId)) throw new Error('İndi sənin növbən deyil');
+      if (viewTurnTimer(battle, now).expired) throw new Error('Növbə vaxtı bitib');
 
       const side = sideOf(battle, playerId);
       if (!side) throw new Error('Bu döyüşə qoşulmamısan');
@@ -263,7 +270,6 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
       if (used >= BATTLE_CARD_MAX_USES) throw new Error('Kart 3 istifadəyə çatıb');
       if (energy < cost) throw new Error('Kifayət qədər energy yoxdur');
 
-      const now = Date.now();
       const readyAt = cooldowns[cardId] ?? 0;
       if (readyAt > now) throw new Error('Kart cooldown-dadır');
 
@@ -561,9 +567,12 @@ export async function timeoutBattleTurn(input: {
 }): Promise<BattleRecord> {
   await requireFirebaseAuth();
   const playerId = sanitizePlayerId(input.playerId);
-  const battleId = String(input.battleId || '').trim();
-  if (!battleId) throw new Error('Battle ID tələb olunur');
+  const battleId = sanitizeBattleId(input.battleId);
   const expectedStateVersion = requireInt(input.expectedStateVersion, 'Battle state version');
+
+  await syncServerClock().catch(() => {});
+  const now = serverNowMs();
+  if (now <= 0) throw new Error('Server saatı yoxdur');
 
   const lockKey = `timeout:${battleId}:${expectedStateVersion}`;
   return replayBattleRequest(lockKey, async () => {
@@ -578,9 +587,12 @@ export async function timeoutBattleTurn(input: {
         if ((battle.stateVersion ?? 0) !== expectedStateVersion) {
           return battle;
         }
-        if (!(battle.participantIds ?? []).includes(playerId)) {
-          throw new Error('Bu döyüşdə deyilsən');
-        }
+        assertTurnTimeoutAllowed({
+          battle,
+          playerId,
+          expectedStateVersion,
+          serverNow: now,
+        });
 
         const timedSide = battle.turnSide ?? 'attacker';
         const nextTurn = nextTurnState(battle, timedSide);

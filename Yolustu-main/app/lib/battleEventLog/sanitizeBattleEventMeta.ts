@@ -20,7 +20,7 @@ const META_KEYS: Record<BattleEventType, readonly string[]> = {
   score_changed: ['score', 'delta', 'scope', 'requestId', 'cardId'],
   turn_started: ['turn', 'side'],
   turn_timeout: ['turn', 'side'],
-  battle_finished: ['winnerPlayerId', 'winnerAllianceId', 'reason', 'winnerSide', 'attackerScore', 'defenderScore'],
+  battle_finished: ['winnerAllianceId', 'reason', 'winnerSide', 'attackerScore', 'defenderScore'],
 };
 
 function clipString(value: unknown, max = MAX_STRING): string | undefined {

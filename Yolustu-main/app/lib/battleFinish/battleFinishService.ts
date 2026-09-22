@@ -12,7 +12,7 @@ import { db } from '@/firebase';
 import { requireFirebaseAuth } from '@/app/lib/firebaseAuth';
 import { battleEventWrite, battleFromData, battleRef, newBattleEventRef } from '@/app/lib/battleEventLog/battleEventLog';
 import type { BattleRecord, BattleSide } from '@/app/lib/battleEventLog/battleEventTypes';
-import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
+import { sanitizeBattleId, sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
 import { BATTLE_CHALLENGE_COLLECTION } from '@/app/lib/battleClick/battleClickConfig';
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
 import {
@@ -219,8 +219,7 @@ export function stampJoinFailedResult(tx: Transaction, battle: BattleRecord) {
 async function finishBattleWork(input: { battleId: string; playerId: string }): Promise<BattleFinishResult> {
   await requireFirebaseAuth();
   const playerId = sanitizePlayerId(input.playerId);
-  const battleId = String(input.battleId || '').trim();
-  if (!battleId) throw new Error('Battle ID tələb olunur');
+  const battleId = sanitizeBattleId(input.battleId);
 
   const challengeSnaps = await getDocs(collection(db, 'battles', battleId, BATTLE_CHALLENGE_COLLECTION));
   const period = await requireLeaderboardPeriod().catch(() => null);
@@ -471,7 +470,7 @@ async function commitLeaderboardAwardsFromFinish(
 
 /** Client winner göndərmir. Eyni battle üçün təkrar finish receipt qaytarır. */
 export function finishBattle(input: { battleId: string; playerId: string }): Promise<BattleFinishResult> {
-  const battleId = String(input.battleId || '').trim();
+  const battleId = sanitizeBattleId(input.battleId);
   return replayBattleRequest(`finish:${battleId}`, () => finishBattleWork(input));
 }
 
