@@ -7,7 +7,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/firebase';
-import { ensureFirebaseAuth } from '@/app/lib/firebaseAuth';
+import { requireFirebaseAuth } from '@/app/lib/firebaseAuth';
 import {
   BATTLE_EVENT_SCHEMA_VERSION,
   type BattleRecord,
@@ -165,7 +165,7 @@ export async function startAllianceMapBattle(input: {
   playerId: string;
   defenderAllianceId: string;
 }): Promise<BattleRecord> {
-  await ensureFirebaseAuth();
+  const authUser = await requireFirebaseAuth();
   const playerId = sanitizePlayerId(input.playerId);
   const defenderAllianceId = String(input.defenderAllianceId || '').trim();
   if (!defenderAllianceId) throw new Error('Hədəf ittifaq seçilməyib');
@@ -234,6 +234,8 @@ export async function startAllianceMapBattle(input: {
           defenderAllianceName: String(defender.name || 'Müdafiə'),
           attackerPlayerIds: [playerId],
           defenderPlayerIds: [],
+          attackerUids: [authUser.uid],
+          defenderUids: [],
           joinDurationMs: ALLIANCE_BATTLE_JOIN_MS,
         });
 
@@ -272,6 +274,8 @@ export async function startAllianceMapBattle(input: {
           defenderAllianceName: String(defender.name || 'Müdafiə'),
           attackerPlayerIds: [playerId],
           defenderPlayerIds: [],
+          attackerUids: [authUser.uid],
+          defenderUids: [],
           joinEndsAt: Date.now() + ALLIANCE_BATTLE_JOIN_MS,
           joinDurationMs: ALLIANCE_BATTLE_JOIN_MS,
         };
@@ -288,7 +292,7 @@ export async function joinAllianceMapBattle(input: {
   battleId: string;
   playerId: string;
 }): Promise<BattleRecord> {
-  await ensureFirebaseAuth();
+  const authUser = await requireFirebaseAuth();
   const playerId = sanitizePlayerId(input.playerId);
   const battleId = String(input.battleId || '').trim();
 
@@ -327,6 +331,10 @@ export async function joinAllianceMapBattle(input: {
 
       const nextAttackers = side === 'attacker' ? [...attackers, playerId] : attackers;
       const nextDefenders = side === 'defender' ? [...defenders, playerId] : defenders;
+      const nextAtkUids =
+        side === 'attacker' ? [...(battle.attackerUids ?? []), authUser.uid] : battle.attackerUids ?? [];
+      const nextDefUids =
+        side === 'defender' ? [...(battle.defenderUids ?? []), authUser.uid] : battle.defenderUids ?? [];
       if (nextAttackers.length > ALLIANCE_BATTLE_MAX_PER_SIDE) throw new Error('Hücum tərəfi doludur (5/5)');
       if (nextDefenders.length > ALLIANCE_BATTLE_MAX_PER_SIDE) throw new Error('Müdafiə tərəfi doludur (5/5)');
 
@@ -339,6 +347,8 @@ export async function joinAllianceMapBattle(input: {
         participantIds: [...nextAttackers, ...nextDefenders],
         attackerPlayerIds: nextAttackers,
         defenderPlayerIds: nextDefenders,
+        attackerUids: nextAtkUids,
+        defenderUids: nextDefUids,
       });
       tx.set(eventDoc, {
         eventId: eventDoc.id,
@@ -358,6 +368,8 @@ export async function joinAllianceMapBattle(input: {
         participantIds: [...nextAttackers, ...nextDefenders],
         attackerPlayerIds: nextAttackers,
         defenderPlayerIds: nextDefenders,
+        attackerUids: nextAtkUids,
+        defenderUids: nextDefUids,
       };
     }),
     WRITE_MS,
@@ -366,7 +378,7 @@ export async function joinAllianceMapBattle(input: {
 }
 
 export async function lockAllianceMapBattle(battleId: string, actorId: string): Promise<BattleRecord> {
-  await ensureFirebaseAuth();
+  await requireFirebaseAuth();
   const playerId = sanitizePlayerId(actorId);
   const id = String(battleId || '').trim();
 

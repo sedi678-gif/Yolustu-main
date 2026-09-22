@@ -17,6 +17,7 @@ import {
   type AllianceBattleGate,
   type AllianceBattleView,
 } from '@/app/lib/allianceBattleMatchService';
+import BattleLoadoutPicker from './BattleLoadoutPicker';
 import styles from './alliance.module.css';
 
 function playerName(players: PlayerProfile[], id: string) {
@@ -174,6 +175,12 @@ export default function AllianceMapBattleHost({
   const alreadyIn =
     liveView &&
     [...(liveView.battle.attackerPlayerIds ?? []), ...(liveView.battle.defenderPlayerIds ?? [])].includes(userId);
+  const mySide =
+    liveView && (liveView.battle.attackerPlayerIds ?? []).includes(userId)
+      ? 'attacker'
+      : liveView && (liveView.battle.defenderPlayerIds ?? []).includes(userId)
+        ? 'defender'
+        : null;
 
   const onAttack = useCallback(async () => {
     if (!identified || attackLock.current || busy) return;
@@ -300,7 +307,19 @@ export default function AllianceMapBattleHost({
               </button>
             ) : null}
             {alreadyIn && liveView.phase === 'joining' ? (
-              <p className={styles.battleJoinHint}>Qoşuldun. Digər oyunçular gözlənilir.</p>
+              <p className={styles.battleJoinHint}>Qoşuldun. Digər oyunçular gözlənilir. 5 kartını seç.</p>
+            ) : null}
+            {alreadyIn && mySide ? (
+              <BattleLoadoutPicker
+                battleId={liveView.battle.id}
+                playerId={userId}
+                side={mySide}
+                battleStatus={liveView.battle.status}
+                players={players}
+              />
+            ) : null}
+            {liveView && !alreadyIn ? (
+              <p className={styles.battleJoinHint}>Rəqib kart seçimi gizlidir.</p>
             ) : null}
           </>
         ) : (

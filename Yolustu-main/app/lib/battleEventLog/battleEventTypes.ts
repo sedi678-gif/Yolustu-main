@@ -130,6 +130,8 @@ export interface BattleRecord {
   defenderAllianceName?: string;
   attackerPlayerIds?: string[];
   defenderPlayerIds?: string[];
+  attackerUids?: string[];
+  defenderUids?: string[];
   joinEndsAt?: number;
   joinDurationMs?: number;
 }

@@ -97,6 +97,8 @@ export function battleFromData(id: string, data: DocumentData): BattleRecord {
     defenderAllianceName: data.defenderAllianceName ? String(data.defenderAllianceName) : undefined,
     attackerPlayerIds: asStringList(data.attackerPlayerIds),
     defenderPlayerIds: asStringList(data.defenderPlayerIds),
+    attackerUids: asStringList(data.attackerUids),
+    defenderUids: asStringList(data.defenderUids),
     joinDurationMs: Number(data.joinDurationMs) || undefined,
     joinEndsAt: data.joinEndsAt
       ? timestampToMs(data.joinEndsAt)

@@ -70,6 +70,8 @@ service cloud.firestore {
           'defenderAllianceName',
           'attackerPlayerIds',
           'defenderPlayerIds',
+          'attackerUids',
+          'defenderUids',
           'joinDurationMs'
         ])
         && d.createdBy is string
@@ -89,6 +91,11 @@ service cloud.firestore {
         && d.attackerPlayerIds.size() == 1
         && d.defenderPlayerIds is list
         && d.defenderPlayerIds.size() == 0
+        && d.attackerUids is list
+        && d.attackerUids.size() == 1
+        && d.attackerUids[0] == request.auth.uid
+        && d.defenderUids is list
+        && d.defenderUids.size() == 0
         && d.participantIds == d.attackerPlayerIds
         && exists(/databases/$(database)/documents/alliances/$(d.defenderAllianceId))
         && exists(/databases/$(database)/documents/alliances/$(d.attackerAllianceId));
@@ -131,8 +138,33 @@ service cloud.firestore {
         && after.defenderPlayerIds.size() >= before.defenderPlayerIds.size()
         && after.attackerPlayerIds.size() + after.defenderPlayerIds.size()
           == before.attackerPlayerIds.size() + before.defenderPlayerIds.size() + 1
+        && after.attackerUids is list
+        && after.defenderUids is list
+        && after.attackerUids.size() == after.attackerPlayerIds.size()
+        && after.defenderUids.size() == after.defenderPlayerIds.size()
+        && after.attackerUids.size() + after.defenderUids.size()
+          == before.attackerUids.size() + before.defenderUids.size() + 1
+        && (
+          (
+            after.attackerPlayerIds.size() == before.attackerPlayerIds.size() + 1
+            && after.defenderUids == before.defenderUids
+            && request.auth.uid in after.attackerUids
+          ) || (
+            after.defenderPlayerIds.size() == before.defenderPlayerIds.size() + 1
+            && after.attackerUids == before.attackerUids
+            && request.auth.uid in after.defenderUids
+          )
+        )
         && after.diff(before).affectedKeys()
-          .hasOnly(['eventSeq', 'updatedAt', 'participantIds', 'attackerPlayerIds', 'defenderPlayerIds'])
+          .hasOnly([
+            'eventSeq',
+            'updatedAt',
+            'participantIds',
+            'attackerPlayerIds',
+            'defenderPlayerIds',
+            'attackerUids',
+            'defenderUids'
+          ])
         && after.updatedAt == request.time;
     }
 
@@ -201,6 +233,130 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/alliances/$(allianceId));
     }
 
+    function battleData(battleId) {
+      return get(/databases/$(database)/documents/battles/$(battleId)).data;
+    }
+
+    function isLoadoutCardId(id) {
+      return id in [
+        '2x', 'casus', 'duman', 'guzgu', 'joker', 'ogru', 'qaya', 'qul',
+        'qutb', 'sehrbaz', 'tikanli', 'felaket', 'usyan', 'zombi', 'mutant'
+      ];
+    }
+
+    function isValidLoadoutCardList(ids) {
+      return ids is list
+        && ids.size() == 5
+        && isLoadoutCardId(ids[0])
+        && isLoadoutCardId(ids[1])
+        && isLoadoutCardId(ids[2])
+        && isLoadoutCardId(ids[3])
+        && isLoadoutCardId(ids[4])
+        && ids[0] != ids[1] && ids[0] != ids[2] && ids[0] != ids[3] && ids[0] != ids[4]
+        && ids[1] != ids[2] && ids[1] != ids[3] && ids[1] != ids[4]
+        && ids[2] != ids[3] && ids[2] != ids[4]
+        && ids[3] != ids[4];
+    }
+
+    function playerOwnsLoadoutCard(p, cardId) {
+      return (p.keys().hasAny(['battleCards']) && cardId in p.battleCards && p.battleCards[cardId] is int && p.battleCards[cardId] >= 1)
+        || (p.keys().hasAny(['loadoutCards']) && cardId in p.loadoutCards && p.loadoutCards[cardId] is int && p.loadoutCards[cardId] >= 1);
+    }
+
+    function playerOwnsLoadout(playerId, ids) {
+      return playerId == '1' || (
+        exists(/databases/$(database)/documents/players/$(playerId))
+        && playerOwnsLoadoutCard(get(/databases/$(database)/documents/players/$(playerId)).data, ids[0])
+        && playerOwnsLoadoutCard(get(/databases/$(database)/documents/players/$(playerId)).data, ids[1])
+        && playerOwnsLoadoutCard(get(/databases/$(database)/documents/players/$(playerId)).data, ids[2])
+        && playerOwnsLoadoutCard(get(/databases/$(database)/documents/players/$(playerId)).data, ids[3])
+        && playerOwnsLoadoutCard(get(/databases/$(database)/documents/players/$(playerId)).data, ids[4])
+      );
+    }
+
+    function uidOwnsBattleSlot(b, playerId, side) {
+      return (
+        side == 'attacker'
+        && b.attackerPlayerIds is list
+        && b.attackerUids is list
+        && (
+          (b.attackerPlayerIds.size() > 0 && b.attackerPlayerIds[0] == playerId && b.attackerUids[0] == request.auth.uid)
+          || (b.attackerPlayerIds.size() > 1 && b.attackerPlayerIds[1] == playerId && b.attackerUids[1] == request.auth.uid)
+          || (b.attackerPlayerIds.size() > 2 && b.attackerPlayerIds[2] == playerId && b.attackerUids[2] == request.auth.uid)
+          || (b.attackerPlayerIds.size() > 3 && b.attackerPlayerIds[3] == playerId && b.attackerUids[3] == request.auth.uid)
+          || (b.attackerPlayerIds.size() > 4 && b.attackerPlayerIds[4] == playerId && b.attackerUids[4] == request.auth.uid)
+        )
+      ) || (
+        side == 'defender'
+        && b.defenderPlayerIds is list
+        && b.defenderUids is list
+        && (
+          (b.defenderPlayerIds.size() > 0 && b.defenderPlayerIds[0] == playerId && b.defenderUids[0] == request.auth.uid)
+          || (b.defenderPlayerIds.size() > 1 && b.defenderPlayerIds[1] == playerId && b.defenderUids[1] == request.auth.uid)
+          || (b.defenderPlayerIds.size() > 2 && b.defenderPlayerIds[2] == playerId && b.defenderUids[2] == request.auth.uid)
+          || (b.defenderPlayerIds.size() > 3 && b.defenderPlayerIds[3] == playerId && b.defenderUids[3] == request.auth.uid)
+          || (b.defenderPlayerIds.size() > 4 && b.defenderPlayerIds[4] == playerId && b.defenderUids[4] == request.auth.uid)
+        )
+      );
+    }
+
+    function isLoadoutTeamRead(battleId) {
+      let b = battleData(battleId);
+      return request.auth != null
+        && (
+          resource.data.ownerUid == request.auth.uid
+          || (resource.data.side == 'attacker' && request.auth.uid in b.attackerUids)
+          || (resource.data.side == 'defender' && request.auth.uid in b.defenderUids)
+        );
+    }
+
+    function isValidLoadoutWrite(battleId, playerId, creating) {
+      let d = request.resource.data;
+      let b = battleData(battleId);
+      return request.auth != null
+        && exists(/databases/$(database)/documents/battles/$(battleId))
+        && b.status in ['joining', 'locked']
+        && d.ownerUid == request.auth.uid
+        && d.battleId == battleId
+        && d.playerId == playerId
+        && d.side in ['attacker', 'defender']
+        && d.locked is bool
+        && d.schemaVersion == 1
+        && d.updatedAt == request.time
+        && (d.committedAt == null || d.committedAt == request.time)
+        && isValidLoadoutCardList(d.cardIds)
+        && playerOwnsLoadout(playerId, d.cardIds)
+        && uidOwnsBattleSlot(b, playerId, d.side)
+        && (
+          creating
+            ? d.keys().hasOnly([
+                'battleId', 'playerId', 'side', 'ownerUid', 'cardIds',
+                'locked', 'schemaVersion', 'committedAt', 'updatedAt'
+              ])
+            : resource.data.ownerUid == request.auth.uid
+              && resource.data.locked != true
+              && resource.data.playerId == playerId
+              && resource.data.side == d.side
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['cardIds', 'locked', 'updatedAt', 'committedAt'])
+        );
+    }
+
+    function isValidLoadoutFreeze(battleId) {
+      let b = battleData(battleId);
+      return request.auth != null
+        && exists(/databases/$(database)/documents/battles/$(battleId))
+        && b.status in ['active', 'finished']
+        && request.resource.data.locked == true
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['locked', 'updatedAt'])
+        && request.resource.data.updatedAt == request.time
+        && (
+          request.auth.uid in b.attackerUids
+          || request.auth.uid in b.defenderUids
+        );
+    }
+
     match /battles/{battleId} {
       allow read: if true;
       allow create: if isValidOpenBattleCreate() || isValidMapBattleCreate();
@@ -211,6 +367,14 @@ service cloud.firestore {
         allow read: if true;
         allow create: if isValidBattleEventCreate(battleId, eventId);
         allow update, delete: if false;
+      }
+
+      match /loadouts/{playerId} {
+        allow read: if isLoadoutTeamRead(battleId);
+        allow create: if isValidLoadoutWrite(battleId, playerId, true);
+        allow update: if isValidLoadoutWrite(battleId, playerId, false)
+          || isValidLoadoutFreeze(battleId);
+        allow delete: if false;
       }
     }
 
@@ -223,7 +387,7 @@ service cloud.firestore {
     }
 
     match /{document=**} {
-      allow read: if true;
+      allow read: if !isProtectedPath(document);
       allow write: if !isProtectedPath(document);
     }
   }
