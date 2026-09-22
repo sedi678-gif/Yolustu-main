@@ -11,6 +11,7 @@ import {
   listenAllianceBattleGate,
   listenAllianceMapBattle,
   listenMyJoiningBattle,
+  activateAllianceBattle,
   lockAllianceMapBattle,
   startAllianceMapBattle,
   viewAllianceBattleGate,
@@ -148,6 +149,12 @@ export default function AllianceMapBattleHost({
     void lockAllianceMapBattle(view.battle.id, userId).catch(() => {});
   }, [view, userId, now]);
 
+  useEffect(() => {
+    if (!view) return;
+    if (view.battle.status !== 'locked') return;
+    void activateAllianceBattle(view.battle.id, userId).catch(() => {});
+  }, [view, userId]);
+
   const liveGate = useMemo(
     () => (selectedAllianceId ? viewAllianceBattleGate(selectedAllianceId, gate, now) : null),
     [selectedAllianceId, gate, now]
@@ -283,7 +290,9 @@ export default function AllianceMapBattleHost({
                 ? `Qoşulma: ${formatRemain(Math.max(0, (liveView.battle.joinEndsAt ?? 0) - now))}`
                 : liveView.phase === 'locked'
                   ? 'Döyüş kilitləndi — yeni oyunçu qoşula bilməz'
-                  : liveView.phase === 'finished'
+                  : liveView.phase === 'active'
+                    ? `Döyüş aktiv · növbə: ${liveView.battle.turnPlayerId ?? '—'}`
+                    : liveView.phase === 'finished'
                     ? 'Döyüş bitdi / qoşulma alınmadı'
                     : liveView.phase}
             </div>
@@ -319,13 +328,7 @@ export default function AllianceMapBattleHost({
                 players={players}
               />
             ) : null}
-            {alreadyIn ? (
-              <BattleEnergyPanel
-                battleId={liveView.battle.id}
-                playerId={userId}
-                battleStatus={liveView.battle.status}
-              />
-            ) : null}
+            {alreadyIn ? <BattleEnergyPanel battle={liveView.battle} playerId={userId} /> : null}
             {liveView && !alreadyIn ? (
               <p className={styles.battleJoinHint}>Rəqib kart seçimi gizlidir.</p>
             ) : null}

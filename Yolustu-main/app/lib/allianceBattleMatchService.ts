@@ -22,6 +22,7 @@ import {
 } from '@/app/lib/battleEventLog/battleEventLog';
 import { sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
 import { BATTLE_ENERGY_COLLECTION, initialBattleEnergyDoc } from '@/app/lib/battleEnergy/battleEnergyConfig';
+import { initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
 import type { AllianceData } from '@/app/components/alliance/types';
 
 export const ALLIANCE_BATTLE_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -434,6 +435,68 @@ export async function lockAllianceMapBattle(battleId: string, actorId: string): 
   );
 }
 
+export async function activateAllianceBattle(battleId: string, actorId: string): Promise<BattleRecord> {
+  await requireFirebaseAuth();
+  const playerId = sanitizePlayerId(actorId);
+  const id = String(battleId || '').trim();
+
+  return withTimeout(
+    runTransaction(db, async (tx) => {
+      const parentRef = battleRef(id);
+      const parentSnap = await tx.get(parentRef);
+      if (!parentSnap.exists()) throw new Error('Battle tapılmadı');
+      const battle = battleFromData(parentSnap.id, parentSnap.data());
+      if (battle.status === 'active') return battle;
+      if (battle.status === 'finished') throw new Error('Battle bitib');
+      if (battle.status !== 'locked') throw new Error('Battle hələ kilitlənməyib');
+
+      const attackers = battle.attackerPlayerIds ?? [];
+      const defenders = battle.defenderPlayerIds ?? [];
+      if (attackers.length < ALLIANCE_BATTLE_MIN_PER_SIDE || defenders.length < ALLIANCE_BATTLE_MIN_PER_SIDE) {
+        throw new Error('Hər tərəfdə ən az 1 oyunçu olmalıdır');
+      }
+
+      const turn = initialTurnState(battle);
+      if (!turn.turnPlayerId) throw new Error('Növbə təyin olunmadı');
+
+      const seq = battle.eventSeq + 1;
+      const eventDoc = doc(eventsCol(id));
+      tx.update(parentRef, {
+        eventSeq: seq,
+        updatedAt: serverTimestamp(),
+        status: 'active',
+        turn: turn.turn,
+        turnSide: turn.turnSide,
+        turnPlayerId: turn.turnPlayerId,
+        stateVersion: turn.stateVersion,
+      });
+      tx.set(eventDoc, {
+        eventId: eventDoc.id,
+        battleId: id,
+        playerId,
+        type: 'turn_started',
+        seq,
+        createdAt: serverTimestamp(),
+        schemaVersion: BATTLE_EVENT_SCHEMA_VERSION,
+        meta: { turn: turn.turn, side: turn.turnSide },
+      });
+
+      return {
+        ...battle,
+        eventSeq: seq,
+        updatedAt: Date.now(),
+        status: 'active' as const,
+        turn: turn.turn,
+        turnSide: turn.turnSide,
+        turnPlayerId: turn.turnPlayerId,
+        stateVersion: turn.stateVersion,
+      };
+    }),
+    WRITE_MS,
+    'Battle aktivləşdirilmədi.'
+  );
+}
+
 export function listenAllianceMapBattle(
   battleId: string,
   onChange: (view: AllianceBattleView | null) => void
@@ -467,6 +530,10 @@ export function listenMyJoiningBattle(
       return;
     }
     const battle = battleFromData(battleSnap.id, battleSnap.data());
-    onChange(battle.status === 'joining' || battle.status === 'locked' ? battle.id : null);
+    onChange(
+      battle.status === 'joining' || battle.status === 'locked' || battle.status === 'active'
+        ? battle.id
+        : null
+    );
   });
 }

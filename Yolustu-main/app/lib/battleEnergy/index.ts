@@ -13,11 +13,9 @@ export {
   sanitizeEnergyRequestId,
 } from './battleEnergyConfig';
 
-export {
-  battleEnergyRef,
-  listenBattleEnergy,
-  playBattleCard,
-  viewBattleEnergy,
-} from './battleEnergyService';
+export { battleEnergyRef, listenBattleEnergy, viewBattleEnergy } from './battleEnergyService';
 
-export type { BattleEnergy, PlayBattleCardResult } from './battleEnergyService';
+export type { BattleEnergy } from './battleEnergyService';
+
+export { playBattleCard } from '@/app/lib/battlePlay/battlePlayService';
+export type { PlayBattleCardResult } from '@/app/lib/battlePlay/battlePlayService';

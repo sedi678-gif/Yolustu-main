@@ -51,6 +51,7 @@ export type BattleEventMetaMap = {
     side?: string;
     instanceId?: string;
     requestId?: string;
+    usage?: number;
   };
   energy_changed: {
     energy?: number;
@@ -137,6 +138,10 @@ export interface BattleRecord {
   defenderUids?: string[];
   joinEndsAt?: number;
   joinDurationMs?: number;
+  turn?: number;
+  turnSide?: BattleSide;
+  turnPlayerId?: string;
+  stateVersion?: number;
 }
 
 export interface AppendBattleEventInput<T extends BattleEventType = BattleEventType> {

@@ -10,7 +10,7 @@ const META_KEYS: Record<BattleEventType, readonly string[]> = {
   player_joined: ['side', 'role'],
   player_left: ['reason'],
   loadout_locked: ['cardIds', 'slotCount'],
-  card_played: ['cardId', 'slotIndex', 'side', 'instanceId', 'requestId'],
+  card_played: ['cardId', 'slotIndex', 'side', 'instanceId', 'requestId', 'usage'],
   energy_changed: ['energy', 'delta', 'reason', 'cardId', 'requestId'],
   card_blocked: ['cardId', 'blockerCardId', 'slotIndex'],
   card_countered: ['cardId', 'counterCardId'],
@@ -99,6 +99,7 @@ export function sanitizeBattleEventMeta<T extends BattleEventType>(
       case 'maxPlayers':
       case 'slotCount':
       case 'slotIndex':
+      case 'usage':
       case 'energy':
       case 'delta':
       case 'required':

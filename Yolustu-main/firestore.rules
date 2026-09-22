@@ -345,6 +345,25 @@ service cloud.firestore {
         );
     }
 
+    function officialCardCooldownSec(id) {
+      return id == '2x' ? 8
+        : id == 'casus' ? 6
+        : id == 'duman' ? 5
+        : id == 'guzgu' ? 10
+        : id == 'joker' ? 12
+        : id == 'ogru' ? 8
+        : id == 'qaya' ? 7
+        : id == 'qul' ? 14
+        : id == 'qutb' ? 12
+        : id == 'sehrbaz' ? 8
+        : id == 'tikanli' ? 10
+        : id == 'felaket' ? 14
+        : id == 'usyan' ? 12
+        : id == 'zombi' ? 10
+        : id == 'mutant' ? 10
+        : 0;
+    }
+
     function officialCardCost(id) {
       return id == '2x' ? 6
         : id == 'casus' ? 4
@@ -368,14 +387,42 @@ service cloud.firestore {
       let before = resource.data;
       let after = request.resource.data;
       return request.auth != null
+        && before.status == 'active'
+        && after.status == 'active'
         && after.eventSeq == before.eventSeq + 2
+        && after.stateVersion == before.stateVersion + 1
         && after.createdAt == before.createdAt
         && after.createdBy == before.createdBy
         && after.schemaVersion == before.schemaVersion
-        && after.diff(before).affectedKeys().hasOnly(['eventSeq', 'updatedAt', 'status'])
-        && before.status in ['locked', 'active']
-        && after.status in ['locked', 'active']
-        && (after.status == before.status || (before.status == 'locked' && after.status == 'active'))
+        && after.turn is int
+        && after.turn >= 1
+        && after.turnSide in ['attacker', 'defender']
+        && after.turnPlayerId is string
+        && (
+          (after.turnSide == 'attacker' && after.turnPlayerId in after.attackerPlayerIds)
+          || (after.turnSide == 'defender' && after.turnPlayerId in after.defenderPlayerIds)
+        )
+        && after.diff(before).affectedKeys()
+          .hasOnly(['eventSeq', 'updatedAt', 'status', 'turn', 'turnSide', 'turnPlayerId', 'stateVersion'])
+        && after.updatedAt == request.time;
+    }
+
+    function isValidBattleActivate() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.kind == 'alliance_map'
+        && before.status == 'locked'
+        && after.status == 'active'
+        && after.eventSeq == before.eventSeq + 1
+        && after.stateVersion == 1
+        && after.turn == 1
+        && after.turnSide == 'attacker'
+        && after.turnPlayerId == after.attackerPlayerIds[0]
+        && after.createdAt == before.createdAt
+        && after.createdBy == before.createdBy
+        && after.diff(before).affectedKeys()
+          .hasOnly(['eventSeq', 'updatedAt', 'status', 'turn', 'turnSide', 'turnPlayerId', 'stateVersion'])
         && after.updatedAt == request.time;
     }
 
@@ -393,15 +440,17 @@ service cloud.firestore {
         && d.playerId == playerId
         && d.energy == 30
         && d.maxEnergy == 30
-        && d.usedCardIds is list
-        && d.usedCardIds.size() == 0
+        && d.cardUsage is map
+        && d.cardUsage.size() == 0
+        && d.cardCooldownUntil is map
+        && d.cardCooldownUntil.size() == 0
         && d.lastRequestId == null
         && d.schemaVersion == 1
         && d.createdAt == request.time
         && d.updatedAt == request.time
         && d.keys().hasOnly([
-          'battleId', 'playerId', 'energy', 'maxEnergy', 'usedCardIds',
-          'lastRequestId', 'schemaVersion', 'createdAt', 'updatedAt'
+          'battleId', 'playerId', 'energy', 'maxEnergy', 'cardUsage',
+          'cardCooldownUntil', 'lastRequestId', 'schemaVersion', 'createdAt', 'updatedAt'
         ])
         && playerId in b.participantIds
         && (
@@ -416,16 +465,28 @@ service cloud.firestore {
       let after = request.resource.data;
       let reqId = after.lastRequestId;
       let receipt = energyReceipt(battleId, reqId);
+      let cid = receipt.cardId;
+      let prevUse = (before.keys().hasAny(['cardUsage']) && cid in before.cardUsage && before.cardUsage[cid] is int)
+        ? before.cardUsage[cid]
+        : ((before.keys().hasAny(['usedCardIds']) && cid in before.usedCardIds) ? 1 : 0);
+      let cdReady = !(before.keys().hasAny(['cardCooldownUntil']))
+        || !(cid in before.cardCooldownUntil)
+        || (
+          before.cardCooldownUntil[cid] is int
+          && request.time.toMillis() >= before.cardCooldownUntil[cid]
+        );
       return request.auth != null
         && exists(/databases/$(database)/documents/battles/$(battleId))
-        && battleData(battleId).status in ['locked', 'active']
+        && battleData(battleId).status == 'active'
+        && battleData(battleId).turnPlayerId == playerId
         && reqId is string
         && reqId.size() >= 8
         && receipt.playerId == playerId
         && receipt.requestId == reqId
-        && receipt.cardId is string
-        && officialCardCost(receipt.cardId) > 0
-        && receipt.cost == officialCardCost(receipt.cardId)
+        && cid is string
+        && officialCardCost(cid) > 0
+        && officialCardCooldownSec(cid) > 0
+        && receipt.cost == officialCardCost(cid)
         && receipt.energyBefore == before.energy
         && receipt.energyAfter == after.energy
         && after.energy == before.energy - receipt.cost
@@ -433,13 +494,18 @@ service cloud.firestore {
         && after.energy <= 30
         && before.energy >= 0
         && after.maxEnergy == 30
-        && after.usedCardIds is list
-        && after.usedCardIds.size() == before.usedCardIds.size() + 1
-        && after.usedCardIds[after.usedCardIds.size() - 1] == receipt.cardId
-        && !(receipt.cardId in before.usedCardIds)
+        && prevUse < 3
+        && after.cardUsage is map
+        && after.cardUsage[cid] == prevUse + 1
+        && after.cardUsage[cid] <= 3
+        && cdReady
+        && after.cardCooldownUntil is map
+        && after.cardCooldownUntil[cid] is int
+        && after.cardCooldownUntil[cid] > request.time.toMillis()
         && exists(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId))
-        && receipt.cardId in get(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId)).data.cardIds
-        && after.diff(before).affectedKeys().hasOnly(['energy', 'usedCardIds', 'lastRequestId', 'updatedAt'])
+        && cid in get(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId)).data.cardIds
+        && after.diff(before).affectedKeys()
+          .hasOnly(['energy', 'cardUsage', 'cardCooldownUntil', 'lastRequestId', 'updatedAt'])
         && after.updatedAt == request.time;
     }
 
@@ -447,7 +513,7 @@ service cloud.firestore {
       let d = request.resource.data;
       return request.auth != null
         && exists(/databases/$(database)/documents/battles/$(battleId))
-        && battleData(battleId).status in ['locked', 'active']
+        && battleData(battleId).status == 'active'
         && d.requestId == requestId
         && d.battleId == battleId
         && d.playerId is string
@@ -459,11 +525,16 @@ service cloud.firestore {
         && d.energyAfter >= 0
         && d.energyBefore <= 30
         && d.energyBefore >= d.cost
+        && d.usageAfter is int
+        && d.usageAfter > 0
+        && d.usageAfter <= 3
         && d.schemaVersion == 1
         && d.createdAt == request.time
         && d.keys().hasOnly([
           'requestId', 'battleId', 'playerId', 'cardId', 'cost',
-          'energyBefore', 'energyAfter', 'schemaVersion', 'createdAt'
+          'energyBefore', 'energyAfter', 'usageAfter', 'cooldownUntil',
+          'eventSeq', 'stateVersion', 'turn', 'turnSide', 'turnPlayerId',
+          'schemaVersion', 'createdAt'
         ]);
     }
 
@@ -510,7 +581,13 @@ service cloud.firestore {
         && d.energyCost == officialCardCost(cardId)
         && d.energyCost is int
         && d.schemaVersion == 1
-        && d.keys().hasOnly(['cardId', 'energyCost', 'schemaVersion', 'updatedAt']);
+        && (
+          d.keys().hasOnly(['cardId', 'energyCost', 'schemaVersion', 'updatedAt'])
+          || (
+            d.keys().hasOnly(['cardId', 'energyCost', 'cooldownMs', 'schemaVersion', 'updatedAt'])
+            && d.cooldownMs == officialCardCooldownSec(cardId) * 1000
+          )
+        );
     }
 
     function isValidLoadoutFreeze(battleId) {
@@ -532,7 +609,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isValidOpenBattleCreate() || isValidMapBattleCreate();
       allow update: if isValidLegacySeqBump() || isValidMapBattleJoin() || isValidMapBattleLock()
-        || isValidCardPlaySeqBump();
+        || isValidBattleActivate() || isValidCardPlaySeqBump();
       allow delete: if false;
 
       match /events/{eventId} {

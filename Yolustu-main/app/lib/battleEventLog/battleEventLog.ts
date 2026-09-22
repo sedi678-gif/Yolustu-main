@@ -106,6 +106,10 @@ export function battleFromData(id: string, data: DocumentData): BattleRecord {
       : Number(data.joinDurationMs) > 0
         ? timestampToMs(data.createdAt) + Number(data.joinDurationMs)
         : undefined,
+    turn: Number(data.turn) || undefined,
+    turnSide: data.turnSide === 'defender' ? 'defender' : data.turnSide === 'attacker' ? 'attacker' : undefined,
+    turnPlayerId: data.turnPlayerId ? String(data.turnPlayerId) : undefined,
+    stateVersion: Number(data.stateVersion) || 0,
   };
 }
 
