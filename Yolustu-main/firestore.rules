@@ -12,8 +12,43 @@ service cloud.firestore {
         path[0] == 'leaderboard_state' ||
         path[0] == 'leaderboard_resets' ||
         path[0] == 'leaderboard_archives' ||
-        path[0] == 'leaderboard_awards'
+        path[0] == 'leaderboard_awards' ||
+        path[0] == 'alliances'
       );
+    }
+
+    function isAllianceMemberOrLeader(allianceId, playerId) {
+      return allianceId is string
+        && playerId is string
+        && exists(/databases/$(database)/documents/alliances/$(allianceId))
+        && (
+          get(/databases/$(database)/documents/alliances/$(allianceId)).data.leaderId == playerId
+          || (
+            get(/databases/$(database)/documents/alliances/$(allianceId)).data.keys().hasAny(['members'])
+            && get(/databases/$(database)/documents/alliances/$(allianceId)).data.members is list
+            && playerId in get(/databases/$(database)/documents/alliances/$(allianceId)).data.members
+          )
+        );
+    }
+
+    function playerBelongsToAlliance(playerId, allianceId) {
+      return exists(/databases/$(database)/documents/players/$(playerId))
+        && get(/databases/$(database)/documents/players/$(playerId)).data.allianceId == allianceId
+        && isAllianceMemberOrLeader(allianceId, playerId);
+    }
+
+    function sidePlayersBelong(ids, allianceId) {
+      return ids is list
+        && (
+          ids.size() == 0
+          || (
+            playerBelongsToAlliance(ids[0], allianceId)
+            && (ids.size() < 2 || playerBelongsToAlliance(ids[1], allianceId))
+            && (ids.size() < 3 || playerBelongsToAlliance(ids[2], allianceId))
+            && (ids.size() < 4 || playerBelongsToAlliance(ids[3], allianceId))
+            && (ids.size() < 5 || playerBelongsToAlliance(ids[4], allianceId))
+          )
+        );
     }
 
     function isBattleEventType(t) {
@@ -122,7 +157,9 @@ service cloud.firestore {
         && d.scoreVersion == 0
         && d.lastScoreRequestId == null
         && exists(/databases/$(database)/documents/alliances/$(d.defenderAllianceId))
-        && exists(/databases/$(database)/documents/alliances/$(d.attackerAllianceId));
+        && exists(/databases/$(database)/documents/alliances/$(d.attackerAllianceId))
+        && d.createdBy == d.attackerPlayerIds[0]
+        && playerBelongsToAlliance(d.createdBy, d.attackerAllianceId);
     }
 
     function isValidLegacySeqBump() {
@@ -134,11 +171,10 @@ service cloud.firestore {
         && after.createdBy == before.createdBy
         && after.schemaVersion == before.schemaVersion
         && after.diff(before).affectedKeys()
-          .hasOnly(['eventSeq', 'updatedAt', 'status', 'participantIds'])
+          .hasOnly(['eventSeq', 'updatedAt'])
         && after.status == before.status
         && after.status in ['open', 'joining', 'locked', 'active']
-        && after.participantIds is list
-        && after.participantIds.size() <= 10
+        && after.participantIds == before.participantIds
         && after.updatedAt == request.time;
     }
 
@@ -190,6 +226,8 @@ service cloud.firestore {
             'attackerUids',
             'defenderUids'
           ])
+        && sidePlayersBelong(after.attackerPlayerIds, after.attackerAllianceId)
+        && sidePlayersBelong(after.defenderPlayerIds, after.defenderAllianceId)
         && after.updatedAt == request.time;
     }
 
@@ -269,7 +307,17 @@ service cloud.firestore {
         && isBattleEventDoc(battleId, eventId)
         && isGenericBattleEventType(d.type)
         && isNextEventSeq(battleId)
-        && battleData(battleId).status != 'finished';
+        && battleData(battleId).status != 'finished'
+        && (
+          (
+            battleData(battleId).keys().hasAny(['attackerUids'])
+            && request.auth.uid in battleData(battleId).attackerUids
+          )
+          || (
+            battleData(battleId).keys().hasAny(['defenderUids'])
+            && request.auth.uid in battleData(battleId).defenderUids
+          )
+        );
     }
 
     function isValidBattleCreatedEvent(battleId, eventId) {
@@ -436,7 +484,12 @@ service cloud.firestore {
         && d.cooldownUntil is timestamp
         && d.cooldownUntil > request.time + duration.value(2, 'h')
         && d.cooldownUntil < request.time + duration.value(4, 'h')
-        && exists(/databases/$(database)/documents/alliances/$(allianceId));
+        && exists(/databases/$(database)/documents/alliances/$(allianceId))
+        && existsAfter(/databases/$(database)/documents/battles/$(d.lastBattleId))
+        && getAfter(/databases/$(database)/documents/battles/$(d.lastBattleId)).data.kind == 'alliance_map'
+        && getAfter(/databases/$(database)/documents/battles/$(d.lastBattleId)).data.defenderAllianceId == allianceId
+        && getAfter(/databases/$(database)/documents/battles/$(d.lastBattleId)).data.attackerAllianceId == d.attackerAllianceId
+        && request.auth.uid in getAfter(/databases/$(database)/documents/battles/$(d.lastBattleId)).data.attackerUids;
     }
 
     function battleData(battleId) {
@@ -926,6 +979,23 @@ service cloud.firestore {
         && d.allianceDelta == officialAllianceDelta(d.cardId)
         && d.steal == officialSteal(d.cardId)
         && d.clickRequired == officialChallengeClicks(d.cardId, d.targetAllianceId)
+        && (
+          d.clickRequired == 0
+          || (
+            d.cardId == 'usyan'
+            && (
+              (d.side == 'attacker' && d.targetAllianceId == battleData(battleId).attackerAllianceId)
+              || (d.side == 'defender' && d.targetAllianceId == battleData(battleId).defenderAllianceId)
+            )
+          )
+          || (
+            d.cardId != 'usyan'
+            && (
+              (d.side == 'attacker' && d.targetAllianceId == battleData(battleId).defenderAllianceId)
+              || (d.side == 'defender' && d.targetAllianceId == battleData(battleId).attackerAllianceId)
+            )
+          )
+        )
         && d.clickRequired is int
         && d.clickRequired >= 0
         && d.clickRequired <= 14
@@ -1278,10 +1348,13 @@ service cloud.firestore {
 
     function isValidClickCompleteEvent(battleId, eventId) {
       let d = request.resource.data;
+      let cid = d.meta.requestId;
       return request.auth != null
         && isBattleEventDoc(battleId, eventId)
         && d.type == 'click_completed'
         && isNextEventSeq(battleId)
+        && cid is string
+        && existsAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(cid))
         && d.meta.clicks is int
         && d.meta.required is int
         && d.meta.success is bool
@@ -1289,9 +1362,13 @@ service cloud.firestore {
         && d.meta.required <= 14
         && d.meta.clicks >= 0
         && d.meta.clicks <= d.meta.required
+        && d.meta.clicks == getAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(cid)).data.currentClicks
+        && d.meta.required == getAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(cid)).data.requiredClicks
         && (
-          (d.meta.success == true && d.meta.clicks == d.meta.required)
-          || (d.meta.success == false && d.meta.clicks < d.meta.required)
+          (d.meta.success == true && d.meta.clicks == d.meta.required
+            && getAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(cid)).data.status == 'succeeded')
+          || (d.meta.success == false && d.meta.clicks < d.meta.required
+            && getAfter(/databases/$(database)/documents/battles/$(battleId)/challenges/$(cid)).data.status == 'expired')
         );
     }
 
@@ -1365,7 +1442,7 @@ service cloud.firestore {
             canReadBattle(battleId)
             || (
               resource.data.keys().hasAny(['targetAllianceId'])
-              && exists(/databases/$(database)/documents/alliances/$(resource.data.targetAllianceId))
+              && isAllianceMemberOrLeader(resource.data.targetAllianceId, request.auth.uid)
             )
           );
         allow create: if isValidChallengeCreate(battleId, challengeId);
@@ -1494,6 +1571,8 @@ service cloud.firestore {
           && leaderboardAwardFromBattle(request.resource.data.battleId)
           && playerId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.participantIds
           && request.resource.data.score is int
+          && playerId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.playerDeltas
+          && request.resource.data.score == get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.playerDeltas[playerId]
           && request.resource.data.score >= 0
           && request.resource.data.score <= 8
           && request.resource.data.updatedAt == request.time;
@@ -1503,9 +1582,9 @@ service cloud.firestore {
           && request.resource.data.battleId is string
           && leaderboardAwardFromBattle(request.resource.data.battleId)
           && playerId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.participantIds
+          && playerId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.playerDeltas
           && request.resource.data.score is int
-          && request.resource.data.score >= resource.data.score
-          && request.resource.data.score <= resource.data.score + 8
+          && request.resource.data.score == resource.data.score + get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.playerDeltas[playerId]
           && request.resource.data.score <= 1000000
           && request.resource.data.updatedAt == request.time;
         allow delete: if false;
@@ -1533,8 +1612,10 @@ service cloud.firestore {
           && leaderboardAwardFromBattle(request.resource.data.battleId)
           && allianceId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.allianceDeltas
           && request.resource.data.rawScore is int
+          && allianceId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.allianceDeltas
+          && request.resource.data.rawScore == get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.allianceDeltas[allianceId]
           && request.resource.data.rawScore >= 0
-          && request.resource.data.rawScore <= 8
+          && request.resource.data.rawScore <= 6
           && request.resource.data.score is int
           && request.resource.data.score >= 0
           && request.resource.data.score <= 1000000
@@ -1546,8 +1627,7 @@ service cloud.firestore {
           && leaderboardAwardFromBattle(request.resource.data.battleId)
           && allianceId in get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.allianceDeltas
           && request.resource.data.rawScore is int
-          && request.resource.data.rawScore >= resource.data.rawScore
-          && request.resource.data.rawScore <= resource.data.rawScore + 8
+          && request.resource.data.rawScore == resource.data.rawScore + get(/databases/$(database)/documents/battles/$(request.resource.data.battleId)/result/final).data.allianceDeltas[allianceId]
           && request.resource.data.score is int
           && request.resource.data.score >= 0
           && request.resource.data.score <= 1000000
