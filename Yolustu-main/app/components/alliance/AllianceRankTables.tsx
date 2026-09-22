@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  listenLeaderboardBoard,
+  listenLeaderboardState,
+  requireLeaderboardPeriod,
+  type LeaderboardBoard,
+} from '@/app/lib/leaderboard';
 import { useUser } from '@/context/UserContext';
 import { getLocalProfileDisplayName } from '@/app/lib/userId';
 import { PlayerProfile, AllianceData } from './types';
@@ -343,63 +349,79 @@ export default function AllianceRankTables({
 }
 
 interface AlliancePlayerRankTableProps {
-  players: PlayerProfile[];
+  players?: PlayerProfile[];
   currentUserId: string;
   currentUserName: string;
   defaultOpen?: boolean;
   variant?: 'inline' | 'sheet';
 }
 
-function usePlayerRankRows(players: PlayerProfile[], currentUserId: string) {
-  return useMemo(() => {
-    const sorted = [...players]
-      .filter((p) => p.score > 0)
-      .sort((a, b) => b.score - a.score);
+function useServerLeaderboards() {
+  const [period, setPeriod] = useState<{ dayKey: string; weekKey: string } | null>(null);
+  const [daily, setDaily] = useState<LeaderboardBoard | null>(null);
+  const [weekly, setWeekly] = useState<LeaderboardBoard | null>(null);
 
-    const playerRows: RankRow[] = sorted.slice(0, 100).map((p, index) => ({
-      id: p.odId,
-      rank: index + 1,
-      name: p.displayName,
-      score: p.score,
-      subtitle: p.allianceName ? `🛡️ ${p.allianceName}` : undefined,
-    }));
+  useEffect(() => {
+    void requireLeaderboardPeriod().catch(() => {});
+    return listenLeaderboardState(setPeriod);
+  }, []);
 
-    const userPlayerRank = playerRows.find((r) => r.id === currentUserId) ?? null;
-    return { playerRows, userPlayerRank };
-  }, [players, currentUserId]);
+  useEffect(() => {
+    if (!period?.dayKey) return;
+    return listenLeaderboardBoard('daily', period.dayKey, setDaily);
+  }, [period?.dayKey]);
+
+  useEffect(() => {
+    if (!period?.weekKey) return;
+    return listenLeaderboardBoard('weekly', period.weekKey, setWeekly);
+  }, [period?.weekKey]);
+
+  return { period, daily, weekly };
+}
+
+function boardToRows(board: LeaderboardBoard | null, subtitle?: (row: { id: string; activeUsers?: number }) => string | undefined): RankRow[] {
+  return (board?.rows ?? []).map((row) => ({
+    id: row.id,
+    rank: row.rank,
+    name: row.name,
+    score: row.score,
+    subtitle: subtitle?.(row),
+  }));
 }
 
 export function AllianceRankingBoard() {
   const { userId, user } = useUser();
   const userName = user?.displayName || user?.email || getLocalProfileDisplayName();
-  const { alliances, players, activeAlliance, notifyAllianceInfoViewed } = useAllianceBrain();
-  const { allianceRows, userAllianceRank } = useMemo(() => {
-    const sortedAlliances = [...alliances].sort((a, b) => (b.score || 0) - (a.score || 0));
-    const allianceRows: RankRow[] = sortedAlliances.map((item, index) => ({
-      id: item.id,
-      rank: index + 1,
-      name: item.name,
-      score: item.score || 50,
-      subtitle: `📍 ${item.region} · ${item.members?.length || 0} üzv`,
-    }));
-    const userAllianceRank = activeAlliance
-      ? allianceRows.find((r) => r.id === activeAlliance.id) ?? null
-      : null;
-    return { allianceRows, userAllianceRank };
-  }, [alliances, activeAlliance]);
-  const { playerRows, userPlayerRank } = usePlayerRankRows(players, userId);
+  const { alliances, activeAlliance, notifyAllianceInfoViewed } = useAllianceBrain();
+  const { period, daily, weekly } = useServerLeaderboards();
+
+  const allianceRows = useMemo(
+    () =>
+      boardToRows(weekly, (row) =>
+        row.activeUsers ? `aktiv ${row.activeUsers} · normallaşdırılıb` : 'həftəlik'
+      ),
+    [weekly]
+  );
+  const playerRows = useMemo(() => boardToRows(daily, () => 'gündəlik'), [daily]);
+  const userAllianceRank = activeAlliance
+    ? allianceRows.find((row) => row.id === activeAlliance.id) ?? null
+    : null;
+  const userPlayerRank = playerRows.find((row) => row.id === userId) ?? null;
 
   return (
     <div className={styles.rankTablesSplit}>
       <section className={styles.rankTablesSplitCol}>
-        <h3 className={styles.rankTablesSplitTitle}>İttifaq reytinqi</h3>
+        <h3 className={styles.rankTablesSplitTitle}>
+          İttifaq reytinqi
+          {period?.weekKey ? ` · həftə ${period.weekKey}` : ''}
+        </h3>
         <RankTableContent
           rows={allianceRows}
           userRankRow={userAllianceRank}
           userRankLabel={
             userAllianceRank ? 'Sizin ittifaq sıranız' : 'Hələ heç bir ittifaqda deyilsiniz'
           }
-          emptyMessage="Hələ heç bir ittifaq yoxdur."
+          emptyMessage="Həftəlik cədvəl serverdən gözlənilir."
           onRowClick={(row) => {
             const alliance = alliances.find((item) => item.id === row.id);
             if (alliance) notifyAllianceInfoViewed(alliance);
@@ -407,7 +429,10 @@ export function AllianceRankingBoard() {
         />
       </section>
       <section className={styles.rankTablesSplitCol}>
-        <h3 className={styles.rankTablesSplitTitle}>Oyunçu reytinqi</h3>
+        <h3 className={styles.rankTablesSplitTitle}>
+          Oyunçu reytinqi
+          {period?.dayKey ? ` · ${period.dayKey}` : ''}
+        </h3>
         <RankTableContent
           rows={playerRows}
           userRankRow={userPlayerRank}
@@ -416,7 +441,7 @@ export function AllianceRankingBoard() {
               ? 'Sizin oyunçu sıranız'
               : `${userName} — hələ reytinq cədvəlində deyilsiniz`
           }
-          emptyMessage="Hələ heç bir oyunçu yoxdur."
+          emptyMessage="Gündəlik cədvəl serverdən gözlənilir."
         />
       </section>
     </div>
@@ -435,13 +460,14 @@ export function AllianceCombinedRankButton() {
 }
 
 export function AlliancePlayerRankTable({
-  players,
   currentUserId,
   currentUserName,
   defaultOpen = false,
   variant = 'inline',
 }: AlliancePlayerRankTableProps) {
-  const { playerRows, userPlayerRank } = usePlayerRankRows(players, currentUserId);
+  const { daily } = useServerLeaderboards();
+  const playerRows = useMemo(() => boardToRows(daily, () => 'gündəlik'), [daily]);
+  const userPlayerRank = playerRows.find((row) => row.id === currentUserId) ?? null;
 
   return (
     <CollapsibleRankTable

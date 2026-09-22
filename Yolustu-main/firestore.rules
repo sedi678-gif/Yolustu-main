@@ -6,7 +6,13 @@ service cloud.firestore {
         path[0] == 'battles' ||
         path[0] == 'alliance_battle_cooldowns' ||
         path[0] == 'battle_card_costs' ||
-        path[0] == 'server_clock'
+        path[0] == 'server_clock' ||
+        path[0] == 'leaderboard_daily' ||
+        path[0] == 'leaderboard_weekly' ||
+        path[0] == 'leaderboard_state' ||
+        path[0] == 'leaderboard_resets' ||
+        path[0] == 'leaderboard_archives' ||
+        path[0] == 'leaderboard_awards'
       );
     }
 
@@ -1368,6 +1374,125 @@ service cloud.firestore {
       allow update: if isValidCooldownWrite(allianceId)
         && request.time >= resource.data.cooldownUntil;
       allow delete: if false;
+    }
+
+    function isLeaderboardPeriodKey(key) {
+      return key is string && key.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function isValidLeaderboardBoard(kind) {
+      let d = request.resource.data;
+      return request.auth != null
+        && d.kind == kind
+        && d.timezone == 'Asia/Baku'
+        && d.offsetMs == 14400000
+        && d.status in ['open', 'closed']
+        && d.rows is list
+        && d.rows.size() <= 100
+        && d.schemaVersion == 1
+        && d.updatedAt == request.time;
+    }
+
+    match /leaderboard_state/{id} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.resource.data.timezone == 'Asia/Baku'
+        && request.resource.data.offsetMs == 14400000
+        && isLeaderboardPeriodKey(request.resource.data.openDayKey)
+        && isLeaderboardPeriodKey(request.resource.data.openWeekKey);
+      allow delete: if false;
+    }
+
+    match /leaderboard_resets/{id} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.status == 'done'
+        && request.resource.data.kind in ['daily', 'weekly']
+        && isLeaderboardPeriodKey(request.resource.data.periodKey)
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /leaderboard_archives/{id} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.kind in ['daily', 'weekly']
+        && isLeaderboardPeriodKey(request.resource.data.periodKey)
+        && request.resource.data.rows is list
+        && request.resource.data.archivedAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /leaderboard_daily/{dayKey} {
+      allow read: if true;
+      allow create, update: if isLeaderboardPeriodKey(dayKey)
+        && request.resource.data.periodKey == dayKey
+        && isValidLeaderboardBoard('daily');
+      allow delete: if false;
+
+      match /entries/{playerId} {
+        allow read: if true;
+        allow create: if request.auth != null
+          && request.resource.data.playerId == playerId
+          && request.resource.data.dayKey == dayKey
+          && request.resource.data.score is int
+          && request.resource.data.score >= 0
+          && request.resource.data.score <= 8
+          && request.resource.data.updatedAt == request.time;
+        allow update: if request.auth != null
+          && request.resource.data.playerId == playerId
+          && request.resource.data.dayKey == dayKey
+          && request.resource.data.score is int
+          && request.resource.data.score >= resource.data.score
+          && request.resource.data.score <= resource.data.score + 8
+          && request.resource.data.score <= 1000000
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+    }
+
+    match /leaderboard_weekly/{weekKey} {
+      allow read: if true;
+      allow create, update: if isLeaderboardPeriodKey(weekKey)
+        && request.resource.data.periodKey == weekKey
+        && isValidLeaderboardBoard('weekly');
+      allow delete: if false;
+
+      match /entries/{allianceId} {
+        allow read: if true;
+        allow create: if request.auth != null
+          && request.resource.data.allianceId == allianceId
+          && request.resource.data.weekKey == weekKey
+          && request.resource.data.rawScore is int
+          && request.resource.data.rawScore >= 0
+          && request.resource.data.rawScore <= 8
+          && request.resource.data.score is int
+          && request.resource.data.score >= 0
+          && request.resource.data.score <= 1000000
+          && request.resource.data.updatedAt == request.time;
+        allow update: if request.auth != null
+          && request.resource.data.allianceId == allianceId
+          && request.resource.data.weekKey == weekKey
+          && request.resource.data.rawScore is int
+          && request.resource.data.rawScore >= resource.data.rawScore
+          && request.resource.data.rawScore <= resource.data.rawScore + 8
+          && request.resource.data.score is int
+          && request.resource.data.score >= 0
+          && request.resource.data.score <= 1000000
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+    }
+
+    match /leaderboard_awards/{battleId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.battleId == battleId
+        && request.resource.data.status == 'done'
+        && isLeaderboardPeriodKey(request.resource.data.dayKey)
+        && isLeaderboardPeriodKey(request.resource.data.weekKey)
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
     }
 
     match /{document=**} {

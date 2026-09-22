@@ -33,6 +33,11 @@ import {
   officialFinishWinner,
   type BattleFinishReason,
 } from './battleFinishConfig';
+import { applyBattleLeaderboardAwards, requireLeaderboardPeriod } from '@/app/lib/leaderboard';
+import {
+  LEADERBOARD_AWARDS_COLLECTION,
+  LEADERBOARD_WEEKLY_SCORE_BASE,
+} from '@/app/lib/leaderboard/leaderboardConfig';
 
 export interface BattleFinishResult {
   battleId: string;
@@ -218,8 +223,9 @@ async function finishBattleWork(input: { battleId: string; playerId: string }): 
   if (!battleId) throw new Error('Battle ID tələb olunur');
 
   const challengeSnaps = await getDocs(collection(db, 'battles', battleId, BATTLE_CHALLENGE_COLLECTION));
+  const period = await requireLeaderboardPeriod().catch(() => null);
 
-  return withTimeout(
+  const finished = await withTimeout(
     runTransaction(db, async (tx) => {
       const parentRef = battleRef(battleId);
       const resultRef = battleResultRef(battleId);
@@ -352,32 +358,44 @@ async function finishBattleWork(input: { battleId: string; playerId: string }): 
         const id = playerIds[index];
         const delta = deltas.playerDeltas[id] ?? 0;
         if (!snap.exists() || delta <= 0) return;
+        const sameDay = period != null && String(snap.data()?.dailyKey || '') === period.dayKey;
+        const dailyBase = sameDay ? snap.data()?.dailyScore : 0;
         tx.set(
           snap.ref,
-          { score: addGlobalScore(snap.data()?.score, delta), updatedAt: serverTimestamp() },
+          {
+            score: addGlobalScore(snap.data()?.score, delta),
+            dailyScore: addGlobalScore(dailyBase, delta),
+            dailyKey: period?.dayKey ?? null,
+            updatedAt: serverTimestamp(),
+          },
           { merge: true }
         );
       });
 
-      if (atkAllianceRef && atkAllianceSnap?.exists()) {
-        const delta = deltas.allianceDeltas[battle.attackerAllianceId || ''] ?? 0;
-        if (delta > 0) {
-          tx.set(
-            atkAllianceRef,
-            { score: addGlobalScore(atkAllianceSnap.data()?.score, delta), updatedAt: serverTimestamp() },
-            { merge: true }
-          );
-        }
-      }
-      if (defAllianceRef && defAllianceSnap?.exists() && defAllianceRef.path !== atkAllianceRef?.path) {
-        const delta = deltas.allianceDeltas[battle.defenderAllianceId || ''] ?? 0;
-        if (delta > 0) {
-          tx.set(
-            defAllianceRef,
-            { score: addGlobalScore(defAllianceSnap.data()?.score, delta), updatedAt: serverTimestamp() },
-            { merge: true }
-          );
-        }
+      const writeAllianceWeekly = (
+        ref: ReturnType<typeof doc> | null,
+        snap: typeof atkAllianceSnap,
+        allianceId: string
+      ) => {
+        if (!ref || !snap?.exists()) return;
+        const delta = deltas.allianceDeltas[allianceId] ?? 0;
+        if (delta <= 0) return;
+        const sameWeek = period != null && String(snap.data()?.weeklyKey || '') === period.weekKey;
+        const weeklyBase = sameWeek ? snap.data()?.score : LEADERBOARD_WEEKLY_SCORE_BASE;
+        tx.set(
+          ref,
+          {
+            score: addGlobalScore(weeklyBase, delta),
+            weeklyKey: period?.weekKey ?? null,
+            lifetimeScore: addGlobalScore(snap.data()?.lifetimeScore ?? snap.data()?.score, delta),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      };
+      writeAllianceWeekly(atkAllianceRef, atkAllianceSnap, battle.attackerAllianceId || '');
+      if (defAllianceRef?.path !== atkAllianceRef?.path) {
+        writeAllianceWeekly(defAllianceRef, defAllianceSnap, battle.defenderAllianceId || '');
       }
 
       writeNotifications(tx, payload, {
@@ -389,6 +407,65 @@ async function finishBattleWork(input: { battleId: string; playerId: string }): 
     }),
     WRITE_MS,
     'Battle bitirilmədi.'
+  );
+
+  if (period && finished.reason !== 'join_failed') {
+    await commitLeaderboardAwardsFromFinish(finished, period).catch(() => {});
+  }
+  return finished;
+}
+
+async function commitLeaderboardAwardsFromFinish(
+  result: Omit<BattleFinishResult, 'duplicate'> & { duplicate: boolean },
+  period: { dayKey: string; weekKey: string }
+) {
+  const receiptRef = doc(db, LEADERBOARD_AWARDS_COLLECTION, result.battleId);
+  return replayBattleRequest(`lb_award:${result.battleId}`, () =>
+    withTimeout(
+      runTransaction(db, async (tx) => {
+        const receiptSnap = await tx.get(receiptRef);
+        if (receiptSnap.exists()) return;
+        const battleSnap = await tx.get(battleRef(result.battleId));
+        const battle = battleSnap.exists()
+          ? battleFromData(battleSnap.id, battleSnap.data())
+          : null;
+        const playerIds = Object.keys(result.playerDeltas);
+        const playerSnaps = await Promise.all(playerIds.map((id) => tx.get(doc(db, 'players', id))));
+        await applyBattleLeaderboardAwards(tx, {
+          dayKey: period.dayKey,
+          weekKey: period.weekKey,
+          players: playerIds.map((id, index) => ({
+            id,
+            name: String(playerSnaps[index]?.data()?.displayName || id),
+            delta: result.playerDeltas[id] ?? 0,
+          })),
+          alliances: [
+            {
+              id: result.attackerAllianceId || '',
+              name: battle?.attackerAllianceName || 'Hücum',
+              delta: result.allianceDeltas[result.attackerAllianceId || ''] ?? 0,
+              activePlayerIds: battle?.attackerPlayerIds ?? [],
+            },
+            {
+              id: result.defenderAllianceId || '',
+              name: battle?.defenderAllianceName || 'Müdafiə',
+              delta: result.allianceDeltas[result.defenderAllianceId || ''] ?? 0,
+              activePlayerIds: battle?.defenderPlayerIds ?? [],
+            },
+          ].filter((item) => item.id),
+        });
+        tx.set(receiptRef, {
+          battleId: result.battleId,
+          dayKey: period.dayKey,
+          weekKey: period.weekKey,
+          status: 'done',
+          schemaVersion: 1,
+          createdAt: serverTimestamp(),
+        });
+      }),
+      WRITE_MS,
+      'Leaderboard yazılmadı.'
+    )
   );
 }
 
