@@ -168,18 +168,23 @@ export default function AllianceMapBattleHost({
   }, [lobbyId]);
 
   useEffect(() => {
+    if (!view || !userId) return;
+    const inBattle = [...(view.battle.attackerPlayerIds ?? []), ...(view.battle.defenderPlayerIds ?? [])].includes(
+      userId
+    );
+    if (!inBattle) return;
+    if (view.battle.status === 'joining' || view.battle.status === 'locked') {
+      void activateAllianceBattle(view.battle.id, userId).catch(() => {});
+    }
+  }, [view, userId]);
+
+  useEffect(() => {
     if (!view) return;
     if (view.battle.status !== 'joining') return;
     const endsAt = officialJoinEndsAt(view.battle, now);
     if (now < endsAt) return;
     void lockAllianceMapBattle(view.battle.id, userId).catch(() => {});
   }, [view, userId, now]);
-
-  useEffect(() => {
-    if (!view) return;
-    if (view.battle.status !== 'locked') return;
-    void activateAllianceBattle(view.battle.id, userId).catch(() => {});
-  }, [view, userId]);
 
   useEffect(() => {
     if (!view || !userId) return;
@@ -285,7 +290,7 @@ export default function AllianceMapBattleHost({
 
   useEffect(() => {
     if (!liveView || !userId || !activeAlliance?.id || busy) return;
-    if (liveView.battle.status !== 'joining' || !liveView.joinOpen) return;
+    if (!liveView.canJoin) return;
     const inBattle = [...(liveView.battle.attackerPlayerIds ?? []), ...(liveView.battle.defenderPlayerIds ?? [])].includes(
       userId
     );
@@ -360,9 +365,9 @@ export default function AllianceMapBattleHost({
               {liveView.phase === 'joining'
                 ? `Qoşulma: ${formatRemain(liveView.joinRemainingMs)}`
                 : liveView.phase === 'locked'
-                  ? 'Döyüş kilitləndi — yeni oyunçu qoşula bilməz'
+                  ? 'Döyüş açılır — sonradan qoşulmaq olar'
                   : liveView.phase === 'active'
-                    ? `Döyüş aktiv · növbə: ${liveView.battle.turnPlayerId ?? '—'}`
+                    ? `Döyüş aktiv · növbə: ${liveView.battle.turnPlayerId || 'gözlənilir'}`
                     : liveView.phase === 'finished'
                     ? 'Döyüş bitdi / qoşulma alınmadı'
                     : liveView.phase}
@@ -385,7 +390,7 @@ export default function AllianceMapBattleHost({
             {restored ? (
               <p className={styles.battleReconnectNote}>Döyüş server state-dən bərpa olundu.</p>
             ) : null}
-            {liveView.joinOpen && !alreadyIn ? (
+            {liveView.canJoin && !alreadyIn ? (
               <button type="button" className={styles.battleAttackBtn} disabled={busy} onClick={() => void onJoin()}>
                 {busy ? 'Qoşulur…' : 'Döyüşə qoşul'}
               </button>

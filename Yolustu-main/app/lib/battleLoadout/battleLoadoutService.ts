@@ -22,6 +22,7 @@ import {
   validateBattleLoadout,
   type BattleLoadoutCardId,
 } from './battleLoadoutConfig';
+import { assertLoadoutFitsEnergy } from '@/app/lib/battleEnergy/battleEnergyConfig';
 
 export interface BattleLoadout {
   battleId: string;
@@ -142,11 +143,16 @@ export async function setBattleLoadout(input: {
         const parentSnap = await tx.get(battleRef(battleId));
         if (!parentSnap.exists()) throw new Error('Battle tapılmadı');
         const battle = battleFromData(parentSnap.id, parentSnap.data());
-        if (battle.status === 'active' || battle.status === 'finished') {
-          throw new Error('Battle başladıqdan sonra loadout dəyişdirilə bilməz');
+        if (battle.status === 'finished') {
+          throw new Error('Battle bitib');
         }
-        if (battle.status !== 'joining' && battle.status !== 'locked') {
-          throw new Error('Kart seçimi yalnız döyüş başlamazdan əvvəl olar');
+        const existingSnap = await tx.get(loadoutRef(battleId, playerId));
+        if (battle.status === 'active') {
+          if (existingSnap.exists()) {
+            throw new Error('Battle başladıqdan sonra loadout dəyişdirilə bilməz');
+          }
+        } else if (battle.status !== 'joining' && battle.status !== 'locked') {
+          throw new Error('Kart seçimi yalnız döyüşə qoşulduqdan sonra olar');
         }
 
         const side = sideOf(battle, playerId);
@@ -155,7 +161,6 @@ export async function setBattleLoadout(input: {
           throw new Error('Bu loadout sənin hesabına aid deyil');
         }
 
-        const existingSnap = await tx.get(loadoutRef(battleId, playerId));
         if (existingSnap.exists() && existingSnap.data()?.locked === true) {
           throw new Error('Loadout kilitlənib');
         }
@@ -164,6 +169,7 @@ export async function setBattleLoadout(input: {
         if (!playerSnap.exists()) throw new Error('Oyunçu tapılmadı');
         const owned = resolveLoadoutInventory(playerId, playerSnap.data() as Record<string, unknown>);
         const cardIds = validateBattleLoadout(input.cardIds, owned);
+        assertLoadoutFitsEnergy(cardIds);
         const locked = input.commit === true;
 
         tx.set(loadoutRef(battleId, playerId), {
@@ -257,8 +263,11 @@ export function listenOwnLoadout(
 
 export function canEditBattleLoadout(
   battleStatus: BattleRecord['status'],
-  locked: boolean
+  locked: boolean,
+  hasLoadout = false
 ): boolean {
   if (locked) return false;
-  return battleStatus === 'joining' || battleStatus === 'locked';
+  if (battleStatus === 'joining' || battleStatus === 'locked') return true;
+  if (battleStatus === 'active' && !hasLoadout) return true;
+  return false;
 }

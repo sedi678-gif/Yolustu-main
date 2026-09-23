@@ -183,9 +183,12 @@ service cloud.firestore {
       let after = request.resource.data;
       return request.auth != null
         && before.kind == 'alliance_map'
-        && before.status == 'joining'
-        && after.status == 'joining'
-        && request.time < before.createdAt + duration.value(15, 's')
+        && before.status in ['joining', 'locked', 'active']
+        && after.status == before.status
+        && (
+          before.status != 'joining'
+          || request.time < before.createdAt + duration.value(15, 's')
+        )
         && after.eventSeq == before.eventSeq + 1
         && after.createdAt == before.createdAt
         && after.joinDurationMs == before.joinDurationMs
@@ -246,9 +249,11 @@ service cloud.firestore {
         && (
           (
             after.status == 'locked'
+            && after.attackerPlayerIds.size() >= 1
             && after.diff(before).affectedKeys().hasOnly(['eventSeq', 'updatedAt', 'status'])
           ) || (
             after.status == 'finished'
+            && after.attackerPlayerIds.size() == 0
             && after.finishReason == 'join_failed'
             && after.winnerAllianceId == null
             && after.winnerSide == null
@@ -337,8 +342,8 @@ service cloud.firestore {
         && isBattleEventDoc(battleId, eventId)
         && d.type == 'player_joined'
         && isNextEventSeq(battleId)
-        && battleData(battleId).status == 'joining'
-        && battleAfter(battleId).status == 'joining'
+        && battleData(battleId).status in ['joining', 'locked', 'active']
+        && battleAfter(battleId).status == battleData(battleId).status
         && d.playerId in battleAfter(battleId).participantIds;
     }
 
@@ -463,7 +468,7 @@ service cloud.firestore {
         && isBattleEventDoc(battleId, eventId)
         && d.type == 'turn_started'
         && isNextEventSeq(battleId)
-        && battleData(battleId).status == 'locked'
+        && battleData(battleId).status in ['joining', 'locked']
         && battleAfter(battleId).status == 'active';
     }
 
@@ -574,7 +579,12 @@ service cloud.firestore {
       let b = battleData(battleId);
       return request.auth != null
         && exists(/databases/$(database)/documents/battles/$(battleId))
-        && b.status in ['joining', 'locked']
+        && (
+          b.status in ['joining', 'locked']
+          || (b.status == 'active' && creating)
+        )
+        && officialLoadoutEnergy(d.cardIds) > 0
+        && officialLoadoutEnergy(d.cardIds) <= 25
         && d.ownerUid == request.auth.uid
         && d.battleId == battleId
         && d.playerId == playerId
@@ -715,22 +725,27 @@ service cloud.firestore {
     }
 
     function officialCardCost(id) {
-      return id == '2x' ? 6
-        : id == 'casus' ? 4
-        : id == 'duman' ? 3
-        : id == 'guzgu' ? 7
-        : id == 'joker' ? 8
-        : id == 'ogru' ? 6
+      return id == '2x' ? 5
+        : id == 'casus' ? 5
+        : id == 'duman' ? 4
+        : id == 'guzgu' ? 4
+        : id == 'joker' ? 4
+        : id == 'ogru' ? 3
         : id == 'qaya' ? 5
-        : id == 'qul' ? 9
-        : id == 'qutb' ? 8
-        : id == 'sehrbaz' ? 6
-        : id == 'tikanli' ? 7
-        : id == 'felaket' ? 9
-        : id == 'usyan' ? 8
-        : id == 'zombi' ? 7
-        : id == 'mutant' ? 7
+        : id == 'qul' ? 4
+        : id == 'qutb' ? 3
+        : id == 'sehrbaz' ? 5
+        : id == 'tikanli' ? 4
+        : id == 'felaket' ? 3
+        : id == 'usyan' ? 4
+        : id == 'zombi' ? 4
+        : id == 'mutant' ? 4
         : 0;
+    }
+
+    function officialLoadoutEnergy(ids) {
+      return officialCardCost(ids[0]) + officialCardCost(ids[1]) + officialCardCost(ids[2])
+        + officialCardCost(ids[3]) + officialCardCost(ids[4]);
     }
 
     function isValidCardPlaySeqBump(battleId) {
@@ -797,7 +812,7 @@ service cloud.firestore {
       let after = request.resource.data;
       return request.auth != null
         && before.kind == 'alliance_map'
-        && before.status == 'locked'
+        && before.status in ['joining', 'locked']
         && after.status == 'active'
         && after.eventSeq == before.eventSeq + 1
         && after.stateVersion == 1
@@ -863,11 +878,11 @@ service cloud.firestore {
       let b = getAfter(/databases/$(database)/documents/battles/$(battleId)).data;
       return request.auth != null
         && existsAfter(/databases/$(database)/documents/battles/$(battleId))
-        && b.status in ['open', 'joining', 'locked']
+        && b.status in ['open', 'joining', 'locked', 'active']
         && d.battleId == battleId
         && d.playerId == playerId
-        && d.energy == 30
-        && d.maxEnergy == 30
+        && d.energy == 25
+        && d.maxEnergy == 25
         && d.cardUsage is map
         && d.cardUsage.size() == 0
         && d.cardCooldownUntil is map
@@ -920,9 +935,9 @@ service cloud.firestore {
         && receipt.energyAfter == after.energy
         && after.energy == before.energy - receipt.cost
         && after.energy >= 0
-        && after.energy <= 30
+        && after.energy <= 25
         && before.energy >= 0
-        && after.maxEnergy == 30
+        && after.maxEnergy == 25
         && prevUse < 3
         && after.cardUsage is map
         && after.cardUsage[cid] == prevUse + 1
@@ -961,7 +976,7 @@ service cloud.firestore {
         && d.energyAfter is int
         && d.energyAfter == d.energyBefore - d.cost
         && d.energyAfter >= 0
-        && d.energyBefore <= 30
+        && d.energyBefore <= 25
         && d.energyBefore >= d.cost
         && d.usageAfter is int
         && d.usageAfter > 0
@@ -1136,7 +1151,7 @@ service cloud.firestore {
       let b = getAfter(/databases/$(database)/documents/battles/$(battleId)).data;
       return request.auth != null
         && existsAfter(/databases/$(database)/documents/battles/$(battleId))
-        && b.status in ['open', 'joining', 'locked']
+        && b.status in ['open', 'joining', 'locked', 'active']
         && d.battleId == battleId
         && d.playerId == playerId
         && d.score == 0

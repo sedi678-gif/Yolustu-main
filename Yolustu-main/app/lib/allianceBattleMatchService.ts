@@ -58,6 +58,7 @@ export interface AllianceBattleView {
   phase: 'joining' | 'locked' | 'finished' | 'active' | 'open';
   joinRemainingMs: number;
   joinOpen: boolean;
+  canJoin: boolean;
 }
 
 const WRITE_MS = 12_000;
@@ -148,6 +149,7 @@ export function viewAllianceBattle(battle: BattleRecord, now = Date.now()): Alli
     phase,
     joinRemainingMs: phase === 'joining' ? joinRemainingMs : 0,
     joinOpen: phase === 'joining' && joinRemainingMs > 0,
+    canJoin: battle.status === 'joining' || battle.status === 'locked' || battle.status === 'active',
   };
 }
 
@@ -329,9 +331,12 @@ export async function joinAllianceMapBattle(input: {
       if (!parentSnap.exists()) throw new Error('Battle tapılmadı');
       const battle = battleFromData(parentSnap.id, parentSnap.data());
       if (battle.kind !== 'alliance_map') throw new Error('Bu battle xəritə döyüşü deyil');
-      if (battle.status !== 'joining') throw new Error('Qoşulma mərhələsi bağlıdır');
+      if (battle.status === 'finished') throw new Error('Battle bitib');
+      if (battle.status !== 'joining' && battle.status !== 'locked' && battle.status !== 'active') {
+        throw new Error('Bu döyüşə qoşulmaq olmur');
+      }
       const now = serverNowMs() || Date.now();
-      if (now >= officialJoinEndsAt(battle, now)) {
+      if (battle.status === 'joining' && now >= officialJoinEndsAt(battle, now)) {
         throw new Error('Qoşulma müddəti bitib');
       }
 
@@ -374,7 +379,6 @@ export async function joinAllianceMapBattle(input: {
       tx.update(parentRef, {
         eventSeq: seq,
         updatedAt: serverTimestamp(),
-        status: 'joining',
         participantIds: [...nextAttackers, ...nextDefenders],
         attackerPlayerIds: nextAttackers,
         defenderPlayerIds: nextDefenders,
@@ -434,10 +438,7 @@ export async function lockAllianceMapBattle(battleId: string, actorId: string): 
       if (battle.status !== 'joining') throw new Error('Battle qoşulma mərhələsində deyil');
 
       const attackers = battle.attackerPlayerIds ?? [];
-      const defenders = battle.defenderPlayerIds ?? [];
-      const ok =
-        attackers.length >= ALLIANCE_BATTLE_MIN_PER_SIDE &&
-        defenders.length >= ALLIANCE_BATTLE_MIN_PER_SIDE;
+      const ok = attackers.length >= ALLIANCE_BATTLE_MIN_PER_SIDE;
       const seq = battle.eventSeq + 1;
       const eventDoc = newBattleEventRef(id);
       const status = ok ? 'locked' : 'finished';
@@ -500,12 +501,13 @@ export async function activateAllianceBattle(battleId: string, actorId: string):
       const battle = battleFromData(parentSnap.id, parentSnap.data());
       if (battle.status === 'active') return battle;
       if (battle.status === 'finished') throw new Error('Battle bitib');
-      if (battle.status !== 'locked') throw new Error('Battle hələ kilitlənməyib');
+      if (battle.status !== 'joining' && battle.status !== 'locked') {
+        throw new Error('Battle hələ başlamağa hazır deyil');
+      }
 
       const attackers = battle.attackerPlayerIds ?? [];
-      const defenders = battle.defenderPlayerIds ?? [];
-      if (attackers.length < ALLIANCE_BATTLE_MIN_PER_SIDE || defenders.length < ALLIANCE_BATTLE_MIN_PER_SIDE) {
-        throw new Error('Hər tərəfdə ən az 1 oyunçu olmalıdır');
+      if (attackers.length < ALLIANCE_BATTLE_MIN_PER_SIDE) {
+        throw new Error('Hücum tərəfində ən az 1 oyunçu olmalıdır');
       }
 
       const turn = initialTurnState(battle);

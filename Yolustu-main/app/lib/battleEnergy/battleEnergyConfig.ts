@@ -1,35 +1,47 @@
 import { serverTimestamp } from 'firebase/firestore';
 import { BATTLE_LOADOUT_POOL, isBattleLoadoutCardId, type BattleLoadoutCardId } from '@/app/lib/battleLoadout/battleLoadoutConfig';
 
-export const BATTLE_ENERGY_MAX = 30;
-export const BATTLE_ENERGY_START = 30;
+export const BATTLE_ENERGY_MAX = 25;
+export const BATTLE_ENERGY_START = 25;
 export const BATTLE_ENERGY_COLLECTION = 'energy';
 export const BATTLE_ENERGY_REQUESTS_COLLECTION = 'energy_requests';
 export const BATTLE_CARD_COSTS_COLLECTION = 'battle_card_costs';
 
 /** Rəsmi cost cədvəli — client cost qəbul edilmir. */
 export const BATTLE_CARD_ENERGY_COSTS: Record<BattleLoadoutCardId, number> = {
-  '2x': 6,
-  casus: 4,
-  duman: 3,
-  guzgu: 7,
-  joker: 8,
-  ogru: 6,
+  '2x': 5,
+  casus: 5,
+  duman: 4,
+  guzgu: 4,
+  joker: 4,
+  ogru: 3,
   qaya: 5,
-  qul: 9,
-  qutb: 8,
-  sehrbaz: 6,
-  tikanli: 7,
-  felaket: 9,
-  usyan: 8,
-  zombi: 7,
-  mutant: 7,
+  qul: 4,
+  qutb: 3,
+  sehrbaz: 5,
+  tikanli: 4,
+  felaket: 3,
+  usyan: 4,
+  zombi: 4,
+  mutant: 4,
 };
 
 export function officialCardEnergyCost(cardId: string): number {
   if (!isBattleLoadoutCardId(cardId)) return 0;
   const cost = BATTLE_CARD_ENERGY_COSTS[cardId];
   return Number.isInteger(cost) && cost > 0 && cost <= BATTLE_ENERGY_MAX ? cost : 0;
+}
+
+export function loadoutEnergyCost(ids: readonly string[]): number {
+  return ids.reduce((sum, id) => sum + officialCardEnergyCost(id), 0);
+}
+
+export function assertLoadoutFitsEnergy(ids: readonly string[]): number {
+  const total = loadoutEnergyCost(ids);
+  if (total <= 0 || total > BATTLE_ENERGY_START) {
+    throw new Error(`5 kartın energy cəmi ${BATTLE_ENERGY_START}-dən çox ola bilməz (${total})`);
+  }
+  return total;
 }
 
 export function clampBattleEnergy(value: number): number {

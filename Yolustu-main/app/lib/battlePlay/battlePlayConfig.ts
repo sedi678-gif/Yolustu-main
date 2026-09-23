@@ -82,8 +82,17 @@ export function nextTurnState(battle: BattleRecord, playedSide: BattleSide): {
   const turn = battle.turn && battle.turn > 0 ? battle.turn : 1;
 
   if (playedSide === 'attacker') {
+    if (defenders.length === 0) {
+      const nextTurn = turn + 1;
+      const idx = Math.max(0, (nextTurn - 1) % Math.max(attackers.length, 1));
+      return {
+        turn: nextTurn,
+        turnSide: 'attacker',
+        turnPlayerId: attackers[idx] || attackers[0] || '',
+      };
+    }
     const idx = Math.max(0, (turn - 1) % Math.max(defenders.length, 1));
-    const turnPlayerId = defenders[idx] || defenders[0] || battle.turnPlayerId || '';
+    const turnPlayerId = defenders[idx] || defenders[0] || '';
     return { turn, turnSide: 'defender', turnPlayerId };
   }
 

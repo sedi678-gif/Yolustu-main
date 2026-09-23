@@ -27,7 +27,9 @@ import {
 import {
   BATTLE_ENERGY_MAX,
   BATTLE_ENERGY_START,
+  assertLoadoutFitsEnergy,
   initialBattleEnergyDoc,
+  loadoutEnergyCost,
   officialCardEnergyCost,
 } from '@/app/lib/battleEnergy/battleEnergyConfig';
 import { BATTLE_CARD_MAX_USES, initialTurnState, nextTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
@@ -299,6 +301,7 @@ test('joinEndsAt 0/epoch ikən 15s pəncərə açıq qalır', () => {
     now
   );
   assert.equal(view.joinOpen, true);
+  assert.equal(view.canJoin, true);
   assert.equal(view.phase, 'joining');
 });
 
@@ -365,11 +368,13 @@ runStage(5, '15 saniyəlik join mərhələsi başlayır', () => {
   const battle = requireBattle();
   const open = viewAllianceBattle(battle, NOW + 1_000);
   assert.equal(open.joinOpen, true);
+  assert.equal(open.canJoin, true);
   assert.equal(open.phase, 'joining');
   const closed = viewAllianceBattle(battle, NOW + ALLIANCE_BATTLE_JOIN_MS + 1);
   assert.equal(closed.joinOpen, false);
+  assert.equal(closed.canJoin, true);
   assert.equal(closed.phase, 'locked');
-  return `JOIN_MS=${ALLIANCE_BATTLE_JOIN_MS}; +1s open; +15.001s locked`;
+  return `JOIN_MS=${ALLIANCE_BATTLE_JOIN_MS}; +1s open; +15.001s locked; late join açıq`;
 });
 
 runStage(6, 'Oyunçular qoşulur', () => {
@@ -397,7 +402,11 @@ runStage(7, 'Loadout seçilir', () => {
   assert.deepEqual(okA, [...ATTACKER_LOADOUT]);
   assert.deepEqual(okB, [...DEFENDER_LOADOUT]);
   assert.throws(() => validateBattleLoadout(['qul', 'duman'], inventory));
-  return `A/B loadout ${BATTLE_LOADOUT_SIZE} kart; qısa loadout rədd`;
+  assert.ok(loadoutEnergyCost(okA) <= BATTLE_ENERGY_START);
+  assert.ok(loadoutEnergyCost(okB) <= BATTLE_ENERGY_START);
+  assert.equal(assertLoadoutFitsEnergy(okA), loadoutEnergyCost(okA));
+  assert.throws(() => assertLoadoutFitsEnergy(['2x', 'casus', 'qaya', 'sehrbaz', 'guzgu', 'joker']));
+  return `A/B loadout ${BATTLE_LOADOUT_SIZE} kart; energy≤${BATTLE_ENERGY_START}`;
 });
 
 runStage(8, '5 kart lock edilir', () => {
@@ -433,18 +442,27 @@ runStage(9, 'Battle başlayır', () => {
   assert.equal(sim.battle.turn, 1);
   assert.equal(sim.battle.turnSide, 'attacker');
   assert.equal(sim.battle.turnPlayerId, pA);
-  return `status=active turn=1 player=${pA}`;
+  const live = viewAllianceBattle(sim.battle, NOW);
+  assert.equal(live.canJoin, true);
+  const emptyDef = nextTurnState(
+    { ...sim.battle, attackerPlayerIds: [pA], defenderPlayerIds: [] },
+    'attacker'
+  );
+  assert.equal(emptyDef.turnSide, 'attacker');
+  assert.equal(emptyDef.turn, 2);
+  assert.equal(emptyDef.turnPlayerId, pA);
+  return `status=active turn=1 player=${pA}; empty defender skip`;
 });
 
-runStage(10, 'Energy 30 olur', () => {
+runStage(10, 'Energy 25 olur', () => {
   const doc = initialBattleEnergyDoc(requireBattle().id, pA);
-  assert.equal(BATTLE_ENERGY_START, 30);
-  assert.equal(BATTLE_ENERGY_MAX, 30);
-  assert.equal(doc.energy, 30);
-  assert.equal(doc.maxEnergy, 30);
-  assert.equal(sim.energy[pA], 30);
-  assert.equal(sim.energy[pB], 30);
-  return `energy start/max=30`;
+  assert.equal(BATTLE_ENERGY_START, 25);
+  assert.equal(BATTLE_ENERGY_MAX, 25);
+  assert.equal(doc.energy, 25);
+  assert.equal(doc.maxEnergy, 25);
+  assert.equal(sim.energy[pA], 25);
+  assert.equal(sim.energy[pB], 25);
+  return `energy start/max=25`;
 });
 
 runStage(11, 'Kart oynanır', () => {
@@ -459,10 +477,10 @@ runStage(11, 'Kart oynanır', () => {
 runStage(12, 'Energy azalır', () => {
   const cost = officialCardEnergyCost('qul');
   const played = playOfficial(pA, 'qul');
-  assert.equal(cost, 9);
+  assert.equal(cost, 4);
   assert.equal(played.allowed.energyAfter, 21);
   assert.equal(sim.energy[pA], BATTLE_ENERGY_START - cost);
-  return `30 - 9 = ${sim.energy[pA]}`;
+  return `25 - 4 = ${sim.energy[pA]}`;
 });
 
 runStage(13, 'Kart usage artır', () => {
@@ -474,7 +492,7 @@ runStage(13, 'Kart usage artır', () => {
       ...playArgs(pA, 'qul'),
       battle: { ...live, turnPlayerId: pA, turnSide: 'attacker' },
       cardUsage: { qul: BATTLE_CARD_MAX_USES },
-      energy: 30,
+      energy: 25,
     })
   );
   assert.equal(requireBattle().turnPlayerId, pB);

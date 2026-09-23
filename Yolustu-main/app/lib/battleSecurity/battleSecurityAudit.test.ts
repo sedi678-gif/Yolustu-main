@@ -30,7 +30,7 @@ const PLAY = {
   expectedStateVersion: 2,
   expectedEventSeq: 4,
   handIds: ['qaya', 'casus', 'duman', 'ogru', 'joker'],
-  energy: 30,
+  energy: 25,
   cardUsage: {} as Record<string, number>,
   cooldownUntil: {} as Record<string, number>,
   serverNow: NOW,
@@ -119,9 +119,9 @@ describe('battle security audit', () => {
       assert.throws(() => play({ claimedEnergy: 999 }), /Saxta energy/);
       const official = officialCardEnergyCost('qaya');
       assert.equal(official, 5);
-      const ok = play({ energy: 30, claimedEnergy: 30 });
+      const ok = play({ energy: 25, claimedEnergy: 25 });
       assert.equal(ok.cost, official);
-      assert.equal(ok.energyAfter, 25);
+      assert.equal(ok.energyAfter, 20);
     });
   });
 
@@ -282,9 +282,9 @@ describe('battle security audit', () => {
     });
   });
 
-  describe('30 energy-dən artıq istifadə', () => {
-    it('energy 30-dan yuxarı ola bilməz və cost-dan az qalıq rədd edilir', () => {
-      assert.equal(BATTLE_ENERGY_MAX, 30);
+  describe('25 energy-dən artıq istifadə', () => {
+    it('energy 25-dən yuxarı ola bilməz və cost-dan az qalıq rədd edilir', () => {
+      assert.equal(BATTLE_ENERGY_MAX, 25);
       assert.throws(() => play({ energy: 4, cardId: 'qaya' }), /Kifayət qədər energy/);
       const ok = play({ energy: 5 });
       assert.ok(ok.energyAfter <= BATTLE_ENERGY_MAX);

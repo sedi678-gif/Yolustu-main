@@ -330,7 +330,7 @@ export default function BattleArenaScreen({
           </div>
         ) : null}
 
-        {battle.status === 'joining' || battle.status === 'locked' ? (
+        {battle.status === 'joining' || battle.status === 'locked' || (battle.status === 'active' && hand.length === 0) ? (
           <div className={styles.scoreWrap}>
             <BattleLoadoutPicker
               battleId={battleId}

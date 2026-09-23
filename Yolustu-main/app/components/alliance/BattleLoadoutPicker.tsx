@@ -14,7 +14,7 @@ import {
   type BattleLoadoutCardId,
   type BattleLoadoutView,
 } from '@/app/lib/battleLoadout';
-import { officialCardEnergyCost } from '@/app/lib/battleEnergy';
+import { BATTLE_ENERGY_START, loadoutEnergyCost, officialCardEnergyCost } from '@/app/lib/battleEnergy';
 import type { PlayerProfile } from './types';
 import styles from './alliance.module.css';
 
@@ -43,6 +43,7 @@ export default function BattleLoadoutPicker({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [hasLoadout, setHasLoadout] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,6 +60,7 @@ export default function BattleLoadoutPicker({
       if (!loadout) return;
       setSelected(loadout.cardIds);
       setLocked(loadout.locked);
+      setHasLoadout(true);
       setSaved(true);
     });
   }, [battleId, playerId]);
@@ -67,7 +69,8 @@ export default function BattleLoadoutPicker({
     return listenVisibleLoadouts(battleId, { playerId, side }, battleStatus, setTeam);
   }, [battleId, playerId, side, battleStatus]);
 
-  const editable = canEditBattleLoadout(battleStatus, locked);
+  const energyUsed = useMemo(() => loadoutEnergyCost(selected), [selected]);
+  const editable = canEditBattleLoadout(battleStatus, locked, hasLoadout);
   const ownedUnique = useMemo(
     () => Object.values(owned).filter((count) => Number(count) > 0).length,
     [owned]
@@ -89,6 +92,7 @@ export default function BattleLoadoutPicker({
         const have = owned[id] ?? 0;
         const used = prev.filter((item) => item === id).length;
         if (have <= used || used >= BATTLE_LOADOUT_MAX_COPIES) return prev;
+        if (loadoutEnergyCost([...prev, id]) > BATTLE_ENERGY_START) return prev;
         return [...prev, id];
       });
     },
@@ -116,12 +120,12 @@ export default function BattleLoadoutPicker({
       <div className={styles.loadoutHead}>
         <strong>Kart seçimi</strong>
         <span>
-          {selected.length}/{BATTLE_LOADOUT_SIZE}
+          {selected.length}/{BATTLE_LOADOUT_SIZE} · ⚡ {energyUsed}/{BATTLE_ENERGY_START}
         </span>
       </div>
       <p className={styles.loadoutHint}>
         {editable
-          ? '15 kartdan 5-ni seç. Rəqib sənin seçimini görmür. Battle başladıqdan sonra dəyişmək olmaz.'
+          ? `15 kartdan 5-ni seç. Cəmi ${BATTLE_ENERGY_START} energy-dən çox olmasın. Rəqib sənin seçimini görmür.`
           : locked
             ? 'Loadout kilitlənib — dəyişmək olmaz.'
             : 'Battle başladı — loadout dəyişdirilə bilməz.'}
@@ -132,7 +136,10 @@ export default function BattleLoadoutPicker({
           const have = owned[card.id] ?? 0;
           const used = counts[card.id] ?? 0;
           const isOn = used > 0;
-          const blocked = !editable || have <= 0 || (!isOn && selected.length >= BATTLE_LOADOUT_SIZE);
+          const overBudget =
+            !isOn && loadoutEnergyCost([...selected, card.id]) > BATTLE_ENERGY_START;
+          const blocked =
+            !editable || have <= 0 || (!isOn && selected.length >= BATTLE_LOADOUT_SIZE) || overBudget;
           return (
             <button
               key={card.id}

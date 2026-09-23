@@ -10,6 +10,8 @@ export {
   energyRequestIdForCard,
   makeEnergyRequestId,
   officialCardEnergyCost,
+  loadoutEnergyCost,
+  assertLoadoutFitsEnergy,
   sanitizeEnergyRequestId,
 } from './battleEnergyConfig';
 
