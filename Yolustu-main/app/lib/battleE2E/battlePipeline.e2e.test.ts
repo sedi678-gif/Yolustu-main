@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import {
   ALLIANCE_BATTLE_JOIN_MS,
   ALLIANCE_BATTLE_MAX_PER_SIDE,
+  officialJoinEndsAt,
   viewAllianceBattle,
   viewAllianceBattleGate,
 } from '@/app/lib/allianceBattleMatchService';
@@ -268,6 +269,39 @@ function runStage(id: number, name: string, fn: () => string) {
   });
 }
 
+test('joinEndsAt 0/epoch ikən 15s pəncərə açıq qalır', () => {
+  const now = 1_700_000_000_000;
+  const broken = {
+    joinEndsAt: 0,
+    joinDurationMs: 15_000,
+    createdAt: 0,
+  };
+  const ends = officialJoinEndsAt(broken, now);
+  assert.ok(ends > now);
+  assert.equal(ends - now, 15_000);
+  const epochDerived = officialJoinEndsAt({ joinEndsAt: 15_000, joinDurationMs: 15_000, createdAt: 0 }, now);
+  assert.ok(epochDerived > now);
+  const real = officialJoinEndsAt({ joinEndsAt: 0, joinDurationMs: 15_000, createdAt: now }, now + 1_000);
+  assert.equal(real, now + 15_000);
+  const view = viewAllianceBattle(
+    {
+      id: 'bat_join_clock',
+      createdBy: 'pA',
+      createdAt: 0,
+      updatedAt: 0,
+      status: 'joining',
+      eventSeq: 1,
+      participantIds: ['pA'],
+      schemaVersion: 1,
+      joinDurationMs: 15_000,
+      joinEndsAt: 0,
+    },
+    now
+  );
+  assert.equal(view.joinOpen, true);
+  assert.equal(view.phase, 'joining');
+});
+
 runStage(1, 'User A alliance xəritəsini açır', () => {
   assert.notEqual(allianceA, allianceB);
   assert.ok(pA);
@@ -291,10 +325,7 @@ runStage(3, 'Hücum icazəsi yoxlanılır', () => {
   );
   assert.equal(onCooldown.canAttack, false);
 
-  const sameAlliance = allianceA === allianceA;
-  assert.equal(sameAlliance && allianceA === allianceB, false);
-  const selfTargetBlocked = allianceA === allianceB;
-  assert.equal(selfTargetBlocked, false);
+  assert.notEqual(allianceA, allianceB);
   return `canAttack=${open.canAttack}; cooldown rədd; öz ittifaqı qadağandır`;
 });
 
@@ -566,10 +597,10 @@ runStage(18, 'Challenge nəticəsi hesablanır', () => {
 
 runStage(19, 'Battle tamamlanır', () => {
   let guard = 0;
-  while (!officialFinishReason(requireBattle()) && requireBattle().turn <= 8) {
+  while (!officialFinishReason(requireBattle()) && (requireBattle().turn ?? 0) <= 8) {
     guard += 1;
     if (guard > 24) throw new Error('Turn limiti simulyasiyası döngüyə düşdü');
-    const playerId = requireBattle().turnPlayerId;
+    const playerId = requireBattle().turnPlayerId ?? '';
     assert.ok(playerId, 'növbə oyunçusu yoxdur');
     playOfficial(playerId, pickCheapCard(playerId));
   }

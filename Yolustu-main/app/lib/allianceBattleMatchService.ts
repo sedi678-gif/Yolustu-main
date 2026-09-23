@@ -115,10 +115,24 @@ export function viewAllianceBattleGate(
   };
 }
 
+/** createdAt/joinEndsAt 0 və ya epoch olarsa pəncərəni bitmiş sayma. */
+const JOIN_CLOCK_MIN_MS = 1_000_000_000_000;
+
+export function officialJoinEndsAt(
+  battle: Pick<BattleRecord, 'joinEndsAt' | 'joinDurationMs' | 'createdAt'>,
+  now = Date.now()
+): number {
+  const duration =
+    battle.joinDurationMs && battle.joinDurationMs > 0 ? battle.joinDurationMs : ALLIANCE_BATTLE_JOIN_MS;
+  if ((battle.joinEndsAt ?? 0) > JOIN_CLOCK_MIN_MS) return battle.joinEndsAt as number;
+  if ((battle.createdAt ?? 0) > JOIN_CLOCK_MIN_MS) return (battle.createdAt as number) + duration;
+  return now + duration;
+}
+
 export function viewAllianceBattle(battle: BattleRecord, now = Date.now()): AllianceBattleView {
-  const joinEndsAt = battle.joinEndsAt ?? 0;
+  const joinEndsAt = officialJoinEndsAt(battle, now);
   const joinRemainingMs = Math.max(0, joinEndsAt - now);
-  const timeLocked = battle.status === 'joining' && joinEndsAt > 0 && now >= joinEndsAt;
+  const timeLocked = battle.status === 'joining' && now >= joinEndsAt;
   const phase =
     battle.status === 'finished'
       ? 'finished'
@@ -317,8 +331,7 @@ export async function joinAllianceMapBattle(input: {
       if (battle.kind !== 'alliance_map') throw new Error('Bu battle xəritə döyüşü deyil');
       if (battle.status !== 'joining') throw new Error('Qoşulma mərhələsi bağlıdır');
       const now = serverNowMs() || Date.now();
-      const joinDeadline = (battle.createdAt ?? 0) + ALLIANCE_BATTLE_JOIN_MS;
-      if ((battle.createdAt ?? 0) > 0 && now >= joinDeadline) {
+      if (now >= officialJoinEndsAt(battle, now)) {
         throw new Error('Qoşulma müddəti bitib');
       }
 

@@ -1,8 +1,8 @@
 {
   "title": "Battle E2E pipeline",
-  "startedAt": 1790168643590,
-  "finishedAt": 1790168648649,
-  "durationMs": 5059,
+  "startedAt": 1790171873994,
+  "finishedAt": 1790171874453,
+  "durationMs": 459,
   "total": 24,
   "passed": 24,
   "failed": 0,
@@ -10,7 +10,7 @@
   "failedAt": null,
   "stopped": false,
   "verdict": "PASS",
-  "battleId": "bat_mue46wy4_i12wrf",
+  "battleId": "bat_mue642fw_25gmhh",
   "scores": {
     "attacker": 9,
     "defender": 8
@@ -26,7 +26,7 @@
       "name": "User A alliance xəritəsini açır",
       "status": "pass",
       "detail": "Xəritə: aAlpha (User A) və aBravo görünür",
-      "ms": 1
+      "ms": 0
     },
     {
       "id": 2,
@@ -40,21 +40,21 @@
       "name": "Hücum icazəsi yoxlanılır",
       "status": "pass",
       "detail": "canAttack=true; cooldown rədd; öz ittifaqı qadağandır",
-      "ms": 2
+      "ms": 1
     },
     {
       "id": 4,
       "name": "Battle yaradılır",
       "status": "pass",
-      "detail": "battleId=bat_mue46wy4_i12wrf status=joining",
-      "ms": 4
+      "detail": "battleId=bat_mue642fw_25gmhh status=joining",
+      "ms": 1
     },
     {
       "id": 5,
       "name": "15 saniyəlik join mərhələsi başlayır",
       "status": "pass",
       "detail": "JOIN_MS=15000; +1s open; +15.001s locked",
-      "ms": 0
+      "ms": 1
     },
     {
       "id": 6,
@@ -68,35 +68,35 @@
       "name": "Loadout seçilir",
       "status": "pass",
       "detail": "A/B loadout 5 kart; qısa loadout rədd",
-      "ms": 6
+      "ms": 4
     },
     {
       "id": 8,
       "name": "5 kart lock edilir",
       "status": "pass",
       "detail": "5 unique lock; duplicate rədd; usage=0",
-      "ms": 1
+      "ms": 8
     },
     {
       "id": 9,
       "name": "Battle başlayır",
       "status": "pass",
       "detail": "status=active turn=1 player=pA",
-      "ms": 1
+      "ms": 0
     },
     {
       "id": 10,
       "name": "Energy 30 olur",
       "status": "pass",
       "detail": "energy start/max=30",
-      "ms": 1
+      "ms": 0
     },
     {
       "id": 11,
       "name": "Kart oynanır",
       "status": "pass",
       "detail": "qul play icazəsi cost=9; yanlış növbə rədd",
-      "ms": 2
+      "ms": 1
     },
     {
       "id": 12,
@@ -131,7 +131,7 @@
       "name": "Event log yazılır",
       "status": "pass",
       "detail": "events=13 contiguous; winnerPlayerId meta-dan silindi",
-      "ms": 0
+      "ms": 1
     },
     {
       "id": 17,
@@ -152,7 +152,7 @@
       "name": "Battle tamamlanır",
       "status": "pass",
       "detail": "reason=turn_limit turn=9 atk=9 def=8",
-      "ms": 5
+      "ms": 53
     },
     {
       "id": 20,
@@ -166,28 +166,28 @@
       "name": "Player score yenilənir",
       "status": "pass",
       "detail": "pA 100→108 (+8); pB 80→82 (+2)",
-      "ms": 0
+      "ms": 27
     },
     {
       "id": 22,
       "name": "Alliance score yenilənir",
       "status": "pass",
       "detail": "A 50→56 norm=93; B→50",
-      "ms": 1
+      "ms": 0
     },
     {
       "id": 23,
       "name": "Leaderboard yenilənir",
       "status": "pass",
       "detail": "daily 2023-11-15 +8; weekly 2023-11-13; award once",
-      "ms": 5
+      "ms": 1
     },
     {
       "id": 24,
       "name": "Battle nəticəsi saxlanılır",
       "status": "pass",
       "detail": "result/final winner=aAlpha events=61 contiguous",
-      "ms": 0
+      "ms": 1
     }
   ]
 }

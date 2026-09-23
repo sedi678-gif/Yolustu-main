@@ -33,6 +33,7 @@ import type { BattleChallenge } from '@/app/lib/battleClick';
 import type { PlayerProfile } from './types';
 import BattleScorePanel from './BattleScorePanel';
 import BattleClickChallengePanel from './BattleClickChallengePanel';
+import BattleLoadoutPicker from './BattleLoadoutPicker';
 import styles from './battleArena.module.css';
 
 function isTransientPlayError(err: unknown) {
@@ -50,14 +51,21 @@ function cardMeta(cardId: string) {
   return BATTLE_LOADOUT_CARD_METAS.find((item) => item.id === cardId);
 }
 
+function eventMeta(event: BattleEvent): Record<string, unknown> {
+  return (event.meta ?? {}) as Record<string, unknown>;
+}
+
 function playerName(players: PlayerProfile[], id: string) {
   return players.find((item) => item.odId === id)?.displayName || `ID ${id}`;
 }
 
-function statusLabel(battle: BattleRecord, myTurn: boolean) {
+function statusLabel(battle: BattleRecord, myTurn: boolean, joinRemainingMs = 0) {
   if (battle.status === 'finished') return 'Döyüş bitdi';
-  if (battle.status === 'locked') return 'Kilitləndi';
-  if (battle.status === 'joining') return 'Qoşulma';
+  if (battle.status === 'locked') return 'Kilitləndi — döyüş açılır';
+  if (battle.status === 'joining') {
+    const sec = Math.max(0, Math.ceil(joinRemainingMs / 1000));
+    return sec > 0 ? `Qoşulma · ${sec} san` : 'Qoşulma bağlanır';
+  }
   if (battle.status !== 'active') return battle.status;
   return myTurn ? 'Sənin növbən' : `Növbə: ${battle.turnPlayerId ?? '—'}`;
 }
@@ -68,6 +76,7 @@ export default function BattleArenaScreen({
   players,
   restoredEnergy,
   restoredChallenges,
+  joinRemainingMs = 0,
   onClose,
 }: {
   battle: BattleRecord;
@@ -75,6 +84,7 @@ export default function BattleArenaScreen({
   players: PlayerProfile[];
   restoredEnergy?: BattleEnergy | null;
   restoredChallenges?: BattleChallenge[];
+  joinRemainingMs?: number;
   onClose: () => void;
 }) {
   const battleId = battle.id;
@@ -128,7 +138,7 @@ export default function BattleArenaScreen({
     const played = events
       .filter((item) => item.type === 'card_played')
       .sort((a, b) => a.seq - b.seq)
-      .map((item) => String(item.meta.cardId || ''))
+      .map((item) => String(eventMeta(item).cardId || ''))
       .filter(Boolean);
     return padSlots(played.slice(-ALLIANCE_BATTLE_MAX_PER_SIDE));
   }, [events]);
@@ -136,12 +146,13 @@ export default function BattleArenaScreen({
   const effectChips = useMemo(() => {
     const last = [...events].reverse().find((item) => item.type === 'card_played');
     const chips: string[] = [];
-    if (last?.meta.cardId) {
-      const label = viewCardEffectLabel(String(last.meta.cardId));
-      chips.push(label || String(last.meta.cardId));
+    if (last && eventMeta(last).cardId) {
+      const cardId = String(eventMeta(last).cardId);
+      const label = viewCardEffectLabel(cardId);
+      chips.push(label || cardId);
     }
     const dmg = [...events].reverse().find((item) => item.type === 'damage_applied');
-    if (dmg?.meta.amount != null) chips.push(`zərər ${dmg.meta.amount}`);
+    if (dmg && eventMeta(dmg).amount != null) chips.push(`zərər ${eventMeta(dmg).amount}`);
     return chips.slice(0, 4);
   }, [events]);
 
@@ -248,7 +259,7 @@ export default function BattleArenaScreen({
           </div>
           <div className={styles.status} data-phase={battle.status}>
             <small>Status</small>
-            <strong>{statusLabel(battle, myTurn)}</strong>
+            <strong>{statusLabel(battle, myTurn, joinRemainingMs)}</strong>
           </div>
           <button type="button" className={styles.close} onClick={onClose} aria-label="Bağla">
             ✕
@@ -316,6 +327,18 @@ export default function BattleArenaScreen({
                 }}
               />
             </div>
+          </div>
+        ) : null}
+
+        {battle.status === 'joining' || battle.status === 'locked' ? (
+          <div className={styles.scoreWrap}>
+            <BattleLoadoutPicker
+              battleId={battleId}
+              playerId={playerId}
+              side={mySide}
+              battleStatus={battle.status}
+              players={players}
+            />
           </div>
         ) : null}
 

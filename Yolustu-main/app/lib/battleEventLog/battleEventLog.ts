@@ -144,11 +144,14 @@ export function battleFromData(id: string, data: DocumentData): BattleRecord {
     attackerUids: asStringList(data.attackerUids),
     defenderUids: asStringList(data.defenderUids),
     joinDurationMs: Number(data.joinDurationMs) || undefined,
-    joinEndsAt: data.joinEndsAt
-      ? timestampToMs(data.joinEndsAt)
-      : Number(data.joinDurationMs) > 0
-        ? timestampToMs(data.createdAt) + Number(data.joinDurationMs)
-        : undefined,
+    joinEndsAt: (() => {
+      const stored = data.joinEndsAt ? timestampToMs(data.joinEndsAt) : 0;
+      if (stored > 1_000_000_000_000) return stored;
+      const created = timestampToMs(data.createdAt);
+      const duration = Number(data.joinDurationMs) || 0;
+      if (created > 1_000_000_000_000 && duration > 0) return created + duration;
+      return undefined;
+    })(),
     turn: Number(data.turn) || undefined,
     turnSide: data.turnSide === 'defender' ? 'defender' : data.turnSide === 'attacker' ? 'attacker' : undefined,
     turnPlayerId: data.turnPlayerId ? String(data.turnPlayerId) : undefined,

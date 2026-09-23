@@ -13,6 +13,7 @@ import {
   listenMyJoiningBattle,
   activateAllianceBattle,
   lockAllianceMapBattle,
+  officialJoinEndsAt,
   startAllianceMapBattle,
   viewAllianceBattleGate,
   viewAllianceBattle,
@@ -99,6 +100,7 @@ export default function AllianceMapBattleHost({
   const [restored, setRestored] = useState(false);
   const [reconnectSnap, setReconnectSnap] = useState<BattleReconnectSnapshot | null>(null);
   const attackLock = useRef(false);
+  const autoJoinRef = useRef<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);
@@ -168,7 +170,8 @@ export default function AllianceMapBattleHost({
   useEffect(() => {
     if (!view) return;
     if (view.battle.status !== 'joining') return;
-    if ((view.battle.joinEndsAt ?? 0) > now) return;
+    const endsAt = officialJoinEndsAt(view.battle, now);
+    if (now < endsAt) return;
     void lockAllianceMapBattle(view.battle.id, userId).catch(() => {});
   }, [view, userId, now]);
 
@@ -211,20 +214,7 @@ export default function AllianceMapBattleHost({
 
   const liveView = useMemo(() => {
     if (!lobbyId || !view) return null;
-    const remain = Math.max(0, (view.battle.joinEndsAt ?? 0) - now);
-    const joining = view.battle.status === 'joining' && remain > 0;
-    return {
-      ...view,
-      joinRemainingMs: remain,
-      joinOpen: joining,
-      phase: view.battle.status === 'finished'
-        ? 'finished'
-        : view.battle.status === 'active'
-          ? 'active'
-          : view.battle.status === 'locked' || (view.battle.status === 'joining' && remain <= 0)
-            ? 'locked'
-            : view.phase,
-    } as AllianceBattleView;
+    return viewAllianceBattle(view.battle, now);
   }, [lobbyId, view, now]);
 
   const ownTarget = Boolean(resolvedIdentified && activeAlliance && resolvedIdentified.id === activeAlliance.id);
@@ -276,11 +266,38 @@ export default function AllianceMapBattleHost({
   }, [liveView, busy, userId]);
 
   const localAlliance = resolvedIdentified || alliances.find((item) => item.id === selectedAllianceId) || null;
+  const realFinish = Boolean(
+    liveView &&
+      liveView.battle.status === 'finished' &&
+      liveView.battle.finishReason &&
+      liveView.battle.finishReason !== 'join_failed'
+  );
   const showInfo = Boolean(selectedAllianceId) && !lobbyId;
   const showArena = Boolean(
-    alreadyIn && liveView && (liveView.phase === 'active' || liveView.phase === 'finished')
+    alreadyIn &&
+      liveView &&
+      (liveView.battle.status === 'joining' ||
+        liveView.battle.status === 'locked' ||
+        liveView.battle.status === 'active' ||
+        realFinish)
   );
   const showLobby = Boolean(lobbyId && liveView && !showArena);
+
+  useEffect(() => {
+    if (!liveView || !userId || !activeAlliance?.id || busy) return;
+    if (liveView.battle.status !== 'joining' || !liveView.joinOpen) return;
+    const inBattle = [...(liveView.battle.attackerPlayerIds ?? []), ...(liveView.battle.defenderPlayerIds ?? [])].includes(
+      userId
+    );
+    if (inBattle) return;
+    const myAlliance = activeAlliance.id;
+    if (myAlliance !== liveView.battle.attackerAllianceId && myAlliance !== liveView.battle.defenderAllianceId) {
+      return;
+    }
+    if (autoJoinRef.current === liveView.battle.id) return;
+    autoJoinRef.current = liveView.battle.id;
+    void onJoin();
+  }, [activeAlliance?.id, busy, liveView, onJoin, userId]);
 
   return (
     <>
@@ -341,7 +358,7 @@ export default function AllianceMapBattleHost({
           <>
             <div className={styles.battleJoinTimer} data-phase={liveView.phase}>
               {liveView.phase === 'joining'
-                ? `Qoşulma: ${formatRemain(Math.max(0, (liveView.battle.joinEndsAt ?? 0) - now))}`
+                ? `Qoşulma: ${formatRemain(liveView.joinRemainingMs)}`
                 : liveView.phase === 'locked'
                   ? 'Döyüş kilitləndi — yeni oyunçu qoşula bilməz'
                   : liveView.phase === 'active'
@@ -420,6 +437,7 @@ export default function AllianceMapBattleHost({
           battle={liveView.battle}
           playerId={userId}
           players={players}
+          joinRemainingMs={liveView.joinRemainingMs}
           restoredEnergy={
             reconnectSnap?.battle.id === liveView.battle.id ? reconnectSnap.energy : null
           }
