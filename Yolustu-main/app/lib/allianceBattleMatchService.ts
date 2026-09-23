@@ -438,7 +438,6 @@ export async function lockAllianceMapBattle(battleId: string, actorId: string): 
       if (battle.status !== 'joining') throw new Error('Battle qoşulma mərhələsində deyil');
 
       const attackers = battle.attackerPlayerIds ?? [];
-      const defenders = battle.defenderPlayerIds ?? [];
       const ok = attackers.length >= ALLIANCE_BATTLE_MIN_PER_SIDE;
       const seq = battle.eventSeq + 1;
       const eventDoc = newBattleEventRef(id);
@@ -467,7 +466,10 @@ export async function lockAllianceMapBattle(battleId: string, actorId: string): 
               playerId,
               type: 'loadout_locked',
               seq,
-              meta: { slotCount: attackers.length + defenders.length },
+              meta: {
+                slotCount:
+                  (battle.attackerPlayerIds ?? []).length + (battle.defenderPlayerIds ?? []).length,
+              },
             })
           : battleEventWrite({
               eventId: eventDoc.id,
