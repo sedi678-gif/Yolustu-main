@@ -187,7 +187,6 @@ export async function launchAllianceAttack(
     if (!unlimited) cards[cardId] -= cardCount;
 
     const defender = defenderSnap.data();
-    const attacker = attackerSnap.data();
     const defenderMembers = Array.isArray(defender.members) ? defender.members.length : 1;
 
     if (!unlimited) {
@@ -219,11 +218,7 @@ export async function launchAllianceAttack(
       damage,
     };
 
-    const newDefScore = Math.max(0, (defender.score || 50) - damage);
-    const newAtkScore = (attacker.score || 50) + Math.floor(damage * 0.3);
-
-    tx.set(defenderRef, { score: newDefScore, updatedAt: Date.now() }, { merge: true });
-    tx.set(attackerRef, { score: newAtkScore, updatedAt: Date.now() }, { merge: true });
+    // Rəsmi ittifaq xalı yalnız server finish/result-dan dəyişir — client damage yazılmır.
   });
 
   const attackerSnap = await getDoc(attackerRef);
@@ -429,24 +424,6 @@ export async function finalizeClickRaid(attackId: string, defeated: boolean): Pr
     }
 
     const raidDamage = readStoredRaidDamage(data);
-    const cfg = getClickRaidConfig(cardId);
-    const defenderRef = doc(db, 'alliances', String(data.defenderAllianceId));
-    const attackerRef = doc(db, 'alliances', String(data.attackerAllianceId));
-    const defenderSnap = await tx.get(defenderRef);
-    const attackerSnap = await tx.get(attackerRef);
-
-    if (defenderSnap.exists()) {
-      const defender = defenderSnap.data();
-      const newDefScore = Math.max(0, (defender?.score || 50) - raidDamage);
-      tx.set(defenderRef, { score: newDefScore, updatedAt: Date.now() }, { merge: true });
-    }
-    if (attackerSnap.exists()) {
-      const attacker = attackerSnap.data();
-      const atkBonus =
-        cfg.mode === 'steal' ? raidDamage : Math.floor(raidDamage * 0.3);
-      const newAtkScore = (attacker?.score || 50) + atkBonus;
-      tx.set(attackerRef, { score: newAtkScore, updatedAt: Date.now() }, { merge: true });
-    }
 
     tx.update(attackRef, {
       raidStatus: 'hit',

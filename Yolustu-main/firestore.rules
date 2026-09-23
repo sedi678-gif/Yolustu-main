@@ -1555,6 +1555,7 @@ service cloud.firestore {
       allow create: if isLeaderboardPeriodKey(dayKey)
         && request.resource.data.periodKey == dayKey
         && request.resource.data.version == 1
+        && request.resource.data.rows.size() == 0
         && isValidLeaderboardBoard('daily');
       allow update: if isLeaderboardPeriodKey(dayKey)
         && request.resource.data.periodKey == dayKey
@@ -1649,53 +1650,96 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    function finishedResult(battleId) {
+      return get(/databases/$(database)/documents/battles/$(battleId)/result/final).data;
+    }
+
+    function isValidPlayerFinishScore(playerId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let battleId = after.lastScoreBattleId;
+      let delta = finishedResult(battleId).playerDeltas[playerId];
+      return battleId is string
+        && exists(/databases/$(database)/documents/battles/$(battleId)/result/final)
+        && finishedResult(battleId).status == 'finished'
+        && finishedResult(battleId).reason in ['score_reached', 'turn_limit']
+        && playerId in finishedResult(battleId).playerDeltas
+        && delta is int
+        && delta >= 0
+        && delta <= 8
+        && after.lastScoreBattleId != (before.keys().hasAny(['lastScoreBattleId']) ? before.lastScoreBattleId : '')
+        && after.score is int
+        && (
+          (before.keys().hasAny(['score']) && before.score is int && after.score == before.score + delta)
+          || (!before.keys().hasAny(['score']) && after.score == delta)
+        )
+        && after.dailyScore is int
+        && after.dailyScore >= 0
+        && after.dailyScore <= 1000000
+        && (
+          after.dailyScore == delta
+          || (
+            before.keys().hasAny(['dailyScore'])
+            && before.dailyScore is int
+            && after.dailyScore == before.dailyScore + delta
+          )
+        );
+    }
+
+    function isValidAllianceFinishScore(allianceId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let battleId = after.lastScoreBattleId;
+      let delta = finishedResult(battleId).allianceDeltas[allianceId];
+      let lifeBase = before.keys().hasAny(['lifetimeScore']) && before.lifetimeScore is int
+        ? before.lifetimeScore
+        : (before.keys().hasAny(['score']) && before.score is int ? before.score : 0);
+      return battleId is string
+        && exists(/databases/$(database)/documents/battles/$(battleId)/result/final)
+        && finishedResult(battleId).status == 'finished'
+        && finishedResult(battleId).reason in ['score_reached', 'turn_limit']
+        && allianceId in finishedResult(battleId).allianceDeltas
+        && delta is int
+        && delta > 0
+        && delta <= 6
+        && after.lastScoreBattleId != (before.keys().hasAny(['lastScoreBattleId']) ? before.lastScoreBattleId : '')
+        && after.score is int
+        && (
+          (before.keys().hasAny(['score']) && before.score is int && after.score == before.score + delta)
+          || after.score == 50 + delta
+        )
+        && after.lifetimeScore is int
+        && after.lifetimeScore == lifeBase + delta;
+    }
+
+    function isValidAllianceWeeklyReset() {
+      let after = request.resource.data;
+      return after.score == 50
+        && after.weeklyKey is string
+        && after.weeklyResetFrom is string
+        && after.weeklyKey != after.weeklyResetFrom
+        && existsAfter(/databases/$(database)/documents/leaderboard_resets/weekly_$(after.weeklyResetFrom));
+    }
+
+    match /alliances/{allianceId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['score', 'lifetimeScore'])
+          || isValidAllianceFinishScore(allianceId)
+          || isValidAllianceWeeklyReset()
+        );
+      allow delete: if false;
+    }
+
     match /players/{playerId} {
       allow read: if true;
       allow create: if request.auth != null;
       allow update: if request.auth != null
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['score', 'dailyScore', 'lifetimeScore'])
-          || (
-            (!('score' in request.resource.data.diff(resource.data).affectedKeys())
-              || (
-                request.resource.data.score is int
-                && (
-                  (
-                    resource.data.keys().hasAny(['score'])
-                    && resource.data.score is int
-                    && request.resource.data.score >= resource.data.score
-                    && request.resource.data.score <= resource.data.score + 8
-                  )
-                  || (
-                    !resource.data.keys().hasAny(['score'])
-                    && request.resource.data.score >= 0
-                    && request.resource.data.score <= 8
-                  )
-                )
-              )
-            )
-            && (!('dailyScore' in request.resource.data.diff(resource.data).affectedKeys())
-              || (
-                request.resource.data.dailyScore is int
-                && request.resource.data.dailyScore >= 0
-                && request.resource.data.dailyScore <= 1000000
-              )
-            )
-            && (!('lifetimeScore' in request.resource.data.diff(resource.data).affectedKeys())
-              || (
-                request.resource.data.lifetimeScore is int
-                && resource.data.keys().hasAny(['lifetimeScore'])
-                && request.resource.data.lifetimeScore >= resource.data.lifetimeScore
-                && request.resource.data.lifetimeScore <= resource.data.lifetimeScore + 8
-              )
-              || (
-                request.resource.data.lifetimeScore is int
-                && !resource.data.keys().hasAny(['lifetimeScore'])
-                && request.resource.data.lifetimeScore >= 0
-                && request.resource.data.lifetimeScore <= 8
-              )
-            )
-          )
+          || isValidPlayerFinishScore(playerId)
         );
       allow delete: if false;
     }

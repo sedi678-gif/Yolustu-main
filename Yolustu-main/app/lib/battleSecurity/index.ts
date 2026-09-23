@@ -8,6 +8,7 @@ export {
   assertPlayCardAllowed,
   assertReconnectSnapshot,
   assertRewardOnce,
+  assertScoreFromOfficialResult,
   assertServerClockNotClient,
   assertTurnTimeoutAllowed,
   fixtureBattle,

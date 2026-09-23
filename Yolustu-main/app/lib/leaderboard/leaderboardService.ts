@@ -32,6 +32,7 @@ import {
   officialActiveUserCount,
   officialNormalizedAllianceScore,
   officialPeriod,
+  rankLeaderboardRows,
   upsertLeaderboardRow,
   type LeaderboardBoard,
   type LeaderboardPeriod,
@@ -411,9 +412,50 @@ export function listenLeaderboardBoard(
   onChange: (board: LeaderboardBoard | null) => void
 ): Unsubscribe {
   const ref = kind === 'daily' ? dailyBoardRef(periodKey) : weeklyBoardRef(periodKey);
-  return onSnapshot(ref, (snap) => {
-    onChange(snap.exists() ? viewLeaderboardBoard(kind, periodKey, snap.data() as Record<string, unknown>) : null);
+  const root = kind === 'daily' ? LEADERBOARD_DAILY_COLLECTION : LEADERBOARD_WEEKLY_COLLECTION;
+  const entriesRef = collection(db, root, periodKey, LEADERBOARD_ENTRIES);
+  let board: LeaderboardBoard | null = null;
+  let entryRows: LeaderboardRow[] = [];
+  const emit = () => {
+    if (!board && entryRows.length === 0) {
+      onChange(null);
+      return;
+    }
+    onChange({
+      ...(board ?? {
+        kind,
+        periodKey,
+        timezone: LEADERBOARD_TIMEZONE,
+        status: 'open',
+        rows: [],
+        version: 0,
+        updatedAt: 0,
+      }),
+      rows: rankLeaderboardRows(entryRows),
+    });
+  };
+  const unsubBoard = onSnapshot(ref, (snap) => {
+    board = snap.exists() ? viewLeaderboardBoard(kind, periodKey, snap.data() as Record<string, unknown>) : null;
+    emit();
   });
+  const unsubEntries = onSnapshot(entriesRef, (snap) => {
+    entryRows = snap.docs.map((item) => {
+      const data = item.data();
+      return {
+        id: String(data.playerId || data.allianceId || item.id),
+        rank: 0,
+        name: String(data.name || item.id),
+        score: clampLeaderboardScore(data.score),
+        rawScore: data.rawScore != null ? clampLeaderboardScore(data.rawScore) : undefined,
+        activeUsers: data.activeUsers != null ? officialActiveUserCount(data.activeUserIds) : undefined,
+      };
+    });
+    emit();
+  });
+  return () => {
+    unsubBoard();
+    unsubEntries();
+  };
 }
 
 export function listenLeaderboardState(

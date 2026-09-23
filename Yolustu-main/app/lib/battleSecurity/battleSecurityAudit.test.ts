@@ -7,6 +7,7 @@ import {
   assertPlayCardAllowed,
   assertReconnectSnapshot,
   assertRewardOnce,
+  assertScoreFromOfficialResult,
   assertServerClockNotClient,
   assertTurnTimeoutAllowed,
   fixtureBattle,
@@ -433,6 +434,51 @@ describe('battle security audit', () => {
       assert.equal(officialClickNeed('qul', new Array(3).fill('m')), 3);
       assert.equal(officialClickNeed('usyan', new Array(3).fill('m')), 6);
       assert.equal(officialClickNeed('qaya', new Array(3).fill('m')), 0);
+    });
+  });
+
+  describe('player/alliance score yalnız result-dan', () => {
+    it('battle-sız və saxta delta rədd edilir', () => {
+      assert.throws(() => assertScoreFromOfficialResult({
+        lastScoreBattleId: '',
+        claimedDelta: 8,
+        officialDelta: 8,
+        maxDelta: 8,
+      }), /battle ID/);
+      assert.throws(() => assertScoreFromOfficialResult({
+        lastScoreBattleId: 'bat_fin_1',
+        previousBattleId: 'bat_fin_1',
+        claimedDelta: 8,
+        officialDelta: 8,
+        maxDelta: 8,
+      }), /Təkrar/);
+      assert.throws(() => assertScoreFromOfficialResult({
+        lastScoreBattleId: 'bat_fin_1',
+        claimedDelta: 8,
+        officialDelta: 2,
+        maxDelta: 8,
+      }), /Saxta score/);
+      const ok = assertScoreFromOfficialResult({
+        lastScoreBattleId: 'bat_fin_1',
+        claimedDelta: 2,
+        officialDelta: 2,
+        maxDelta: 8,
+      });
+      assert.equal(ok.delta, 2);
+    });
+  });
+
+  describe('click_completed challenge-ə bağlıdır', () => {
+    it('requestId saxlanır, naməlum sahə kəsilir', () => {
+      const meta = sanitizeBattleEventMeta('click_completed', {
+        clicks: 3,
+        required: 3,
+        success: true,
+        requestId: 'enr_play_1',
+        winnerPlayerId: 'p1',
+      } as never);
+      assert.equal(meta.requestId, 'enr_play_1');
+      assert.equal((meta as { winnerPlayerId?: string }).winnerPlayerId, undefined);
     });
   });
 });

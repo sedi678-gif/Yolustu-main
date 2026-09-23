@@ -27,6 +27,7 @@ import { BATTLE_SCORE_COLLECTION, initialBattleScoreDoc } from '@/app/lib/battle
 import { BATTLE_TURN_DURATION_MS, initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
 import { stampJoinFailedResult } from '@/app/lib/battleFinish/battleFinishService';
+import { serverNowMs, syncServerClock } from '@/app/lib/battlePlay/battleServerClock';
 import type { AllianceData } from '@/app/components/alliance/types';
 
 export const ALLIANCE_BATTLE_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -304,6 +305,7 @@ export async function joinAllianceMapBattle(input: {
   const authUser = await requireFirebaseAuth();
   const playerId = sanitizePlayerId(input.playerId);
   const battleId = String(input.battleId || '').trim();
+  await syncServerClock().catch(() => {});
 
   return replayBattleRequest(`join:${battleId}:${playerId}`, () =>
     withTimeout(
@@ -314,7 +316,9 @@ export async function joinAllianceMapBattle(input: {
       const battle = battleFromData(parentSnap.id, parentSnap.data());
       if (battle.kind !== 'alliance_map') throw new Error('Bu battle xəritə döyüşü deyil');
       if (battle.status !== 'joining') throw new Error('Qoşulma mərhələsi bağlıdır');
-      if ((battle.joinEndsAt ?? 0) > 0 && Date.now() >= (battle.joinEndsAt ?? 0)) {
+      const now = serverNowMs() || Date.now();
+      const joinDeadline = (battle.createdAt ?? 0) + ALLIANCE_BATTLE_JOIN_MS;
+      if ((battle.createdAt ?? 0) > 0 && now >= joinDeadline) {
         throw new Error('Qoşulma müddəti bitib');
       }
 

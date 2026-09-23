@@ -77,6 +77,7 @@ export type BattleEventMetaMap = {
     clicks?: number;
     required?: number;
     success?: boolean;
+    requestId?: string;
   };
   damage_applied: {
     amount?: number;

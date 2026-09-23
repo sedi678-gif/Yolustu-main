@@ -148,6 +148,7 @@ function writeClickCompleted(
         clicks: input.challenge.currentClicks,
         required: input.challenge.requiredClicks,
         success: input.success,
+        requestId: input.challenge.challengeId,
       },
     })
   );

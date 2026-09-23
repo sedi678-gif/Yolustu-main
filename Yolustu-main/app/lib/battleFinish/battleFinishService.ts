@@ -365,6 +365,7 @@ async function finishBattleWork(input: { battleId: string; playerId: string }): 
             score: addGlobalScore(snap.data()?.score, delta),
             dailyScore: addGlobalScore(dailyBase, delta),
             dailyKey: period?.dayKey ?? null,
+            lastScoreBattleId: battle.id,
             updatedAt: serverTimestamp(),
           },
           { merge: true }
@@ -387,6 +388,7 @@ async function finishBattleWork(input: { battleId: string; playerId: string }): 
             score: addGlobalScore(weeklyBase, delta),
             weeklyKey: period?.weekKey ?? null,
             lifetimeScore: addGlobalScore(snap.data()?.lifetimeScore ?? snap.data()?.score, delta),
+            lastScoreBattleId: battle.id,
             updatedAt: serverTimestamp(),
           },
           { merge: true }

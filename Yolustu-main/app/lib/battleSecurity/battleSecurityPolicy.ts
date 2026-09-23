@@ -296,6 +296,27 @@ export function assertRewardOnce(receiptExists: boolean) {
   return { duplicate: false as const, apply: true };
 }
 
+/** Player/alliance xalı yalnız bitmiş battle-ın rəsmi deltasından. */
+export function assertScoreFromOfficialResult(input: {
+  lastScoreBattleId: unknown;
+  previousBattleId?: unknown;
+  claimedDelta: unknown;
+  officialDelta: number;
+  maxDelta: number;
+}) {
+  const battleId = sanitizeBattleId(input.lastScoreBattleId);
+  if (input.previousBattleId && sanitizeBattleId(input.previousBattleId) === battleId) {
+    throw new Error('Təkrar score rədd edildi');
+  }
+  if (!Number.isInteger(input.officialDelta) || input.officialDelta < 0 || input.officialDelta > input.maxDelta) {
+    throw new Error('Score dəyişməsi yanlışdır');
+  }
+  if (input.claimedDelta !== input.officialDelta) {
+    throw new Error('Saxta score rədd edildi');
+  }
+  return { battleId, delta: input.officialDelta };
+}
+
 export function assertReconnectSnapshot(input: {
   hintedBattleId: unknown;
   liveBattle: BattleRecord | null;

@@ -15,7 +15,7 @@ const META_KEYS: Record<BattleEventType, readonly string[]> = {
   card_blocked: ['cardId', 'blockerCardId', 'slotIndex'],
   card_countered: ['cardId', 'counterCardId'],
   click_started: ['target', 'required'],
-  click_completed: ['clicks', 'required', 'success'],
+  click_completed: ['clicks', 'required', 'success', 'requestId'],
   damage_applied: ['amount', 'targetPlayerId', 'targetAllianceId', 'source', 'requestId'],
   score_changed: ['score', 'delta', 'scope', 'requestId', 'cardId'],
   turn_started: ['turn', 'side'],
