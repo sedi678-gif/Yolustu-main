@@ -9,7 +9,16 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+  type QuerySnapshot,
+} from 'firebase/firestore';
 import { db } from '../../../firebase';
 import {
   createAlliance,
@@ -241,10 +250,10 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
         kind: 'system',
       },
     ];
-    const applySnap = (snapshot: { forEach: (cb: (docSnap: { id: string; data: () => MessageData }) => void) => void }) => {
+    const applySnap = (snapshot: QuerySnapshot) => {
       const msgList: MessageData[] = [];
       snapshot.forEach((docSnap) => {
-        msgList.push({ ...docSnap.data(), id: docSnap.id });
+        msgList.push({ id: docSnap.id, ...docSnap.data() } as MessageData);
       });
       msgList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       setAllianceMessages(msgList.length > 0 ? msgList.slice(-80) : welcome);
@@ -274,18 +283,7 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
 
     const allianceId = activeAlliance.id;
     let primed = false;
-    const onNotifySnap = (snapshot: {
-      docChanges: () => Array<{
-        type: string;
-        doc: { data: () => {
-          allianceId?: string;
-          viewerId?: string;
-          kind?: string;
-          text?: string;
-          createdAt?: number;
-        } };
-      }>;
-    }) => {
+    const onNotifySnap = (snapshot: QuerySnapshot) => {
       if (!primed) {
         primed = true;
         return;

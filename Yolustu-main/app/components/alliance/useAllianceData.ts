@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../../../firebase';
-import { collection, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query, where, type QuerySnapshot } from 'firebase/firestore';
 import { AllianceData, MessageData } from './types';
 
 export function useAllianceData(currentUserId: string) {
@@ -37,7 +37,7 @@ export function useAllianceData(currentUserId: string) {
         }
 
         const allianceId = activeAlliance.id;
-        const applySnap = (snapshot: { forEach: (cb: (docSnap: { id: string; data: () => object }) => void) => void }) => {
+        const applySnap = (snapshot: QuerySnapshot) => {
             const msgList: MessageData[] = [];
             snapshot.forEach((docSnap) => {
                 msgList.push({ id: docSnap.id, ...docSnap.data() } as MessageData);
