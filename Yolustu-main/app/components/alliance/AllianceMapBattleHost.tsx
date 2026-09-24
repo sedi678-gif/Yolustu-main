@@ -103,7 +103,7 @@ export default function AllianceMapBattleHost({
   const autoJoinRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 

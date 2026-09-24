@@ -9,7 +9,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import {
   createAlliance,
@@ -157,31 +157,48 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     return () => unsub();
   }, [userId]);
 
-  // Firebase: oyunçular (lider cədvəli üçün mərkəzi məlumat)
+  // Yalnız öz profil + aktiv ittifaq üzvləri (bütün players kolleksiyası donma yaradır)
   useEffect(() => {
-    const unsub = onSnapshot(query(collection(db, 'players')), (snapshot) => {
-      const list: PlayerProfile[] = [];
-      snapshot.forEach((docSnap) => {
-        list.push({ odId: docSnap.id, ...docSnap.data() } as PlayerProfile);
+    if (!userId) return;
+    const unsubMe = onSnapshot(doc(db, 'players', userId), (snap) => {
+      if (!snap.exists()) {
+        setMyProfile(null);
+        return;
+      }
+      const me = { odId: snap.id, ...snap.data() } as PlayerProfile;
+      setMyProfile({
+        ...me,
+        manat: resolvePlayerManat(me as unknown as Record<string, unknown>),
       });
-      setPlayers(list);
-
-      const me = list.find((p) => p.odId === userId) || null;
-      setMyProfile(
-        me
-          ? {
-              ...me,
-              manat: resolvePlayerManat(me as unknown as Record<string, unknown>),
-            }
-          : null
-      );
+      setPlayers((prev) => {
+        const others = prev.filter((p) => p.odId !== userId);
+        return [me, ...others];
+      });
     });
-    return () => unsub();
+    return () => unsubMe();
   }, [userId]);
+
+  useEffect(() => {
+    if (!activeAlliance?.id) return;
+    const allianceId = activeAlliance.id;
+    const unsub = onSnapshot(
+      query(collection(db, 'players'), where('allianceId', '==', allianceId)),
+      (snapshot) => {
+        const list: PlayerProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ odId: docSnap.id, ...docSnap.data() } as PlayerProfile);
+        });
+        setPlayers(list);
+      }
+    );
+    return () => unsub();
+  }, [activeAlliance?.id]);
 
   // Firebase: qlobal çat (hamı görür/yazar)
   useEffect(() => {
-    const unsub = onSnapshot(query(collection(db, 'global_chat')), (snapshot) => {
+    const unsub = onSnapshot(
+      query(collection(db, 'global_chat'), orderBy('createdAt', 'desc'), limit(80)),
+      (snapshot) => {
       const msgList: MessageData[] = [];
       snapshot.forEach((docSnap) => {
         msgList.push({ id: docSnap.id, ...docSnap.data() } as MessageData);
@@ -213,32 +230,43 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     }
 
     const allianceId = activeAlliance.id;
-    const unsub = onSnapshot(query(collection(db, 'alliance_chat')), (snapshot) => {
+    const welcome: MessageData[] = [
+      {
+        id: 'welcome-alliance',
+        user: 'Sistem',
+        text: `${activeAlliance.name} ittifaqının gizli söhbətinə xoş gəldiniz! Yalnız ittifaq üzvləri görür.`,
+        time: 'İndi',
+        createdAt: Date.now(),
+        allianceId,
+        kind: 'system',
+      },
+    ];
+    const applySnap = (snapshot: { forEach: (cb: (docSnap: { id: string; data: () => MessageData }) => void) => void }) => {
       const msgList: MessageData[] = [];
       snapshot.forEach((docSnap) => {
-        const data = docSnap.data() as MessageData;
-        if (data.allianceId === allianceId) {
-          msgList.push({ ...data, id: docSnap.id });
-        }
+        msgList.push({ ...docSnap.data(), id: docSnap.id });
       });
       msgList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      setAllianceMessages(
-        msgList.length > 0
-          ? msgList
-          : [
-              {
-                id: 'welcome-alliance',
-                user: 'Sistem',
-                text: `${activeAlliance.name} ittifaqının gizli söhbətinə xoş gəldiniz! Yalnız ittifaq üzvləri görür.`,
-                time: 'İndi',
-                createdAt: Date.now(),
-                allianceId,
-                kind: 'system',
-              },
-            ]
+      setAllianceMessages(msgList.length > 0 ? msgList.slice(-80) : welcome);
+    };
+
+    const scoped = query(
+      collection(db, 'alliance_chat'),
+      where('allianceId', '==', allianceId),
+      orderBy('createdAt', 'desc'),
+      limit(80)
+    );
+    let fallbackUnsub: (() => void) | null = null;
+    const unsub = onSnapshot(scoped, applySnap, () => {
+      fallbackUnsub = onSnapshot(
+        query(collection(db, 'alliance_chat'), where('allianceId', '==', allianceId)),
+        applySnap
       );
     });
-    return () => unsub();
+    return () => {
+      unsub();
+      fallbackUnsub?.();
+    };
   }, [activeAlliance?.id, activeAlliance?.name]);
 
   useEffect(() => {
@@ -246,22 +274,26 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
 
     const allianceId = activeAlliance.id;
     let primed = false;
-    const unsub = onSnapshot(query(collection(db, 'alliance_notifications')), (snapshot) => {
+    const onNotifySnap = (snapshot: {
+      docChanges: () => Array<{
+        type: string;
+        doc: { data: () => {
+          allianceId?: string;
+          viewerId?: string;
+          kind?: string;
+          text?: string;
+          createdAt?: number;
+        } };
+      }>;
+    }) => {
       if (!primed) {
         primed = true;
         return;
       }
       snapshot.docChanges().forEach((change) => {
         if (change.type !== 'added') return;
-        const data = change.doc.data() as {
-          allianceId?: string;
-          viewerId?: string;
-          kind?: string;
-          text?: string;
-          createdAt?: number;
-        };
+        const data = change.doc.data();
         if (data.kind !== 'info_viewed' && data.kind !== 'battle_finished') return;
-        if (data.allianceId !== allianceId) return;
         if (data.kind === 'info_viewed' && data.viewerId === userId) return;
         if (data.createdAt && Date.now() - data.createdAt > 20_000) return;
         setAllianceNotifyToast(
@@ -270,8 +302,25 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
             : data.text || '👁 Kimsə ittifaqınızın məlumatlarına baxdı'
         );
       });
+    };
+
+    const scoped = query(
+      collection(db, 'alliance_notifications'),
+      where('allianceId', '==', allianceId),
+      orderBy('createdAt', 'desc'),
+      limit(40)
+    );
+    let fallbackUnsub: (() => void) | null = null;
+    const unsub = onSnapshot(scoped, onNotifySnap, () => {
+      fallbackUnsub = onSnapshot(
+        query(collection(db, 'alliance_notifications'), where('allianceId', '==', allianceId)),
+        onNotifySnap
+      );
     });
-    return () => unsub();
+    return () => {
+      unsub();
+      fallbackUnsub?.();
+    };
   }, [activeAlliance?.id, userId]);
 
   useEffect(() => {

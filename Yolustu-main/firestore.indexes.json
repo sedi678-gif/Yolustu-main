@@ -46,6 +46,22 @@
       ]
     },
     {
+      "collectionGroup": "alliance_chat",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "allianceId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "alliance_notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "allianceId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "post_likes",
       "queryScope": "COLLECTION",
       "fields": [

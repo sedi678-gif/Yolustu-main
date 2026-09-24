@@ -5,9 +5,18 @@ import { timestampToMs } from '@/app/lib/battleEventLog/battleEventLog';
 
 export const SERVER_CLOCK_COLLECTION = 'server_clock';
 
+type ClockListener = (serverNow: number) => void;
+
 let originServerMs = 0;
 let originMonoMs = 0;
 let syncing: Promise<number> | null = null;
+
+const listeners = new Set<ClockListener>();
+let sharedUnsubSnap: (() => void) | null = null;
+let sharedTick: number | null = null;
+let sharedResync: number | null = null;
+let sharedStarted = false;
+let clockAuthCancelled = false;
 
 /** Telefon saatından asılı deyil — performance.now() + server timestamp. */
 export function serverNowMs(): number {
@@ -29,6 +38,61 @@ function applyServerSample(serverMs: number) {
   originMonoMs = performance.now();
 }
 
+function emitClock() {
+  if (originServerMs <= 0) return;
+  const now = serverNowMs();
+  listeners.forEach((fn) => fn(now));
+}
+
+function onVisible() {
+  if (document.visibilityState !== 'visible') return;
+  void syncServerClock().catch(() => {});
+}
+
+function onOnline() {
+  void syncServerClock().catch(() => {});
+}
+
+function startSharedClock() {
+  if (sharedStarted) return;
+  sharedStarted = true;
+  clockAuthCancelled = false;
+
+  void requireFirebaseAuth()
+    .then((user) => {
+      if (clockAuthCancelled) return;
+      sharedUnsubSnap = onSnapshot(clockRef(user.uid), (snap) => {
+        if (!snap.exists()) return;
+        applyServerSample(timestampToMs(snap.data().t));
+        emitClock();
+      });
+      void syncServerClock().catch(() => {});
+    })
+    .catch(() => {});
+
+  sharedTick = window.setInterval(emitClock, 500);
+
+  sharedResync = window.setInterval(() => {
+    void syncServerClock().catch(() => {});
+  }, 20_000);
+
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('online', onOnline);
+}
+
+function stopSharedClock() {
+  clockAuthCancelled = true;
+  sharedUnsubSnap?.();
+  sharedUnsubSnap = null;
+  if (sharedTick != null) window.clearInterval(sharedTick);
+  if (sharedResync != null) window.clearInterval(sharedResync);
+  sharedTick = null;
+  sharedResync = null;
+  document.removeEventListener('visibilitychange', onVisible);
+  window.removeEventListener('online', onOnline);
+  sharedStarted = false;
+}
+
 export async function syncServerClock(): Promise<number> {
   if (syncing) return syncing;
   syncing = (async () => {
@@ -44,47 +108,13 @@ export async function syncServerClock(): Promise<number> {
   return syncing;
 }
 
-export function listenServerClock(onTick: (serverNow: number) => void): () => void {
-  let unsubSnap: (() => void) | null = null;
-  let tick: number | null = null;
-  let cancelled = false;
-
-  void requireFirebaseAuth()
-    .then((user) => {
-      if (cancelled) return;
-      unsubSnap = onSnapshot(clockRef(user.uid), (snap) => {
-        if (!snap.exists()) return;
-        applyServerSample(timestampToMs(snap.data().t));
-        onTick(serverNowMs());
-      });
-      void syncServerClock().catch(() => {});
-    })
-    .catch(() => {});
-
-  tick = window.setInterval(() => {
-    if (originServerMs > 0) onTick(serverNowMs());
-  }, 250);
-
-  const resync = window.setInterval(() => {
-    void syncServerClock().catch(() => {});
-  }, 20_000);
-
-  const onVisible = () => {
-    if (document.visibilityState !== 'visible') return;
-    void syncServerClock().catch(() => {});
-  };
-  const onOnline = () => {
-    void syncServerClock().catch(() => {});
-  };
-  document.addEventListener('visibilitychange', onVisible);
-  window.addEventListener('online', onOnline);
-
+/** Bütün arena panelləri eyni 500ms interval + bir Firestore saat sənədini paylaşır. */
+export function listenServerClock(onTick: ClockListener): () => void {
+  listeners.add(onTick);
+  startSharedClock();
+  if (originServerMs > 0) onTick(serverNowMs());
   return () => {
-    cancelled = true;
-    unsubSnap?.();
-    if (tick != null) window.clearInterval(tick);
-    window.clearInterval(resync);
-    document.removeEventListener('visibilitychange', onVisible);
-    window.removeEventListener('online', onOnline);
+    listeners.delete(onTick);
+    if (listeners.size === 0) stopSharedClock();
   };
 }

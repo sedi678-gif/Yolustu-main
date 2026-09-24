@@ -1,9 +1,8 @@
 "use client";
 
-// components/alliance/useAllianceData.ts
 import { useState, useEffect } from 'react';
 import { db } from '../../../firebase';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { AllianceData, MessageData } from './types';
 
 export function useAllianceData(currentUserId: string) {
@@ -11,7 +10,6 @@ export function useAllianceData(currentUserId: string) {
     const [activeAlliance, setActiveAlliance] = useState<AllianceData | null>(null);
     const [messages, setMessages] = useState<MessageData[]>([]);
 
-    // 1. Firebase-dən İttifaqları CANLI olaraq çəkmək
     useEffect(() => {
         const q = query(collection(db, 'alliances'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -21,8 +19,7 @@ export function useAllianceData(currentUserId: string) {
             });
             setAlliances(list);
 
-            // Cari istifadəçinin klanını tapırıq
-            const myAlliance = list.find(item => 
+            const myAlliance = list.find(item =>
                 item.leaderId === currentUserId || (item.members && item.members.includes(currentUserId))
             );
             setActiveAlliance(myAlliance || null);
@@ -33,25 +30,43 @@ export function useAllianceData(currentUserId: string) {
         return () => unsubscribe();
     }, [currentUserId]);
 
-    // 2. Çat mesajlarını CANLI dinləmək
     useEffect(() => {
-        const q = query(collection(db, 'alliance_chat'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        if (!activeAlliance?.id) {
+            setMessages([]);
+            return;
+        }
+
+        const allianceId = activeAlliance.id;
+        const applySnap = (snapshot: { forEach: (cb: (docSnap: { id: string; data: () => object }) => void) => void }) => {
             const msgList: MessageData[] = [];
             snapshot.forEach((docSnap) => {
                 msgList.push({ id: docSnap.id, ...docSnap.data() } as MessageData);
             });
             msgList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-            
-            setMessages(msgList.length > 0 ? msgList : [
+            setMessages(msgList.length > 0 ? msgList.slice(-80) : [
                 { id: '1', user: 'Sistem', text: 'Canlı ittifaq söhbətinə xoş gəldiniz! 🇦🇿', time: 'İndi', createdAt: Date.now() }
             ]);
-        }, (error) => {
-            console.error("Çat oxuma xətası:", error);
+        };
+
+        const scoped = query(
+            collection(db, 'alliance_chat'),
+            where('allianceId', '==', allianceId),
+            orderBy('createdAt', 'desc'),
+            limit(80)
+        );
+        let fallbackUnsub: (() => void) | null = null;
+        const unsubscribe = onSnapshot(scoped, applySnap, () => {
+            fallbackUnsub = onSnapshot(
+                query(collection(db, 'alliance_chat'), where('allianceId', '==', allianceId)),
+                applySnap
+            );
         });
 
-        return () => unsubscribe();
-    }, []);
+        return () => {
+            unsubscribe();
+            fallbackUnsub?.();
+        };
+    }, [activeAlliance?.id]);
 
     return { alliances, activeAlliance, messages, setActiveAlliance };
 }
