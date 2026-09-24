@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { IconMapAd } from './AllianceMapIcons';
 import styles from './alliance.module.css';
+import { useUser } from '@/context/UserContext';
+import { normalizeUserPlanState, shouldShowAds } from '@/app/lib/userPlan';
 
 declare global {
   interface Window {
@@ -22,6 +24,8 @@ interface GoogleAdButtonProps {
  * .env: NEXT_PUBLIC_GOOGLE_ADS_CLIENT, NEXT_PUBLIC_GOOGLE_ADS_SLOT
  */
 export default function GoogleAdButton({ onReward, variant = 'pill', label }: GoogleAdButtonProps) {
+  const { playerProfile } = useUser();
+  const hideAds = !shouldShowAds(normalizeUserPlanState(playerProfile as unknown as Record<string, unknown> | null));
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_ADS_CLIENT;
@@ -60,6 +64,8 @@ export default function GoogleAdButton({ onReward, variant = 'pill', label }: Go
       setLoading(false);
     }
   }, [onReward]);
+
+  if (hideAds) return null;
 
   const btnClass =
     variant === 'nav'

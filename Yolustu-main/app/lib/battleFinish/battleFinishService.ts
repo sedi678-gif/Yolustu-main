@@ -357,6 +357,7 @@ async function finishBattleWork(input: { battleId: string; playerId: string }): 
         const id = playerIds[index];
         const delta = deltas.playerDeltas[id] ?? 0;
         if (!snap.exists() || delta <= 0) return;
+        if (snap.data()?.proPanelActive === true) return;
         const sameDay = period != null && String(snap.data()?.dailyKey || '') === period.dayKey;
         const dailyBase = sameDay ? snap.data()?.dailyScore : 0;
         tx.set(

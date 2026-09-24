@@ -1741,6 +1741,40 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function currentUserPlan(d) {
+      return d.keys().hasAny(['userPlan']) && d.userPlan in ['FREE', 'PRO', 'VIP_PRO']
+        ? d.userPlan
+        : 'FREE';
+    }
+
+    function isValidVipProPurchase() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let beforeManat = before.keys().hasAny(['manat']) && before.manat is int ? before.manat : 0;
+      return currentUserPlan(before) != 'VIP_PRO'
+        && after.userPlan == 'VIP_PRO'
+        && after.hasVipPass == true
+        && after.isVipLifetime == true
+        && after.proPanelActive == true
+        && after.manat is int
+        && after.manat == beforeManat - 30
+        && after.manat >= 0
+        && after.coins == after.manat;
+    }
+
+    function isValidProPanelToggle() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return after.proPanelActive is bool
+        && after.manat == before.manat
+        && currentUserPlan(after) == currentUserPlan(before)
+        && after.diff(before).affectedKeys().hasOnly(['proPanelActive', 'updatedAt']);
+    }
+
+    function isValidPlanWrite() {
+      return isValidVipProPurchase() || isValidProPanelToggle();
+    }
+
     match /players/{playerId} {
       allow read: if true;
       allow create: if request.auth != null;
@@ -1748,6 +1782,11 @@ service cloud.firestore {
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['score', 'dailyScore', 'lifetimeScore'])
           || isValidPlayerFinishScore(playerId)
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['userPlan', 'hasVipPass', 'isVipLifetime', 'proPanelActive'])
+          || isValidPlanWrite()
         );
       allow delete: if false;
     }

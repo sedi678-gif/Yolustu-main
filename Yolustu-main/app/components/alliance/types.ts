@@ -117,6 +117,10 @@ export interface PlayerProfile {
   battleCards: BattleCardsMap;
   activeShields: ActiveShield[];
   cosmetics?: PlayerCosmetics;
+  userPlan?: 'FREE' | 'PRO' | 'VIP_PRO';
+  hasVipPass?: boolean;
+  isVipLifetime?: boolean;
+  proPanelActive?: boolean;
   updatedAt: number;
 }
 

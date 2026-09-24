@@ -27,6 +27,7 @@ import {
 } from './battleCardsConfig';
 import { isAllianceLeader, type LeaderCheckOptions } from './allianceLeader';
 import { DEFAULT_MANAT, resolvePlayerManat, readStoredManat, manatWritePatch } from '@/app/lib/manat';
+import { DEFAULT_USER_PLAN_STATE, normalizeUserPlanState } from '@/app/lib/userPlan';
 import { withTimeout } from '@/app/lib/firebaseAuth';
 
 function mergeBattleCards(a?: BattleCardsMap, b?: BattleCardsMap): BattleCardsMap {
@@ -175,6 +176,7 @@ export async function ensurePlayerProfile(
       battleCards: normalizeBattleCards(fresh.battleCards),
       activeShields: fresh.activeShields ?? [],
       cosmetics: fresh.cosmetics ?? { ...EMPTY_PLAYER_COSMETICS },
+      ...normalizeUserPlanState(fresh as unknown as Record<string, unknown>),
     };
   }
 
@@ -189,6 +191,7 @@ export async function ensurePlayerProfile(
     battleCards: { ...EMPTY_BATTLE_CARDS },
     activeShields: [],
     cosmetics: { ...EMPTY_PLAYER_COSMETICS },
+    ...DEFAULT_USER_PLAN_STATE,
     battleCardsVersion: BATTLE_CARDS_SCHEMA_VERSION,
     updatedAt: Date.now(),
   };
@@ -227,6 +230,7 @@ export async function ensurePlayerProfile(
     battleCards: normalizeBattleCards(fresh.battleCards),
     activeShields: fresh.activeShields ?? [],
     cosmetics: fresh.cosmetics ?? { ...EMPTY_PLAYER_COSMETICS },
+    ...normalizeUserPlanState(fresh as unknown as Record<string, unknown>),
   };
 }
 

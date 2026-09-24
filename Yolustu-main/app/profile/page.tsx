@@ -31,6 +31,7 @@ import socialStyles from '@/app/components/social/social.module.css';
 import profileStyles from '@/app/components/profile/profile.module.css';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/firebase';
+import { setProPanelActive } from '@/app/lib/userPlan';
 
 interface GiftItem {
   id: number;
@@ -1014,6 +1015,23 @@ function ProfilePageContent() {
       />
 
       <div className={profileStyles.profileQuickRow}>
+        <button
+          type="button"
+          className={profileStyles.profileQuickBtn}
+          onClick={() => {
+            if (!userId) return;
+            void setProPanelActive(userId, !playerProfile?.proPanelActive).catch((err) => {
+              alert(err instanceof Error ? err.message : 'Sosial rejim dəyişmədi');
+            });
+          }}
+        >
+          <span className={profileStyles.actionIcon}>💬</span>
+          {playerProfile?.proPanelActive ? 'Sosial: Açıq' : 'Sosial rejim'}
+        </button>
+        <AppLink href="/dashboard" className={profileStyles.profileQuickBtn}>
+          <span className={profileStyles.actionIcon}>📈</span>
+          Dashboard
+        </AppLink>
         <button type="button" className={profileStyles.profileQuickBtn} onClick={() => setShowAllianceModal(true)}>
           <span className={profileStyles.actionIcon}>🛡️</span>
           İttifaq
