@@ -53,7 +53,7 @@ export function getRemainingWeekly(
   cardId: BattleCardId,
   userId?: string
 ): number {
-  if (userId && isSuperAdmin(userId)) return Number.POSITIVE_INFINITY;
+  if (userId) return Number.POSITIVE_INFINITY;
   const weekId = getWeekId();
   if (!weekly || weekly.weekId !== weekId) return WEEKLY_CARD_LIMIT;
   const used = weekly.cardPurchases[cardId] ?? 0;

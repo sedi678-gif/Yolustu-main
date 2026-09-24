@@ -181,7 +181,7 @@ export async function launchAllianceAttack(
     }
 
     const cards = normalizeBattleCards(player.battleCards as BattleCardsMap);
-    const unlimited = isSuperAdmin(userId);
+    const unlimited = true;
     if (!unlimited && (cards[cardId] ?? 0) < cardCount) throw new Error('Kifayət qədər kart yoxdur');
 
     if (!unlimited) cards[cardId] -= cardCount;

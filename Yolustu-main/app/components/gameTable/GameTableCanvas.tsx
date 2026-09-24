@@ -59,7 +59,7 @@ function slotFromPoint(x: number, y: number): { side: TableSide; index: number }
 
 export default function GameTableCanvas() {
   const { userId } = useUser();
-  const unlimited = isSuperAdmin(userId);
+  const unlimited = true;
   const [role, setRole] = useState<TableRole>('leader');
   const [side, setSide] = useState<TableSide>('attacker');
   const [mode, setMode] = useState<MatchMode>('alliance');

@@ -1,5 +1,4 @@
 import { MODEL_CARD_DEFS, modelCardImageUrl } from '@/app/components/alliance/modelCardsCatalog';
-import { isSuperAdmin } from '@/app/lib/adminConfig';
 import { UNLIMITED_CARD_STOCK } from '@/app/components/alliance/battleCardsConfig';
 import { BATTLE_CARD_ASSETS } from '@/app/components/alliance/battleCardAssets';
 

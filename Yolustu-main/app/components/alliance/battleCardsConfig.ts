@@ -147,11 +147,10 @@ export function formatCardTotal(cards: Array<{ count: number }>): string {
 }
 
 export function resolveBattleCardsForUser(
-  userId: string | undefined,
-  raw?: Partial<BattleCardsMap> | Record<string, number> | null
+  _userId?: string,
+  _raw?: Partial<BattleCardsMap> | Record<string, number> | null
 ): BattleCardsMap {
-  if (userId && isSuperAdmin(userId)) return unlimitedBattleCards();
-  return normalizeBattleCards(raw);
+  return unlimitedBattleCards();
 }
 
 

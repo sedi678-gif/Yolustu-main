@@ -528,14 +528,7 @@ service cloud.firestore {
     }
 
     function playerOwnsLoadout(playerId, ids) {
-      return playerId == '1' || (
-        exists(/databases/$(database)/documents/players/$(playerId))
-        && playerOwnsLoadoutCard(get(/databases/$(database)/documents/players/$(playerId)).data, ids[0])
-        && playerOwnsLoadoutCard(get(/databases/$(database)/documents/players/$(playerId)).data, ids[1])
-        && playerOwnsLoadoutCard(get(/databases/$(database)/documents/players/$(playerId)).data, ids[2])
-        && playerOwnsLoadoutCard(get(/databases/$(database)/documents/players/$(playerId)).data, ids[3])
-        && playerOwnsLoadoutCard(get(/databases/$(database)/documents/players/$(playerId)).data, ids[4])
-      );
+      return request.auth != null && playerId is string && playerId.size() > 0 && isValidLoadoutCardList(ids);
     }
 
     function uidOwnsBattleSlot(b, playerId, side) {
