@@ -37,22 +37,12 @@ export function CoordinatorToolbar({ visible, pingKind, onKind, onClear }: Coord
 }
 
 interface CoordinatorOverlayProps {
-  enabled: boolean;
   pings: TablePing[];
-  onPing: (xPct: number, yPct: number) => void;
 }
 
-export default function CoordinatorOverlay({ enabled, pings, onPing }: CoordinatorOverlayProps) {
+export default function CoordinatorOverlay({ pings }: CoordinatorOverlayProps) {
   return (
-    <div
-      className={`${styles.pingLayer} ${enabled ? styles.pingLayerOn : ''}`}
-      onClick={(e) => {
-        if (!enabled) return;
-        const rect = e.currentTarget.getBoundingClientRect();
-        onPing(((e.clientX - rect.left) / rect.width) * 100, ((e.clientY - rect.top) / rect.height) * 100);
-      }}
-    >
-      {enabled && <div className={styles.coordGrid} aria-hidden />}
+    <div className={styles.pingLayer} aria-hidden>
       {pings.map((ping) => {
         const color = PING_KINDS.find((item) => item.id === ping.kind)?.color ?? '#fbbf24';
         return (

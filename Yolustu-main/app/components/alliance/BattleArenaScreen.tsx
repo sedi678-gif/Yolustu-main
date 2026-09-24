@@ -277,18 +277,25 @@ export default function BattleArenaScreen({
 
       <main className={styles.table}>
         <div className={styles.felt}>
-          <div className={styles.feltTitle}>Battle masası</div>
-          <div className={styles.tableSlots} aria-label="5 player slot">
+          <div className={styles.feltFrame} aria-hidden />
+          <div className={styles.feltTitle}>Döyüş masası</div>
+          <div className={styles.tableSlots} aria-label="Masa yerləri">
             {tableCards.map((cardId, index) => {
               const meta = cardId ? cardMeta(cardId) : null;
               return (
                 <div key={`slot-${index}`} className={styles.tableSlot} data-filled={cardId ? '1' : '0'}>
-                  {meta?.image ? (
-                    <img className={styles.tableCard} src={meta.image} alt={meta.title} />
+                  {meta ? (
+                    <div className={styles.tableCardSit} key={cardId}>
+                      {meta.image ? (
+                        <img className={styles.tableCard} src={meta.image} alt={meta.title} />
+                      ) : (
+                        <span className={styles.tableCardEmoji}>{meta.emoji}</span>
+                      )}
+                      <span className={styles.slotName}>{meta.title}</span>
+                    </div>
                   ) : (
-                    <span className={styles.tableCardEmoji}>{meta?.emoji ?? '—'}</span>
+                    <span className={styles.tableSlotWell} aria-hidden />
                   )}
-                  <span className={styles.slotName}>{meta?.title ?? `slot ${index + 1}`}</span>
                 </div>
               );
             })}

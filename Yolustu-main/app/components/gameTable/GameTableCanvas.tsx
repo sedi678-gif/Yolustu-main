@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppLink from '@/app/components/AppLink';
-import { useUser } from '@/context/UserContext';
-import { isSuperAdmin } from '@/app/lib/adminConfig';
 import CardSlotZone from './CardSlotZone';
 import CastleCore, { useCastleHit } from './CastleCore';
 import ClickerPanel from './ClickerPanel';
@@ -58,7 +56,6 @@ function slotFromPoint(x: number, y: number): { side: TableSide; index: number }
 }
 
 export default function GameTableCanvas() {
-  const { userId } = useUser();
   const unlimited = true;
   const [role, setRole] = useState<TableRole>('leader');
   const [side, setSide] = useState<TableSide>('attacker');
@@ -72,6 +69,7 @@ export default function GameTableCanvas() {
   const [clicks, setClicks] = useState(0);
   const [status, setStatus] = useState('Kartı tutub boş slota at — və ya seçib slota kliklə.');
   const [ghost, setGhost] = useState<DragGhost | null>(null);
+  const [landing, setLanding] = useState<{ side: TableSide; index: number } | null>(null);
   const dragIdRef = useRef<string | null>(null);
   const dragMovedRef = useRef(false);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -144,6 +142,12 @@ export default function GameTableCanvas() {
 
       setSelectedId(null);
       dragIdRef.current = null;
+      setLanding({ side: targetSide, index });
+      window.setTimeout(() => {
+        setLanding((prev) =>
+          prev && prev.side === targetSide && prev.index === index ? null : prev
+        );
+      }, 480);
       const left = TABLE_SLOT_COUNT - nextSlots[targetSide].filter(Boolean).length;
       const title = catalogCard(fromHand.cardId)?.title ?? 'Kart';
       setStatus(
@@ -308,17 +312,39 @@ export default function GameTableCanvas() {
         {status}
       </p>
 
-      <div className={styles.tableWrap}>
+      <div
+        className={styles.tableWrap}
+        onClick={(event) => {
+          if (!perms.canPing) return;
+          const target = event.target as Element;
+          if (target.closest('[data-table-slot], button, a, input')) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          const meta = PING_KINDS.find((item) => item.id === pingKind);
+          setPings((prev) => [
+            ...prev,
+            {
+              id: `ping-${Date.now()}`,
+              x: ((event.clientX - rect.left) / rect.width) * 100,
+              y: ((event.clientY - rect.top) / rect.height) * 100,
+              kind: pingKind,
+              label: meta?.label ?? 'Ping',
+              createdAt: Date.now(),
+            },
+          ]);
+        }}
+      >
         <div className={styles.tableFelt} />
+        <div className={styles.tableFrame} aria-hidden />
         <PlayerSeats mode={mode} viewerSide={side} />
         <div className={styles.board}>
           <CardSlotZone
             side="defender"
             slots={slots.defender}
             revealCard={revealCard}
-            dropEnabled={perms.canPlayCards && side === 'defender'}
-            selectedReady={Boolean(selectedId) && side === 'defender'}
+            dropEnabled={perms.canPlayCards}
+            selectedReady={Boolean(selectedId)}
             hotSlot={hotSlot?.side === 'defender' ? hotSlot.index : null}
+            landingIndex={landing?.side === 'defender' ? landing.index : null}
             onHoverSlot={(index) => setHotSlot(index == null ? null : { side: 'defender', index })}
             onDropSlot={(index) => playCard('defender', index)}
             onReturnSlot={returnSlot}
@@ -336,32 +362,16 @@ export default function GameTableCanvas() {
             side="attacker"
             slots={slots.attacker}
             revealCard={revealCard}
-            dropEnabled={perms.canPlayCards && side === 'attacker'}
-            selectedReady={Boolean(selectedId) && side === 'attacker'}
+            dropEnabled={perms.canPlayCards}
+            selectedReady={Boolean(selectedId)}
             hotSlot={hotSlot?.side === 'attacker' ? hotSlot.index : null}
+            landingIndex={landing?.side === 'attacker' ? landing.index : null}
             onHoverSlot={(index) => setHotSlot(index == null ? null : { side: 'attacker', index })}
             onDropSlot={(index) => playCard('attacker', index)}
             onReturnSlot={returnSlot}
           />
         </div>
-        <CoordinatorOverlay
-          enabled={perms.canPing}
-          pings={pings}
-          onPing={(x, y) => {
-            const meta = PING_KINDS.find((item) => item.id === pingKind);
-            setPings((prev) => [
-              ...prev,
-              {
-                id: `ping-${Date.now()}`,
-                x,
-                y,
-                kind: pingKind,
-                label: meta?.label ?? 'Ping',
-                createdAt: Date.now(),
-              },
-            ]);
-          }}
-        />
+        <CoordinatorOverlay pings={pings} />
       </div>
 
       <CoordinatorToolbar
@@ -388,7 +398,10 @@ export default function GameTableCanvas() {
         draggingId={ghost?.instanceId ?? null}
         unlimited={unlimited}
         lockedReason="Koordinator kart ata və aça bilməz — yalnız xəritə/ping alətləri aktivdir."
-        onSelect={setSelectedId}
+        onSelect={(id) => {
+          setSelectedId(id);
+          setStatus('Kart seçildi — boş slota kliklə və ya tutub at.');
+        }}
         onPointerDown={onHandPointerDown}
       />
 
