@@ -82,29 +82,12 @@ export function unlimitedLoadoutInventory(): Record<BattleLoadoutCardId, number>
   return out;
 }
 
-/** Client ID-lərinə etibar etmə — yalnız hovuz + sahiblik. */
+/** Bütün oyunçular üçün bütün kartlar limitsizdir. */
 export function resolveLoadoutInventory(
-  userId: string | undefined,
-  raw?: Record<string, unknown> | null
+  _userId?: string,
+  _raw?: Record<string, unknown> | null
 ): Record<BattleLoadoutCardId, number> {
-  if (userId && isSuperAdmin(userId)) return unlimitedLoadoutInventory();
-
-  const out = emptyLoadoutInventory();
-  const loadoutCards = raw?.loadoutCards;
-  const battleCards = raw?.battleCards;
-
-  const apply = (source: unknown) => {
-    if (!source || typeof source !== 'object' || Array.isArray(source)) return;
-    for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
-      if (!isBattleLoadoutCardId(key)) continue;
-      const n = Math.floor(Number(value));
-      if (Number.isFinite(n) && n > 0) out[key] = Math.max(out[key], n);
-    }
-  };
-
-  apply(loadoutCards);
-  apply(battleCards);
-  return out;
+  return unlimitedLoadoutInventory();
 }
 
 export function countSelected(cardIds: string[]): Record<string, number> {
