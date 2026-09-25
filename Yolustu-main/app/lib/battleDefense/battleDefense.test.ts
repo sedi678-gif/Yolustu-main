@@ -86,7 +86,7 @@ describe('offline defense', () => {
       turn: 1,
       attackerPlayerIds: ['a1'],
       defenderPlayerIds: [],
-    } as BattleRecord;
+    } as unknown as BattleRecord;
     const next = nextTurnState(battle, 'attacker');
     assert.equal(next.turnSide, 'attacker');
     assert.equal(next.turnPlayerId, 'a1');
@@ -97,7 +97,7 @@ describe('offline defense', () => {
       turn: 1,
       attackerPlayerIds: ['a1'],
       defenderPlayerIds: ['d1'],
-    } as BattleRecord;
+    } as unknown as BattleRecord;
     const next = nextTurnState(battle, 'attacker');
     assert.equal(next.turnSide, 'defender');
     assert.equal(next.turnPlayerId, 'd1');
