@@ -568,7 +568,7 @@ service cloud.firestore {
     function isLoadoutCardId(id) {
       return id in [
         '2x', 'casus', 'duman', 'guzgu', 'joker', 'ogru', 'qaya', 'qul',
-        'qutb', 'sehrbaz', 'tikanli', 'felaket', 'usyan', 'zombi', 'mutant'
+        'qutb', 'sehrbaz', 'tikanli', 'felaket', 'usyan'
       ];
     }
 
@@ -756,8 +756,6 @@ service cloud.firestore {
         : id == 'tikanli' ? 10
         : id == 'felaket' ? 14
         : id == 'usyan' ? 12
-        : id == 'zombi' ? 10
-        : id == 'mutant' ? 10
         : 0;
     }
 
@@ -775,8 +773,6 @@ service cloud.firestore {
         : id == 'tikanli' ? 5
         : id == 'felaket' ? 9
         : id == 'usyan' ? 3
-        : id == 'zombi' ? 6
-        : id == 'mutant' ? 6
         : -1;
     }
 
@@ -794,8 +790,6 @@ service cloud.firestore {
         : id == 'tikanli' ? 3
         : id == 'felaket' ? 6
         : id == 'usyan' ? 5
-        : id == 'zombi' ? 4
-        : id == 'mutant' ? 4
         : -1;
     }
 
@@ -813,8 +807,6 @@ service cloud.firestore {
         : id == 'tikanli' ? 2
         : id == 'felaket' ? 4
         : id == 'usyan' ? 3
-        : id == 'zombi' ? 2
-        : id == 'mutant' ? 2
         : -1;
     }
 
@@ -831,7 +823,7 @@ service cloud.firestore {
 
     function officialChallengeClicks(cardId, allianceId) {
       return cardId == 'usyan' ? officialClickBand(allianceId) * 2
-        : (cardId == 'qul' || cardId == 'qutb' || cardId == 'felaket' || cardId == 'zombi' || cardId == 'mutant')
+        : (cardId == 'qul' || cardId == 'qutb' || cardId == 'felaket')
           ? officialClickBand(allianceId)
           : 0;
     }
@@ -850,8 +842,6 @@ service cloud.firestore {
         : id == 'qutb' ? 0
         : id == 'sehrbaz' ? 0
         : id == 'felaket' ? 0
-        : id == 'zombi' ? 0
-        : id == 'mutant' ? 0
         : -1;
     }
 
@@ -869,8 +859,6 @@ service cloud.firestore {
         : id == 'tikanli' ? 4
         : id == 'felaket' ? 3
         : id == 'usyan' ? 4
-        : id == 'zombi' ? 4
-        : id == 'mutant' ? 4
         : 0;
     }
 

@@ -22,8 +22,6 @@ export const BATTLE_CARD_ENERGY_COSTS: Record<BattleLoadoutCardId, number> = {
   tikanli: 4,
   felaket: 3,
   usyan: 4,
-  zombi: 4,
-  mutant: 4,
 };
 
 export function officialCardEnergyCost(cardId: string): number {

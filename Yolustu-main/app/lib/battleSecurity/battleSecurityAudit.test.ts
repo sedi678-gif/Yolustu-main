@@ -110,7 +110,7 @@ describe('battle security audit', () => {
     });
 
     it('əldə olmayan rəsmi kartı rədd edir', () => {
-      assert.throws(() => play({ cardId: 'mutant' }), /5-likdə yoxdur/);
+      assert.throws(() => play({ cardId: 'usyan' }), /5-likdə yoxdur/);
     });
   });
 

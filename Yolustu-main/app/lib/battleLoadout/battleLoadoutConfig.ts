@@ -1,17 +1,26 @@
 import { MODEL_CARD_DEFS, modelCardImageUrl } from '@/app/components/alliance/modelCardsCatalog';
 import { UNLIMITED_CARD_STOCK } from '@/app/components/alliance/battleCardsConfig';
-import { BATTLE_CARD_ASSETS } from '@/app/components/alliance/battleCardAssets';
 
-/** Rəsmi battle hovuzu — 13 model kart + 2 raid kartı. */
-export const BATTLE_LOADOUT_POOL = [
-  ...MODEL_CARD_DEFS.map((item) => item.id),
-  'zombi',
-  'mutant',
-] as const;
+/** Rəsmi battle hovuzu — 13 model kart. */
+export const BATTLE_LOADOUT_POOL = MODEL_CARD_DEFS.map((item) => item.id) as unknown as readonly [
+  '2x',
+  'casus',
+  'duman',
+  'guzgu',
+  'joker',
+  'ogru',
+  'qaya',
+  'qul',
+  'qutb',
+  'sehrbaz',
+  'tikanli',
+  'felaket',
+  'usyan',
+];
 
 export type BattleLoadoutCardId = (typeof BATTLE_LOADOUT_POOL)[number];
 
-export const BATTLE_LOADOUT_POOL_SIZE = 15;
+export const BATTLE_LOADOUT_POOL_SIZE = 13;
 export const BATTLE_LOADOUT_SIZE = 5;
 export const BATTLE_LOADOUT_MAX_COPIES = 1;
 export const BATTLE_LOADOUT_COLLECTION = 'loadouts';
@@ -30,8 +39,6 @@ export const BATTLE_LOADOUT_TITLES: Record<string, string> = {
   tikanli: 'Tikanlı Məftil',
   felaket: 'Təbii Fəlakətlər',
   usyan: 'Üsyan Kartı',
-  zombi: 'Zombi Kartı',
-  mutant: 'Mutant Kartı',
 };
 
 export interface BattleLoadoutCardMeta {
@@ -41,11 +48,6 @@ export interface BattleLoadoutCardMeta {
   accent: string;
   image: string;
 }
-
-const RAID_META: Record<'zombi' | 'mutant', Omit<BattleLoadoutCardMeta, 'id'>> = {
-  zombi: { title: 'Zombi Kartı', emoji: '🧟', accent: '#22c55e', image: BATTLE_CARD_ASSETS.zombi.image },
-  mutant: { title: 'Mutant Kartı', emoji: '👾', accent: '#a855f7', image: BATTLE_CARD_ASSETS.mutant.image },
-};
 
 export function loadoutCardMeta(id: BattleLoadoutCardId): BattleLoadoutCardMeta {
   const model = MODEL_CARD_DEFS.find((item) => item.id === id);
@@ -58,8 +60,7 @@ export function loadoutCardMeta(id: BattleLoadoutCardId): BattleLoadoutCardMeta 
       image: modelCardImageUrl(model),
     };
   }
-  const raid = RAID_META[id as 'zombi' | 'mutant'];
-  return { id, title: BATTLE_LOADOUT_TITLES[id] ?? id, emoji: raid?.emoji ?? '🃏', accent: raid?.accent ?? '#64748b', image: raid?.image ?? '' };
+  return { id, title: BATTLE_LOADOUT_TITLES[id] ?? id, emoji: '🃏', accent: '#64748b', image: '' };
 }
 
 export const BATTLE_LOADOUT_CARD_METAS: BattleLoadoutCardMeta[] = BATTLE_LOADOUT_POOL.map(loadoutCardMeta);

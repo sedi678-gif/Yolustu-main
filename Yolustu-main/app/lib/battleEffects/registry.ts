@@ -4,7 +4,6 @@ import { dumanCard } from './cards/duman';
 import { felaketCard } from './cards/felaket';
 import { guzguCard } from './cards/guzgu';
 import { jokerCard } from './cards/joker';
-import { mutantCard } from './cards/mutant';
 import { ogruCard } from './cards/ogru';
 import { qayaCard } from './cards/qaya';
 import { qulCard } from './cards/qul';
@@ -13,7 +12,6 @@ import { sehrbazCard } from './cards/sehrbaz';
 import { tikanliCard } from './cards/tikanli';
 import { twoXCard } from './cards/twoX';
 import { usyanCard } from './cards/usyan';
-import { zombiCard } from './cards/zombi';
 import type { CardEffectModule } from './types';
 
 const CARD_EFFECT_MODULES: Record<BattleLoadoutCardId, CardEffectModule> = {
@@ -23,7 +21,6 @@ const CARD_EFFECT_MODULES: Record<BattleLoadoutCardId, CardEffectModule> = {
   felaket: felaketCard,
   guzgu: guzguCard,
   joker: jokerCard,
-  mutant: mutantCard,
   ogru: ogruCard,
   qaya: qayaCard,
   qul: qulCard,
@@ -31,7 +28,6 @@ const CARD_EFFECT_MODULES: Record<BattleLoadoutCardId, CardEffectModule> = {
   sehrbaz: sehrbazCard,
   tikanli: tikanliCard,
   usyan: usyanCard,
-  zombi: zombiCard,
 };
 
 export function getCardEffectModule(cardId: string): CardEffectModule | null {

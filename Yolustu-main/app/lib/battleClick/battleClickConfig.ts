@@ -10,7 +10,7 @@ export const BATTLE_CHALLENGE_SCHEMA = 1;
 export type BattleChallengeStatus = 'active' | 'succeeded' | 'expired';
 export type BattleClickTarget = 'own' | 'opponent';
 
-const CLICK_CARDS = new Set(['qul', 'qutb', 'felaket', 'usyan', 'zombi', 'mutant']);
+const CLICK_CARDS = new Set(['qul', 'qutb', 'felaket', 'usyan']);
 
 export function cardClickScale(cardId: string): 0 | 1 | 2 {
   if (!isBattleLoadoutCardId(cardId) || !CLICK_CARDS.has(cardId)) return 0;

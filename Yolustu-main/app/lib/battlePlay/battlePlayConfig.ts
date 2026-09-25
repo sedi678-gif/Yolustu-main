@@ -21,8 +21,6 @@ export const BATTLE_CARD_COOLDOWN_MS: Record<BattleLoadoutCardId, number> = {
   tikanli: 10_000,
   felaket: 14_000,
   usyan: 12_000,
-  zombi: 10_000,
-  mutant: 10_000,
 };
 
 export function officialCardCooldownMs(cardId: string): number {
