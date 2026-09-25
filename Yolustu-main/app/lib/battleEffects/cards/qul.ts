@@ -5,7 +5,6 @@ export const qulCard: CardEffectModule = {
   effects: [
     { type: 'slave' },
     { type: 'click_challenge', scale: 'normal', target: 'opponent' },
-    { type: 'damage', amount: 3 },
     { type: 'attack', playerDelta: 4, allianceDelta: 2 },
   ],
 };

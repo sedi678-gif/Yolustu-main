@@ -4,7 +4,6 @@ export const jokerCard: CardEffectModule = {
   cardId: 'joker',
   effects: [
     { type: 'joker' },
-    { type: 'damage', amount: 5 },
     { type: 'attack', playerDelta: 5, allianceDelta: 3 },
   ],
 };

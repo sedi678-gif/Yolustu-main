@@ -4,7 +4,6 @@ export const tikanliCard: CardEffectModule = {
   cardId: 'tikanli',
   effects: [
     { type: 'steal', amount: 2 },
-    { type: 'damage', amount: 5 },
     { type: 'attack', playerDelta: 3, allianceDelta: 2 },
   ],
 };

@@ -1,9 +1,10 @@
 import { isBattleLoadoutCardId, type BattleLoadoutCardId } from '@/app/lib/battleLoadout/battleLoadoutConfig';
 import { emptyContribution, mergeContributions } from './fold';
+import { defaultCardVariant, officialInfoDamage, type CardVariant } from './infoDamage';
 import { getEffectPrimitive } from './primitives';
 import { officialRequiredClicks as requiredClicksForAlliance } from '@/app/lib/battleClick/battleClickConfig';
 import { getCardEffectModule } from './registry';
-import type { EffectKind, ResolvedCardEffect } from './types';
+import type { EffectKind, EffectSpec, ResolvedCardEffect } from './types';
 
 const EFFECT_LABELS: Record<EffectKind, string> = {
   attack: 'Hücum',
@@ -26,22 +27,34 @@ const EFFECT_LABELS: Record<EffectKind, string> = {
   swap: 'Dəyişmə',
 };
 
-/** Server-only: kart ID-dən rəsmi effekt. Client amount/choice qəbul edilmir. */
-export function resolveCardEffect(cardId: string): ResolvedCardEffect | null {
+function specsForVariant(cardId: string, effects: readonly EffectSpec[], variant: CardVariant | null): EffectSpec[] {
+  return effects.filter((spec) => {
+    if (cardId === 'qutb' && (spec.type === 'fire' || spec.type === 'ice')) return spec.type === variant;
+    if (cardId === 'felaket' && (spec.type === 'tsunami' || spec.type === 'earthquake')) return spec.type === variant;
+    return true;
+  });
+}
+
+/** Server-only: kart ID-dən rəsmi effekt. Zərər info.json düsturundan gəlir. */
+export function resolveCardEffect(cardId: string, variant?: CardVariant | null): ResolvedCardEffect | null {
   if (!isBattleLoadoutCardId(cardId)) return null;
   const module = getCardEffectModule(cardId);
   if (!module) return null;
+  const chosen = variant === undefined ? defaultCardVariant(cardId) : variant;
+  const specs = specsForVariant(cardId, module.effects, chosen);
+  if (specs.length === 0) return null;
 
   let merged = emptyContribution();
-  for (const spec of module.effects) {
+  for (const spec of specs) {
     merged = mergeContributions(merged, getEffectPrimitive(spec.type).apply(spec));
   }
   if (merged.kinds.length === 0) return null;
 
   return {
     cardId,
-    primary: module.effects[0]?.type ?? merged.kinds[0],
+    primary: specs[0]?.type ?? merged.kinds[0],
     ...merged,
+    damage: officialInfoDamage(cardId, 1, chosen),
   };
 }
 

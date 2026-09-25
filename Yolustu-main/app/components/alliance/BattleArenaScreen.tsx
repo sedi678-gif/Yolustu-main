@@ -29,6 +29,7 @@ import {
   listenOwnLoadout,
 } from '@/app/lib/battleLoadout';
 import { officialBattleLeader } from '@/app/lib/battleScore';
+import { defaultCardVariant, type CardVariant } from '@/app/lib/battleEffects/infoDamage';
 import { listenBattleResult, type BattleFinishResult } from '@/app/lib/battleFinish';
 import {
   clearPendingBattleRequest,
@@ -138,6 +139,7 @@ export default function BattleArenaScreen({
   const [hand, setHand] = useState<string[]>([]);
   const [events, setEvents] = useState<BattleEvent[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [variant, setVariant] = useState<CardVariant | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
@@ -241,6 +243,7 @@ export default function BattleArenaScreen({
         requestId,
         expectedStateVersion: battle.stateVersion ?? 0,
         expectedEventSeq: battle.eventSeq,
+        variant: variant ?? undefined,
       });
       finishPlay(selected, playResult);
     } catch (err) {
@@ -252,7 +255,7 @@ export default function BattleArenaScreen({
     } finally {
       setBusyId(null);
     }
-  }, [battle.eventSeq, battle.stateVersion, battleId, busyId, finishPlay, playerId, selected]);
+  }, [battle.eventSeq, battle.stateVersion, battleId, busyId, finishPlay, playerId, selected, variant]);
 
   useEffect(() => {
     if (replayed.current) return;
@@ -433,6 +436,31 @@ export default function BattleArenaScreen({
         ) : null}
       </main>
 
+      {selected === 'qutb' || selected === 'felaket' ? (
+        <div className={styles.variantRow}>
+          {(selected === 'qutb'
+            ? [
+                { id: 'fire' as const, label: 'Od · 50×üzv' },
+                { id: 'ice' as const, label: 'Buz · 10 dəq' },
+              ]
+            : [
+                { id: 'tsunami' as const, label: 'Sunami · 30×üzv' },
+                { id: 'earthquake' as const, label: 'Zəlzələ · 70×üzv' },
+              ]
+          ).map((choice) => (
+            <button
+              key={choice.id}
+              type="button"
+              className={styles.variantBtn}
+              data-on={variant === choice.id ? '1' : '0'}
+              onClick={() => setVariant(choice.id)}
+            >
+              {choice.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div className={styles.actionRow}>
         <div className={styles.energyBox}>
           <span>
@@ -477,7 +505,10 @@ export default function BattleArenaScreen({
               data-selected={selected === cardId ? '1' : '0'}
               data-busy={busyId === cardId ? '1' : '0'}
               disabled={Boolean(busyId) || battle.status !== 'active'}
-              onClick={() => setSelected(cardId)}
+              onClick={() => {
+                setSelected(cardId);
+                setVariant(defaultCardVariant(cardId));
+              }}
             >
               <span className={styles.handCost}>{cost}</span>
               {meta?.image ? (

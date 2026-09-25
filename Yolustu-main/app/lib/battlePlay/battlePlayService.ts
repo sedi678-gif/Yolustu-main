@@ -38,6 +38,7 @@ import {
 } from '@/app/lib/battleScore/battleScoreConfig';
 import { battleScoreRef } from '@/app/lib/battleScore/battleScoreService';
 import { resolveCardEffect } from '@/app/lib/battleEffects';
+import { normalizeCardVariant } from '@/app/lib/battleEffects/infoDamage';
 import {
   cardClickScale,
   initialChallengeDoc,
@@ -68,6 +69,7 @@ export interface PlayBattleCardInput {
   expectedEventSeq: unknown;
   slotIndex?: unknown;
   mode?: PlayBattleMode;
+  variant?: unknown;
 }
 
 export interface PlayBattleCardResult {
@@ -356,8 +358,16 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
       const energyAfter = energy - cost;
       if (energyAfter < 0 || energyAfter > BATTLE_ENERGY_MAX) throw new Error('Energy mənfi ola bilməz');
 
-      const resolved = resolveCardEffect(cardId);
-      const effect = officialCardEffect(cardId);
+      const variant = normalizeCardVariant(cardId, aiMode ? undefined : input.variant);
+      const ownAllianceId = side === 'attacker' ? battle.attackerAllianceId : battle.defenderAllianceId;
+      const oppAllianceId = side === 'attacker' ? battle.defenderAllianceId : battle.attackerAllianceId;
+      const targetAllianceId =
+        officialClickTarget(cardId) === 'own' ? ownAllianceId || '' : oppAllianceId || '';
+      const needsChallenge = cardClickScale(cardId) > 0 && Boolean(targetAllianceId);
+      const allianceSnap =
+        needsChallenge && targetAllianceId ? await tx.get(doc(db, 'alliances', targetAllianceId)) : null;
+      const resolved = resolveCardEffect(cardId, variant);
+      const effect = officialCardEffect(cardId, variant, allianceSnap?.data()?.members);
       if (!resolved || !effect) throw new Error('Kart effekti tapılmadı');
 
       const applied = applyOfficialBattleScores({
@@ -384,12 +394,6 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
       const playerScoreEvent = newBattleEventRef(battleId);
       const ownScoreEvent = newBattleEventRef(battleId);
       const oppScoreEvent = newBattleEventRef(battleId);
-      const ownAllianceId = side === 'attacker' ? battle.attackerAllianceId : battle.defenderAllianceId;
-      const oppAllianceId = side === 'attacker' ? battle.defenderAllianceId : battle.attackerAllianceId;
-      const targetAllianceId =
-        officialClickTarget(cardId) === 'own' ? ownAllianceId || '' : oppAllianceId || '';
-      const needsChallenge = cardClickScale(cardId) > 0 && Boolean(targetAllianceId);
-      const allianceSnap = needsChallenge ? await tx.get(doc(db, 'alliances', targetAllianceId)) : null;
       const requiredClicks = needsChallenge
         ? officialRequiredClicks(cardId, allianceSnap?.data()?.members)
         : 0;

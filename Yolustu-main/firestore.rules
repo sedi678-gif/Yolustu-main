@@ -759,20 +759,39 @@ service cloud.firestore {
         : 0;
     }
 
-    function officialDamage(id) {
-      return id == '2x' ? 0
-        : id == 'casus' ? 0
-        : id == 'duman' ? 0
-        : id == 'guzgu' ? 4
-        : id == 'joker' ? 5
-        : id == 'ogru' ? 0
-        : id == 'qaya' ? 6
-        : id == 'qul' ? 3
-        : id == 'qutb' ? 7
-        : id == 'sehrbaz' ? 4
-        : id == 'tikanli' ? 5
-        : id == 'felaket' ? 9
-        : id == 'usyan' ? 3
+    function allianceMemberSize(allianceId) {
+      return allianceId is string
+        && allianceId.size() > 0
+        && exists(/databases/$(database)/documents/alliances/$(allianceId))
+        && get(/databases/$(database)/documents/alliances/$(allianceId)).data.keys().hasAny(['members'])
+        && get(/databases/$(database)/documents/alliances/$(allianceId)).data.members is list
+          ? get(/databases/$(database)/documents/alliances/$(allianceId)).data.members.size()
+          : 1;
+    }
+
+    function scaledInfoDamage(perPlayer, cap, allianceId) {
+      let n = allianceMemberSize(allianceId);
+      let members = n < 1 ? 1 : (n > 200 ? 200 : n);
+      let raw = perPlayer * members;
+      return raw > cap ? cap : raw;
+    }
+
+    function kindOn(kinds, name) {
+      return kinds is list && name in kinds;
+    }
+
+    function officialDamage(id, allianceId, kinds) {
+      return id == 'qutb' && kindOn(kinds, 'fire') && kindOn(kinds, 'ice') ? -1
+        : id == 'qutb' && kindOn(kinds, 'fire') ? scaledInfoDamage(50, 2500, allianceId)
+        : id == 'qutb' && kindOn(kinds, 'ice') ? 0
+        : id == 'qutb' ? -1
+        : id == 'felaket' && kindOn(kinds, 'earthquake') && kindOn(kinds, 'tsunami') ? -1
+        : id == 'felaket' && kindOn(kinds, 'earthquake') ? scaledInfoDamage(70, 3500, allianceId)
+        : id == 'felaket' && kindOn(kinds, 'tsunami') ? scaledInfoDamage(30, 1500, allianceId)
+        : id == 'felaket' ? -1
+        : id == '2x' || id == 'casus' || id == 'duman' || id == 'guzgu' || id == 'joker'
+          || id == 'ogru' || id == 'qaya' || id == 'qul' || id == 'sehrbaz'
+          || id == 'tikanli' || id == 'usyan' ? 0
         : -1;
     }
 
@@ -895,8 +914,8 @@ service cloud.firestore {
         && request.time < before.turnStartAt + duration.value(15, 's')
         && after.lastScoreRequestId is string
         && receipt.requestId == after.lastScoreRequestId
-        && officialDamage(receipt.cardId) >= 0
-        && receipt.damage == officialDamage(receipt.cardId)
+        && officialDamage(receipt.cardId, receipt.targetAllianceId, receipt.effectKinds) >= 0
+        && receipt.damage == officialDamage(receipt.cardId, receipt.targetAllianceId, receipt.effectKinds)
         && receipt.playerDelta == officialPlayerDelta(receipt.cardId)
         && receipt.allianceDelta == officialAllianceDelta(receipt.cardId)
         && receipt.steal == officialSteal(receipt.cardId)
@@ -1115,8 +1134,8 @@ service cloud.firestore {
           (d.side == 'attacker' && d.playerId in battleData(battleId).attackerPlayerIds)
           || (d.side == 'defender' && d.playerId in battleData(battleId).defenderPlayerIds)
         )
-        && officialDamage(d.cardId) >= 0
-        && d.damage == officialDamage(d.cardId)
+        && officialDamage(d.cardId, d.targetAllianceId, d.effectKinds) >= 0
+        && d.damage == officialDamage(d.cardId, d.targetAllianceId, d.effectKinds)
         && d.playerDelta == officialPlayerDelta(d.cardId)
         && d.allianceDelta == officialAllianceDelta(d.cardId)
         && d.steal == officialSteal(d.cardId)
@@ -1152,7 +1171,7 @@ service cloud.firestore {
         && d.steal is int
         && d.taken is int
         && d.damage >= 0
-        && d.damage <= 12
+        && d.damage <= 3500
         && d.playerDelta >= 0
         && d.playerDelta <= 10
         && d.allianceDelta >= 0
@@ -1237,13 +1256,13 @@ service cloud.firestore {
         && reqId is string
         && receipt.playerId == d.playerId
         && receipt.requestId == reqId
-        && officialDamage(receipt.cardId) >= 0
+        && officialDamage(receipt.cardId, receipt.targetAllianceId, receipt.effectKinds) >= 0
         && (
           (
             d.type == 'damage_applied'
             && d.seq == battleData(battleId).eventSeq + 3
             && d.meta.amount == receipt.damage
-            && d.meta.amount == officialDamage(receipt.cardId)
+            && d.meta.amount == officialDamage(receipt.cardId, receipt.targetAllianceId, receipt.effectKinds)
             && d.meta.source == receipt.cardId
           ) || (
             d.type == 'score_changed'

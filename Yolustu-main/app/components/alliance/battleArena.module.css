@@ -347,6 +347,30 @@
   background: linear-gradient(90deg, #38bdf8, #e0f2fe);
 }
 
+.variantRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  pointer-events: auto;
+}
+
+.variantBtn {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.variantBtn[data-on='1'] {
+  border-color: #f43f5e;
+  background: rgba(244, 63, 94, 0.28);
+  color: #fff;
+}
+
 .playBtn {
   min-width: 132px;
   min-height: 48px;

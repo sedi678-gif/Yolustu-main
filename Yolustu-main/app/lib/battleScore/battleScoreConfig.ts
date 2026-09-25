@@ -2,6 +2,7 @@ import { serverTimestamp } from 'firebase/firestore';
 import { BATTLE_LOADOUT_POOL, type BattleLoadoutCardId } from '@/app/lib/battleLoadout/battleLoadoutConfig';
 import type { BattleRecord, BattleSide } from '@/app/lib/battleEventLog/battleEventTypes';
 import { resolveCardEffect, type EffectKind } from '@/app/lib/battleEffects';
+import { defaultCardVariant, officialInfoDamage, type CardVariant } from '@/app/lib/battleEffects/infoDamage';
 
 export const BATTLE_SCORE_COLLECTION = 'scores';
 export const BATTLE_SCORE_SCHEMA_VERSION = 1;
@@ -10,7 +11,7 @@ export const BATTLE_PLAY_EVENT_COUNT = 6;
 /** 2^31-1-dən aşağı — wrap/overflow yoxdur. */
 export const BATTLE_SCORE_MAX = 1_000_000;
 export const BATTLE_SCORE_MIN = 0;
-export const BATTLE_DAMAGE_MAX = 12;
+export const BATTLE_DAMAGE_MAX = 3500;
 export const BATTLE_PLAYER_DELTA_MAX = 10;
 export const BATTLE_ALLIANCE_DELTA_MAX = 8;
 export const BATTLE_STEAL_MAX = 6;
@@ -30,10 +31,12 @@ function isSafeInt(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && Number.isSafeInteger(value);
 }
 
-export function officialCardEffect(cardId: string): OfficialCardEffect | null {
-  const resolved = resolveCardEffect(cardId);
+export function officialCardEffect(cardId: string, variant?: CardVariant | null, memberCount?: unknown): OfficialCardEffect | null {
+  const resolved = resolveCardEffect(cardId, variant);
   if (!resolved) return null;
-  if (!isSafeInt(resolved.damage) || resolved.damage < 0 || resolved.damage > BATTLE_DAMAGE_MAX) return null;
+  const chosen = variant === undefined ? defaultCardVariant(cardId) : variant;
+  const damage = memberCount === undefined ? resolved.damage : officialInfoDamage(cardId, memberCount, chosen);
+  if (!isSafeInt(damage) || damage < 0 || damage > BATTLE_DAMAGE_MAX) return null;
   if (!isSafeInt(resolved.playerDelta) || resolved.playerDelta < 0 || resolved.playerDelta > BATTLE_PLAYER_DELTA_MAX) {
     return null;
   }
@@ -48,7 +51,7 @@ export function officialCardEffect(cardId: string): OfficialCardEffect | null {
   return {
     cardId: resolved.cardId,
     kind: resolved.primary,
-    damage: resolved.damage,
+    damage,
     playerDelta: resolved.playerDelta,
     allianceDelta: resolved.allianceDelta,
     steal: resolved.steal,

@@ -503,7 +503,7 @@ runStage(14, 'Effekt serverdə tətbiq olunur', () => {
   const effect = officialCardEffect('qul');
   assert.ok(effect);
   assert.equal(effect.cardId, 'qul');
-  assert.equal(effect.damage, 3);
+  assert.equal(effect.damage, 0);
   assert.equal(effect.playerDelta, 4);
   assert.equal(effect.allianceDelta, 2);
   const forgedDamage = 99;
