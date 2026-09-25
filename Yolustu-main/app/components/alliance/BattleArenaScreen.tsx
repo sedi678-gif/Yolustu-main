@@ -330,6 +330,7 @@ export default function BattleArenaScreen({
   return (
     <div className={styles.arena} role="dialog" aria-label="Arena">
       <div className={styles.sky} aria-hidden />
+      <div className={styles.vignette} aria-hidden />
 
       <header className={styles.hud}>
         <button type="button" className={styles.iconBtn} onClick={onClose} aria-label="Geri">
@@ -363,7 +364,7 @@ export default function BattleArenaScreen({
       ) : null}
 
       <section className={styles.versus} aria-label="Oyunçular">
-        <div className={styles.fighter} data-side="you">
+        <div className={styles.fighter} data-side="you" data-active={battle.status === 'active' && myTurn ? '1' : '0'}>
           <div className={styles.avatar} data-you="1" aria-hidden>
             {initials(myName)}
           </div>
@@ -378,9 +379,9 @@ export default function BattleArenaScreen({
           </div>
         </div>
         <div className={styles.vs} aria-hidden>
-          VS
+          <b>VS</b>
         </div>
-        <div className={styles.fighter} data-side="opp">
+        <div className={styles.fighter} data-side="opp" data-active={battle.status === 'active' && !myTurn ? '1' : '0'}>
           <div className={styles.fighterMeta} data-align="end">
             <strong>{oppId ? 'Rəqib' : 'Boş'}</strong>
             <small>{mySide === 'attacker' ? 'Müdafiə' : 'Hücum'}</small>
@@ -397,28 +398,35 @@ export default function BattleArenaScreen({
       </section>
 
       <main className={styles.stage}>
-        <div className={styles.picks}>
-          <div>
-            <p>Sənin seçdiyin kartlar</p>
-            <div className={styles.pickRow}>
-              {myPicks.map((cardId, index) => {
-                const meta = cardId ? cardMeta(cardId) : null;
-                return (
-                  <div key={`mine-${index}`} className={styles.pick} data-filled={meta ? '1' : '0'}>
-                    {meta?.image ? <img src={meta.image} alt="" /> : <span>{meta?.emoji ?? '?'}</span>}
-                  </div>
-                );
-              })}
+        <div className={styles.table} data-striking={busyId ? '1' : '0'}>
+          <div className={styles.tableRim} aria-hidden />
+          <div className={styles.picks}>
+            <div>
+              <p>Sənin seçdiyin kartlar</p>
+              <div className={styles.pickRow}>
+                {myPicks.map((cardId, index) => {
+                  const meta = cardId ? cardMeta(cardId) : null;
+                  return (
+                    <div key={`mine-${index}`} className={styles.pick} data-filled={meta ? '1' : '0'} data-live={selected === cardId ? '1' : '0'}>
+                      {meta?.image ? <img src={meta.image} alt="" /> : <span>{meta?.emoji ?? '?'}</span>}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-          <div data-align="end">
-            <p>Rəqibin seçdiyi kartlar</p>
-            <div className={styles.pickRow}>
-              {Array.from({ length: BATTLE_LOADOUT_SIZE }, (_, index) => (
-                <div key={`opp-${index}`} className={styles.pick} data-secret="1">
-                  <span>?</span>
-                </div>
-              ))}
+            <div className={styles.clash} aria-hidden>
+              <span>{battle.status === 'active' ? (myTurn ? 'Sənin növbən' : 'Rəqibin növbəsi') : 'Arena'}</span>
+              <b>⚔</b>
+            </div>
+            <div data-align="end">
+              <p>Rəqibin seçdiyi kartlar</p>
+              <div className={styles.pickRow}>
+                {Array.from({ length: BATTLE_LOADOUT_SIZE }, (_, index) => (
+                  <div key={`opp-${index}`} className={styles.pick} data-secret="1">
+                    <span>?</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
