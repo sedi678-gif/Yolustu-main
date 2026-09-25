@@ -234,6 +234,70 @@ service cloud.firestore {
         && after.updatedAt == request.time;
     }
 
+    function isValidOfflineDefenseSeat() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let added = after.defenderPlayerIds[after.defenderPlayerIds.size() - 1];
+      let player = get(/databases/$(database)/documents/players/$(added)).data;
+      return request.auth != null
+        && before.kind == 'alliance_map'
+        && before.status in ['joining', 'locked']
+        && after.status == before.status
+        && request.auth.uid in before.attackerUids
+        && after.attackerPlayerIds == before.attackerPlayerIds
+        && after.attackerUids == before.attackerUids
+        && after.defenderUids == before.defenderUids
+        && after.defenderPlayerIds.size() == before.defenderPlayerIds.size() + 1
+        && after.defenderPlayerIds.size() <= 5
+        && after.participantIds.size() == before.participantIds.size() + 1
+        && added in after.participantIds
+        && (before.defenderPlayerIds.size() < 1 || before.defenderPlayerIds[0] == after.defenderPlayerIds[0])
+        && (before.defenderPlayerIds.size() < 2 || before.defenderPlayerIds[1] == after.defenderPlayerIds[1])
+        && (before.defenderPlayerIds.size() < 3 || before.defenderPlayerIds[2] == after.defenderPlayerIds[2])
+        && (before.defenderPlayerIds.size() < 4 || before.defenderPlayerIds[3] == after.defenderPlayerIds[3])
+        && after.eventSeq == before.eventSeq + 1
+        && after.createdAt == before.createdAt
+        && after.defenderAllianceId == before.defenderAllianceId
+        && playerBelongsToAlliance(added, before.defenderAllianceId)
+        && player.keys().hasAny(['defenseLoadout'])
+        && isValidDefenseCardList(player.defenseLoadout)
+        && after.diff(before).affectedKeys()
+          .hasOnly(['eventSeq', 'updatedAt', 'participantIds', 'defenderPlayerIds'])
+        && after.updatedAt == request.time;
+    }
+
+    function isValidDefenseUidBind() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.kind == 'alliance_map'
+        && before.status in ['joining', 'locked', 'active']
+        && after.status == before.status
+        && after.defenderPlayerIds == before.defenderPlayerIds
+        && after.attackerPlayerIds == before.attackerPlayerIds
+        && after.attackerUids == before.attackerUids
+        && before.defenderUids is list
+        && after.defenderUids is list
+        && after.defenderUids.size() == before.defenderUids.size() + 1
+        && request.auth.uid in after.defenderUids
+        && !(request.auth.uid in before.defenderUids)
+        && after.eventSeq == before.eventSeq + 1
+        && after.createdAt == before.createdAt
+        && after.diff(before).affectedKeys().hasOnly(['eventSeq', 'updatedAt', 'defenderUids'])
+        && after.updatedAt == request.time;
+    }
+
+    function isValidDefenseCardList(ids) {
+      return ids is list
+        && ids.size() >= 1
+        && ids.size() <= 5
+        && isLoadoutCardId(ids[0])
+        && (ids.size() < 2 || (isLoadoutCardId(ids[1]) && ids[1] != ids[0]))
+        && (ids.size() < 3 || (isLoadoutCardId(ids[2]) && ids[2] != ids[0] && ids[2] != ids[1]))
+        && (ids.size() < 4 || (isLoadoutCardId(ids[3]) && ids[3] != ids[0] && ids[3] != ids[1] && ids[3] != ids[2]))
+        && (ids.size() < 5 || (isLoadoutCardId(ids[4]) && ids[4] != ids[0] && ids[4] != ids[1] && ids[4] != ids[2] && ids[4] != ids[3]));
+    }
+
     function isValidMapBattleLock() {
       let before = resource.data;
       let after = request.resource.data;
@@ -529,6 +593,80 @@ service cloud.firestore {
 
     function playerOwnsLoadout(playerId, ids) {
       return request.auth != null && playerId is string && playerId.size() > 0 && isValidLoadoutCardList(ids);
+    }
+
+    function battleParticipant(b) {
+      return request.auth != null
+        && (
+          (b.keys().hasAny(['attackerUids']) && b.attackerUids is list && request.auth.uid in b.attackerUids)
+          || (b.keys().hasAny(['defenderUids']) && b.defenderUids is list && request.auth.uid in b.defenderUids)
+        );
+    }
+
+    function defenderIsOffline(battleId, playerId) {
+      return !exists(/databases/$(database)/documents/battles/$(battleId)/presence/$(playerId))
+        || request.time > get(/databases/$(database)/documents/battles/$(battleId)/presence/$(playerId)).data.lastSeen + duration.value(20, 's');
+    }
+
+    function defenseSnapshotHas(battleId, playerId, cardId) {
+      return exists(/databases/$(database)/documents/battles/$(battleId)/defense_loadouts/$(playerId))
+        && get(/databases/$(database)/documents/battles/$(battleId)/defense_loadouts/$(playerId)).data.locked == true
+        && get(/databases/$(database)/documents/battles/$(battleId)/defense_loadouts/$(playerId)).data.cardIds is list
+        && cardId in get(/databases/$(database)/documents/battles/$(battleId)/defense_loadouts/$(playerId)).data.cardIds;
+    }
+
+    function isDefenseAiTurn(battleId, playerId, side, cardId) {
+      let b = battleData(battleId);
+      return side == 'defender'
+        && b.turnSide == 'defender'
+        && b.turnPlayerId == playerId
+        && b.defenderPlayerIds is list
+        && playerId in b.defenderPlayerIds
+        && battleParticipant(b)
+        && defenderIsOffline(battleId, playerId)
+        && defenseSnapshotHas(battleId, playerId, cardId);
+    }
+
+    function isValidDefenseSnapshot(battleId, playerId) {
+      let d = request.resource.data;
+      let player = get(/databases/$(database)/documents/players/$(playerId)).data;
+      let b = getAfter(/databases/$(database)/documents/battles/$(battleId)).data;
+      return request.auth != null
+        && battleParticipant(b)
+        && playerId in b.defenderPlayerIds
+        && d.battleId == battleId
+        && d.playerId == playerId
+        && d.locked == true
+        && d.schemaVersion == 1
+        && d.createdAt == request.time
+        && isValidDefenseCardList(player.defenseLoadout)
+        && d.cardIds == player.defenseLoadout
+        && d.keys().hasOnly(['battleId', 'playerId', 'cardIds', 'locked', 'schemaVersion', 'createdAt']);
+    }
+
+    function isValidPresenceHeartbeat(battleId, playerId) {
+      let d = request.resource.data;
+      let b = battleData(battleId);
+      return request.auth != null
+        && playerId in b.participantIds
+        && (
+          uidOwnsBattleSlot(b, playerId, 'attacker')
+          || uidOwnsBattleSlot(b, playerId, 'defender')
+        )
+        && d.battleId == battleId
+        && d.playerId == playerId
+        && d.uid == request.auth.uid
+        && d.lastSeen == request.time
+        && d.schemaVersion == 1
+        && d.keys().hasOnly(['battleId', 'playerId', 'uid', 'lastSeen', 'schemaVersion']);
+    }
+
+    function isValidPlayerDefenseWrite() {
+      let d = request.resource.data;
+      return isValidDefenseCardList(d.defenseLoadout)
+        && d.defenseLoadoutUpdatedAt == request.time
+        && d.diff(resource.data).affectedKeys()
+          .hasOnly(['defenseLoadout', 'defenseLoadoutUpdatedAt', 'updatedAt']);
     }
 
     function uidOwnsBattleSlot(b, playerId, side) {
@@ -893,6 +1031,7 @@ service cloud.firestore {
           b.kind != 'alliance_map'
           || uidOwnsBattleSlot(b, playerId, 'attacker')
           || uidOwnsBattleSlot(b, playerId, 'defender')
+          || (playerId in b.defenderPlayerIds && request.auth.uid in b.attackerUids)
         );
     }
 
@@ -940,8 +1079,12 @@ service cloud.firestore {
         && after.cardCooldownUntil[cid] is int
         && after.cardCooldownUntil[cid] >= request.time.toMillis() + officialCardCooldownSec(cid) * 1000 - 3000
         && after.cardCooldownUntil[cid] <= request.time.toMillis() + officialCardCooldownSec(cid) * 1000 + 8000
-        && exists(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId))
-        && cid in get(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId)).data.cardIds
+        && (
+          (
+            exists(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId))
+            && cid in get(/databases/$(database)/documents/battles/$(battleId)/loadouts/$(playerId)).data.cardIds
+          ) || isDefenseAiTurn(battleId, playerId, 'defender', cid)
+        )
         && after.diff(before).affectedKeys()
           .hasOnly(['energy', 'cardUsage', 'cardCooldownUntil', 'lastRequestId', 'updatedAt'])
         && after.updatedAt == request.time;
@@ -958,7 +1101,10 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/battles/$(battleId))
         && battleData(battleId).status == 'active'
         && battleData(battleId).turnPlayerId == d.playerId
-        && uidOwnsBattleSlot(battleData(battleId), d.playerId, d.side)
+        && (
+          uidOwnsBattleSlot(battleData(battleId), d.playerId, d.side)
+          || isDefenseAiTurn(battleId, d.playerId, d.side, d.cardId)
+        )
         && request.time < battleData(battleId).turnStartAt + duration.value(15, 's')
         && d.requestId == requestId
         && d.battleId == battleId
@@ -1404,6 +1550,7 @@ service cloud.firestore {
         );
       allow create: if isValidOpenBattleCreate() || isValidMapBattleCreate();
       allow update: if isValidLegacySeqBump() || isValidMapBattleJoin() || isValidMapBattleLock()
+        || isValidOfflineDefenseSeat() || isValidDefenseUidBind()
         || isValidBattleActivate() || isValidCardPlaySeqBump(battleId) || isValidTurnTimeout()
         || isValidBattleFinish();
       allow delete: if false;
@@ -1477,6 +1624,18 @@ service cloud.firestore {
         allow create: if isValidLoadoutWrite(battleId, playerId, true);
         allow update: if isValidLoadoutWrite(battleId, playerId, false)
           || isValidLoadoutFreeze(battleId);
+        allow delete: if false;
+      }
+
+      match /defense_loadouts/{playerId} {
+        allow read: if canReadBattle(battleId);
+        allow create: if isValidDefenseSnapshot(battleId, playerId);
+        allow update, delete: if false;
+      }
+
+      match /presence/{playerId} {
+        allow read: if canReadBattle(battleId);
+        allow create, update: if isValidPresenceHeartbeat(battleId, playerId);
         allow delete: if false;
       }
     }
@@ -1787,6 +1946,10 @@ service cloud.firestore {
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['userPlan', 'hasVipPass', 'isVipLifetime', 'proPanelActive'])
           || isValidPlanWrite()
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['defenseLoadout'])
+          || isValidPlayerDefenseWrite()
         );
       allow delete: if false;
     }

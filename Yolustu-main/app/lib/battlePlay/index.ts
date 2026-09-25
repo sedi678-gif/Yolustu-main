@@ -16,6 +16,6 @@ export {
 
 export { listenServerClock, serverNowMs, syncServerClock } from './battleServerClock';
 
-export { playBattleCard, timeoutBattleTurn } from './battlePlayService';
+export { playBattleCard, playOfflineDefenseTurn, timeoutBattleTurn } from './battlePlayService';
 
 export type { PlayBattleCardInput, PlayBattleCardResult } from './battlePlayService';

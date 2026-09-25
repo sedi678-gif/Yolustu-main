@@ -6,6 +6,7 @@ import AllianceFlagPreview from './AllianceFlagPreview';
 import AllianceFlagEditor from './AllianceFlagEditor';
 import { AllianceCombinedRankButton } from './AllianceRankTables';
 import AllianceMapOrduCards from './AllianceMapOrduCards';
+import DefenseLoadoutPanel from './DefenseLoadoutPanel';
 import AllianceMapSheet from './AllianceMapSheet';
 import { IconMapFlag } from './AllianceMapIcons';
 import styles from './alliance.module.css';
@@ -13,6 +14,7 @@ import styles from './alliance.module.css';
 export default function AllianceMapSidebar() {
   const { activeAlliance, hubVisuals } = useAllianceBrain();
   const [flagOpen, setFlagOpen] = useState(false);
+  const [defenseOpen, setDefenseOpen] = useState(false);
 
   return (
     <aside className={styles.allianceMapSidebar}>
@@ -43,6 +45,9 @@ export default function AllianceMapSidebar() {
       <div className={styles.mapRoundBtnRow}>
         <AllianceCombinedRankButton />
         <AllianceMapOrduCards variant="sheet" />
+        <button type="button" className={styles.mapRoundBtn} onClick={() => setDefenseOpen(true)}>
+          Müdafiə
+        </button>
       </div>
 
       <AllianceMapSheet
@@ -52,6 +57,9 @@ export default function AllianceMapSidebar() {
         icon={<IconMapFlag />}
       >
         <AllianceFlagEditor />
+      </AllianceMapSheet>
+      <AllianceMapSheet open={defenseOpen} onClose={() => setDefenseOpen(false)} title="Müdafiə kartları">
+        <DefenseLoadoutPanel />
       </AllianceMapSheet>
     </aside>
   );

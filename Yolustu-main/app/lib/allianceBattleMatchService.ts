@@ -27,6 +27,7 @@ import { BATTLE_SCORE_COLLECTION, initialBattleScoreDoc } from '@/app/lib/battle
 import { BATTLE_TURN_DURATION_MS, initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
 import { stampJoinFailedResult } from '@/app/lib/battleFinish/battleFinishService';
+import { readStoredDefenseLoadout, stampDefenseSnapshot } from '@/app/lib/battleDefense/battleDefenseService';
 import { serverNowMs, syncServerClock } from '@/app/lib/battlePlay/battleServerClock';
 import type { AllianceData } from '@/app/components/alliance/types';
 
@@ -342,7 +343,24 @@ export async function joinAllianceMapBattle(input: {
 
       const attackers = battle.attackerPlayerIds ?? [];
       const defenders = battle.defenderPlayerIds ?? [];
-      if (attackers.includes(playerId) || defenders.includes(playerId)) return battle;
+      if (attackers.includes(playerId) || defenders.includes(playerId)) {
+        const onAttack = attackers.includes(playerId);
+        const uids = onAttack ? battle.attackerUids ?? [] : battle.defenderUids ?? [];
+        if (uids.includes(authUser.uid)) return battle;
+        const nextUids = [...uids, authUser.uid];
+        const seqBind = battle.eventSeq + 1;
+        tx.update(parentRef, {
+          eventSeq: seqBind,
+          updatedAt: serverTimestamp(),
+          ...(onAttack ? { attackerUids: nextUids } : { defenderUids: nextUids }),
+        });
+        return {
+          ...battle,
+          eventSeq: seqBind,
+          attackerUids: onAttack ? nextUids : battle.attackerUids ?? [],
+          defenderUids: onAttack ? battle.defenderUids ?? [] : nextUids,
+        };
+      }
 
       const energyRef = doc(db, 'battles', battleId, BATTLE_ENERGY_COLLECTION, playerId);
       const scoreRef = doc(db, 'battles', battleId, BATTLE_SCORE_COLLECTION, playerId);
@@ -418,6 +436,79 @@ export async function joinAllianceMapBattle(input: {
     'Qoşulma vaxtı bitdi.'
     )
   );
+}
+
+export async function seatOfflineDefenders(battleId: string, actorId: string): Promise<number> {
+  await requireFirebaseAuth();
+  const actor = sanitizePlayerId(actorId);
+  const id = String(battleId || '').trim();
+  let seated = 0;
+
+  for (let step = 0; step < ALLIANCE_BATTLE_MAX_PER_SIDE; step += 1) {
+    const added = await withTimeout(
+      runTransaction(db, async (tx) => {
+        const parentRef = battleRef(id);
+        const parentSnap = await tx.get(parentRef);
+        if (!parentSnap.exists()) return false;
+        const battle = battleFromData(parentSnap.id, parentSnap.data());
+        if (battle.status !== 'joining' && battle.status !== 'locked') return false;
+        if (!(battle.attackerPlayerIds ?? []).includes(actor)) return false;
+        const defenders = battle.defenderPlayerIds ?? [];
+        if (defenders.length >= ALLIANCE_BATTLE_MAX_PER_SIDE) return false;
+
+        const allianceSnap = await tx.get(allianceRef(battle.defenderAllianceId || ''));
+        if (!allianceSnap.exists()) return false;
+        const home = allianceSnap.data();
+        const members: string[] = Array.isArray(home?.members) ? home.members.map(String) : [];
+        const leaderId = String(home?.leaderId || '');
+        const candidates = [...new Set([leaderId, ...members].filter(Boolean))].filter(
+          (player) => !defenders.includes(player)
+        );
+        const snaps = await Promise.all(candidates.slice(0, 8).map((player) => tx.get(playerRef(player))));
+        const pick = snaps.find((snap) => snap.exists() && readStoredDefenseLoadout(snap.data() as Record<string, unknown>).length >= 1);
+        if (!pick) return false;
+
+        const playerId = pick.id;
+        const nextDefenders = [...defenders, playerId];
+        const attackers = battle.attackerPlayerIds ?? [];
+        const seq = battle.eventSeq + 1;
+        const eventDoc = newBattleEventRef(id);
+        const energyRef = doc(db, 'battles', id, BATTLE_ENERGY_COLLECTION, playerId);
+        const scoreRef = doc(db, 'battles', id, BATTLE_SCORE_COLLECTION, playerId);
+        const energySnap = await tx.get(energyRef);
+        const scoreSnap = await tx.get(scoreRef);
+        const snapSnap = await tx.get(doc(db, 'battles', id, 'defense_loadouts', playerId));
+
+        tx.update(parentRef, {
+          eventSeq: seq,
+          updatedAt: serverTimestamp(),
+          participantIds: [...attackers, ...nextDefenders],
+          defenderPlayerIds: nextDefenders,
+        });
+        tx.set(
+          eventDoc,
+          battleEventWrite({
+            eventId: eventDoc.id,
+            battleId: id,
+            playerId,
+            type: 'player_joined',
+            seq,
+            meta: { side: 'defender', role: 'offline_defense' },
+          })
+        );
+        if (!energySnap.exists()) tx.set(energyRef, initialBattleEnergyDoc(id, playerId));
+        if (!scoreSnap.exists()) tx.set(scoreRef, initialBattleScoreDoc(id, playerId));
+        stampDefenseSnapshot(tx, id, playerId, pick.data() as Record<string, unknown>, snapSnap.exists());
+        return true;
+      }),
+      WRITE_MS,
+      'Offline müdafiə oturmadı.'
+    );
+    if (!added) break;
+    seated += 1;
+  }
+
+  return seated;
 }
 
 export async function lockAllianceMapBattle(battleId: string, actorId: string): Promise<BattleRecord> {

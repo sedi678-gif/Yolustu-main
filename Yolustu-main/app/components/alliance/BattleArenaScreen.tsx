@@ -18,9 +18,11 @@ import {
   canPlayOnTurn,
   cardUsageCount,
   listenServerClock,
+  playOfflineDefenseTurn,
   timeoutBattleTurn,
   viewTurnTimer,
 } from '@/app/lib/battlePlay';
+import { heartbeatBattlePresence } from '@/app/lib/battleDefense';
 import {
   BATTLE_LOADOUT_CARD_METAS,
   BATTLE_LOADOUT_SIZE,
@@ -147,6 +149,28 @@ export default function BattleArenaScreen({
   const replayed = useRef(false);
 
   useEffect(() => listenServerClock(setServerNow), []);
+  useEffect(() => {
+    const beat = () => {
+      void heartbeatBattlePresence(battleId, playerId).catch(() => {});
+    };
+    beat();
+    const timer = window.setInterval(beat, 8_000);
+    return () => window.clearInterval(timer);
+  }, [battleId, playerId]);
+  useEffect(() => {
+    if (battle.status !== 'active') return;
+    if (battle.turnSide !== 'defender') return;
+    if (!battle.turnPlayerId || battle.turnPlayerId === playerId) return;
+    const timer = window.setTimeout(() => {
+      void playOfflineDefenseTurn({
+        battleId,
+        actorId: playerId,
+        expectedStateVersion: battle.stateVersion ?? 0,
+        expectedEventSeq: battle.eventSeq,
+      }).catch(() => {});
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [battle.eventSeq, battle.stateVersion, battle.status, battle.turnPlayerId, battle.turnSide, battleId, playerId]);
   useEffect(() => listenBattleEnergy(battleId, playerId, setEnergy), [battleId, playerId]);
   useEffect(() => listenBattleEvents(battleId, setEvents), [battleId]);
   useEffect(() => listenBattleResult(battleId, setResult), [battleId]);

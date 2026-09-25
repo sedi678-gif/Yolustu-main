@@ -198,7 +198,7 @@ export async function playOfflineDefenseTurn(input: {
     return await playBattleCard({
       battleId: input.battleId,
       playerId: input.actorId,
-      cardId: 'qaya',
+      cardId: '',
       expectedStateVersion: input.expectedStateVersion,
       expectedEventSeq: input.expectedEventSeq,
       mode: 'defense_ai',

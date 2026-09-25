@@ -12,6 +12,7 @@ import {
   listenAllianceMapBattle,
   listenMyJoiningBattle,
   activateAllianceBattle,
+  seatOfflineDefenders,
   lockAllianceMapBattle,
   officialJoinEndsAt,
   startAllianceMapBattle,
@@ -101,6 +102,7 @@ export default function AllianceMapBattleHost({
   const [reconnectSnap, setReconnectSnap] = useState<BattleReconnectSnapshot | null>(null);
   const attackLock = useRef(false);
   const autoJoinRef = useRef<string | null>(null);
+  const seatedRef = useRef<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -174,7 +176,16 @@ export default function AllianceMapBattleHost({
     );
     if (!inBattle) return;
     if (view.battle.status === 'joining' || view.battle.status === 'locked') {
-      void activateAllianceBattle(view.battle.id, userId).catch(() => {});
+      const attackers = view.battle.attackerPlayerIds ?? [];
+      const open = () => {
+        void activateAllianceBattle(view.battle.id, userId).catch(() => {});
+      };
+      if (attackers.includes(userId) && seatedRef.current !== view.battle.id) {
+        seatedRef.current = view.battle.id;
+        void seatOfflineDefenders(view.battle.id, userId).catch(() => {}).finally(open);
+      } else {
+        open();
+      }
     }
   }, [view, userId]);
 
