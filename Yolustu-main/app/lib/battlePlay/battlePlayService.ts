@@ -47,6 +47,17 @@ import {
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
 import { finishBattle } from '@/app/lib/battleFinish/battleFinishService';
 import { finishReasonFromScores } from '@/app/lib/battleFinish/battleFinishConfig';
+import {
+  isDefenseOffline,
+  officialDefenseAiPick,
+} from '@/app/lib/battleDefense/battleDefenseConfig';
+import {
+  battlePresenceRef,
+  defenseSnapshotRef,
+} from '@/app/lib/battleDefense/battleDefenseService';
+import { timestampToMs } from '@/app/lib/battleEventLog/battleEventLog';
+
+export type PlayBattleMode = 'player' | 'defense_ai';
 
 export interface PlayBattleCardInput {
   battleId: string;
@@ -56,6 +67,7 @@ export interface PlayBattleCardInput {
   expectedStateVersion: unknown;
   expectedEventSeq: unknown;
   slotIndex?: unknown;
+  mode?: PlayBattleMode;
 }
 
 export interface PlayBattleCardResult {
@@ -176,14 +188,43 @@ function resultFromReceipt(requestId: string, prev: Record<string, unknown>): Pl
   };
 }
 
+export async function playOfflineDefenseTurn(input: {
+  battleId: string;
+  actorId: string;
+  expectedStateVersion: unknown;
+  expectedEventSeq: unknown;
+}): Promise<PlayBattleCardResult | { skipped: true; reason: string }> {
+  try {
+    return await playBattleCard({
+      battleId: input.battleId,
+      playerId: input.actorId,
+      cardId: 'qaya',
+      expectedStateVersion: input.expectedStateVersion,
+      expectedEventSeq: input.expectedEventSeq,
+      mode: 'defense_ai',
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (
+      /online-dır|Müdafiə loadout yoxdur|Oynana bilən|müdafiə növbəsində|AI növbəsini|növbən deyil|Battle aktiv deyil|state dəyişib|Loadout tapılmadı|Energy tapılmadı/i.test(
+        msg
+      )
+    ) {
+      return { skipped: true, reason: msg };
+    }
+    throw err;
+  }
+}
+
 export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBattleCardResult> {
   const user = await requireFirebaseAuth();
-  const playerId = sanitizePlayerId(input.playerId);
+  const aiMode = input.mode === 'defense_ai';
+  let playerId = sanitizePlayerId(input.playerId);
   const battleId = sanitizeBattleId(input.battleId);
-  if (typeof input.cardId !== 'string' || !isBattleLoadoutCardId(input.cardId.trim())) {
+  if (!aiMode && (typeof input.cardId !== 'string' || !isBattleLoadoutCardId(input.cardId.trim()))) {
     throw new Error('Bu kart battle hovuzunda yoxdur');
   }
-  const cardId = input.cardId.trim();
+  let cardId = typeof input.cardId === 'string' ? input.cardId.trim() : '';
   const requestId =
     input.requestId == null ? makeEnergyRequestId() : sanitizeEnergyRequestId(input.requestId);
   const expectedStateVersion = requireInt(input.expectedStateVersion, 'Battle state version');
@@ -198,7 +239,7 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
   if (now <= 0) throw new Error('Server saatı yoxdur');
 
   const flightKey = `play:${battleId}:${requestId}`;
-  const playerLock = `${battleId}:${playerId}`;
+  const playerLock = aiMode ? `${battleId}:defense_ai` : `${battleId}:${playerId}`;
 
   return replayBattleRequest(flightKey, async () => {
     if (playLocks.has(playerLock)) throw new Error('Kart artıq oynanılır');
@@ -208,18 +249,9 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
       const played = await withTimeout(
     runTransaction(db, async (tx) => {
       const parentRef = battleRef(battleId);
-      const energyRef = battleEnergyRef(battleId, playerId);
-      const scoreRef = battleScoreRef(battleId, playerId);
       const receiptRef = energyRequestRef(battleId, requestId);
-      const costRef = cardCostRef(cardId);
-      const handRef = loadoutRef(battleId, playerId);
-
       const parentSnap = await tx.get(parentRef);
-      const energySnap = await tx.get(energyRef);
-      const scoreSnap = await tx.get(scoreRef);
       const receiptSnap = await tx.get(receiptRef);
-      const costSnap = await tx.get(costRef);
-      const handSnap = await tx.get(handRef);
 
       if (receiptSnap.exists()) {
         return resultFromReceipt(requestId, receiptSnap.data() as Record<string, unknown>);
@@ -227,15 +259,32 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
 
       if (!parentSnap.exists()) throw new Error('Battle tapılmadı');
       const battle = battleFromData(parentSnap.id, parentSnap.data());
+      if (battle.status !== 'active') throw new Error('Battle aktiv deyil');
+
+      if (aiMode) {
+        const turnId = sanitizePlayerId(battle.turnPlayerId || '');
+        if (!turnId) throw new Error('Növbə təyin olunmayıb');
+        if (sideOf(battle, turnId) !== 'defender') throw new Error('AI yalnız müdafiə növbəsində oynayır');
+        const callerOk =
+          (battle.attackerUids ?? []).includes(user.uid) || (battle.defenderUids ?? []).includes(user.uid);
+        if (!callerOk) throw new Error('Yalnız iştirakçı AI növbəsini irəli apara bilər');
+        playerId = turnId;
+      }
+
+      const energyRef = battleEnergyRef(battleId, playerId);
+      const scoreRef = battleScoreRef(battleId, playerId);
+      const handRef = loadoutRef(battleId, playerId);
+      const energySnap = await tx.get(energyRef);
+      const scoreSnap = await tx.get(scoreRef);
+      const handSnap = await tx.get(handRef);
 
       if (!(battle.participantIds ?? []).includes(playerId)) throw new Error('Bu döyüşdə deyilsən');
-      if (battle.status !== 'active') throw new Error('Battle aktiv deyil');
       if (!canPlayOnTurn(battle, playerId)) throw new Error('İndi sənin növbən deyil');
       if (viewTurnTimer(battle, now).expired) throw new Error('Növbə vaxtı bitib');
 
       const side = sideOf(battle, playerId);
       if (!side) throw new Error('Bu döyüşə qoşulmamısan');
-      if (battle.kind === 'alliance_map' && !uidOwnsPlayerSlot(battle, playerId, user.uid, side)) {
+      if (!aiMode && battle.kind === 'alliance_map' && !uidOwnsPlayerSlot(battle, playerId, user.uid, side)) {
         throw new Error('Bu hesabın loadout-u deyil');
       }
 
@@ -246,11 +295,42 @@ export async function playBattleCard(input: PlayBattleCardInput): Promise<PlayBa
         throw new Error('Battle state dəyişib');
       }
 
-      if (!handSnap.exists()) throw new Error('Loadout tapılmadı');
-      const handIds = Array.isArray(handSnap.data()?.cardIds)
-        ? (handSnap.data()?.cardIds as unknown[]).map(String)
-        : [];
-      if (!handIds.includes(cardId)) throw new Error('Bu kart seçilmiş 5-likdə yoxdur');
+      let handIds: string[] = [];
+      if (aiMode) {
+        const presenceSnap = await tx.get(battlePresenceRef(battleId, playerId));
+        const lastSeen = presenceSnap.exists()
+          ? timestampToMs((presenceSnap.data() as { lastSeen?: unknown }).lastSeen)
+          : 0;
+        if (!isDefenseOffline(lastSeen || null, now)) {
+          throw new Error('Müdafiəçi online-dır — AI oynamır');
+        }
+        const snapSnap = await tx.get(defenseSnapshotRef(battleId, playerId));
+        if (!snapSnap.exists()) throw new Error('Müdafiə loadout yoxdur');
+        handIds = Array.isArray(snapSnap.data()?.cardIds)
+          ? (snapSnap.data()?.cardIds as unknown[]).map(String)
+          : [];
+        if (handIds.length < 1) throw new Error('Müdafiə loadout yoxdur');
+        if (!energySnap.exists()) throw new Error('Energy tapılmadı');
+        const energyData = energySnap.data() as Record<string, unknown>;
+        const pick = officialDefenseAiPick({
+          cardIds: handIds,
+          energy: clampBattleEnergy(Number(energyData.energy)),
+          cardUsage: readCardUsage(energyData.cardUsage, energyData.usedCardIds),
+          cooldownUntil: readCooldownUntil(energyData.cardCooldownUntil),
+          serverNow: now,
+        });
+        if (!pick) throw new Error('Oynana bilən müdafiə kartı yoxdur');
+        cardId = pick;
+      } else {
+        if (!handSnap.exists()) throw new Error('Loadout tapılmadı');
+        handIds = Array.isArray(handSnap.data()?.cardIds)
+          ? (handSnap.data()?.cardIds as unknown[]).map(String)
+          : [];
+        if (!handIds.includes(cardId)) throw new Error('Bu kart seçilmiş 5-likdə yoxdur');
+      }
+
+      const costRef = cardCostRef(cardId);
+      const costSnap = await tx.get(costRef);
 
       const cost = readCostFromDatabase(
         costSnap.exists() ? (costSnap.data() as Record<string, unknown>) : undefined,
