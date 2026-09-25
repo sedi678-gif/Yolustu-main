@@ -144,6 +144,14 @@ export default function SettingsPageClient() {
         <p className={styles.settingsSubtitle}>{t.subtitle}</p>
 
         <section className={styles.settingsSection}>
+          <h2>📈 Dashboard</h2>
+          <p className={styles.settingsHint}>Paket, reklam və izləmə paneli.</p>
+          <AppLink href="/dashboard" className={styles.secondaryBtn} style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
+            Dashboard-u aç
+          </AppLink>
+        </section>
+
+        <section className={styles.settingsSection}>
           <h2>🌐 {t.language}</h2>
           <div className={styles.langRow}>
             {langs.map((l) => (

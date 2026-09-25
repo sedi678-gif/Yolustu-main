@@ -1028,10 +1028,6 @@ function ProfilePageContent() {
           <span className={profileStyles.actionIcon}>💬</span>
           {playerProfile?.proPanelActive ? 'Sosial: Açıq' : 'Sosial rejim'}
         </button>
-        <AppLink href="/dashboard" className={profileStyles.profileQuickBtn}>
-          <span className={profileStyles.actionIcon}>📈</span>
-          Dashboard
-        </AppLink>
         <button type="button" className={profileStyles.profileQuickBtn} onClick={() => setShowAllianceModal(true)}>
           <span className={profileStyles.actionIcon}>🛡️</span>
           İttifaq

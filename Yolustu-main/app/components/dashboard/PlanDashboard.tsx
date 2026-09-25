@@ -150,8 +150,8 @@ export default function PlanDashboard() {
           >
             {plan.proPanelActive ? 'Sosial rejimi bağla (XP açılacaq)' : 'Sosial rejimi aç (XP sönəcək)'}
           </button>
-          <AppLink href="/profile" className="flex-1 rounded-xl border border-white/15 px-4 py-3 text-center text-sm font-bold">
-            Profilə qayıt
+          <AppLink href="/settings" className="flex-1 rounded-xl border border-white/15 px-4 py-3 text-center text-sm font-bold">
+            Ayarlara qayıt
           </AppLink>
         </div>
       </main>
