@@ -27,7 +27,8 @@ import { BATTLE_SCORE_COLLECTION, initialBattleScoreDoc } from '@/app/lib/battle
 import { BATTLE_TURN_DURATION_MS, initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
 import { stampJoinFailedResult } from '@/app/lib/battleFinish/battleFinishService';
-import { readStoredDefenseLoadout, stampDefenseSnapshot } from '@/app/lib/battleDefense/battleDefenseService';
+import { readStoredDefenseLoadout } from '@/app/lib/battleDefense/battleDefenseConfig';
+import { stampDefenseSnapshot } from '@/app/lib/battleDefense/battleDefenseService';
 import { serverNowMs, syncServerClock } from '@/app/lib/battlePlay/battleServerClock';
 import type { AllianceData } from '@/app/components/alliance/types';
 
