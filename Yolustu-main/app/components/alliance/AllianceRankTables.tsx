@@ -389,7 +389,7 @@ function boardToRows(board: LeaderboardBoard | null, subtitle?: (row: { id: stri
   }));
 }
 
-export function AllianceRankingBoard() {
+export function AllianceRankingBoard({ sheetMode = false }: { sheetMode?: boolean }) {
   const { userId, user } = useUser();
   const userName = user?.displayName || user?.email || getLocalProfileDisplayName();
   const { alliances, activeAlliance, notifyAllianceInfoViewed } = useAllianceBrain();
@@ -422,6 +422,7 @@ export function AllianceRankingBoard() {
             userAllianceRank ? 'Sizin ittifaq sıranız' : 'Hələ heç bir ittifaqda deyilsiniz'
           }
           emptyMessage="Həftəlik cədvəl serverdən gözlənilir."
+          sheetMode={sheetMode}
           onRowClick={(row) => {
             const alliance = alliances.find((item) => item.id === row.id);
             if (alliance) notifyAllianceInfoViewed(alliance);
@@ -442,6 +443,7 @@ export function AllianceRankingBoard() {
               : `${userName} — hələ reytinq cədvəlində deyilsiniz`
           }
           emptyMessage="Gündəlik cədvəl serverdən gözlənilir."
+          sheetMode={sheetMode}
         />
       </section>
     </div>
@@ -449,13 +451,26 @@ export function AllianceRankingBoard() {
 }
 
 export function AllianceCombinedRankButton() {
+  const [open, setOpen] = useState(false);
   return (
-    <AllianceMapRoundBtn
-      icon={<IconMapRank />}
-      label="Reytinq"
-      href="/ranking/"
-      title="Reytinqi brauzerdə aç"
-    />
+    <>
+      <AllianceMapRoundBtn
+        icon={<IconMapRank />}
+        label="Reytinq"
+        title="Reytinq"
+        onClick={() => setOpen(true)}
+        active={open}
+      />
+      <AllianceMapSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Reytinq"
+        icon={<IconMapRank />}
+        wide
+      >
+        <AllianceRankingBoard sheetMode />
+      </AllianceMapSheet>
+    </>
   );
 }
 

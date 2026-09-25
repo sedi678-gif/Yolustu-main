@@ -1782,6 +1782,12 @@
   max-height: min(52dvh, 380px);
 }
 
+@media (max-width: 720px) {
+  .mapSheetBody .rankTablesSplit {
+    grid-template-columns: 1fr;
+  }
+}
+
 .rankingPage {
   min-height: 100dvh;
   background:
