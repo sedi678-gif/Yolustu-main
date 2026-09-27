@@ -5,6 +5,7 @@ import { IconMapAd } from './AllianceMapIcons';
 import styles from './alliance.module.css';
 import { useUser } from '@/context/UserContext';
 import { normalizeUserPlanState, shouldShowAds } from '@/app/lib/userPlan';
+import { useAllianceScreenHold } from './AllianceScreenBusy';
 
 declare global {
   interface Window {
@@ -28,6 +29,7 @@ export default function GoogleAdButton({ onReward, variant = 'pill', label }: Go
   const hideAds = !shouldShowAds(normalizeUserPlanState(playerProfile as unknown as Record<string, unknown> | null));
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  useAllianceScreenHold(open);
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_ADS_CLIENT;
   const slotId = process.env.NEXT_PUBLIC_GOOGLE_ADS_SLOT;
 

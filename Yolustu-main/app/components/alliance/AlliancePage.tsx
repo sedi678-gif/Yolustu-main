@@ -11,12 +11,14 @@ import AllianceChatDock from './AllianceChatDock';
 import GoogleAdButton from './GoogleAdButton';
 import AppLink from '@/app/components/AppLink';
 import AllianceMapBattleHost from './AllianceMapBattleHost';
+import { AllianceScreenBusyProvider, useAllianceScreenHold } from './AllianceScreenBusy';
 import styles from './alliance.module.css';
 
 function AlliancePageInner() {
   const { alliances, activeAlliance, liveBattleAttacks, handleAdXpReward } = useAllianceBrain();
   const [mapOpen, setMapOpen] = useState(false);
   const [selectedAllianceId, setSelectedAllianceId] = useState<string | null>(null);
+  useAllianceScreenHold(mapOpen);
 
   useEffect(() => {
     const latest = liveBattleAttacks[0];
@@ -77,5 +79,9 @@ function AlliancePageInner() {
 }
 
 export default function AlliancePage() {
-  return <AlliancePageInner />;
+  return (
+    <AllianceScreenBusyProvider>
+      <AlliancePageInner />
+    </AllianceScreenBusyProvider>
+  );
 }

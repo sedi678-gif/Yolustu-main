@@ -2,6 +2,7 @@
 
 import React, { useEffect } from 'react';
 import styles from './alliance.module.css';
+import { useAllianceScreenHold } from './AllianceScreenBusy';
 
 interface AllianceMapSheetProps {
   open: boolean;
@@ -22,6 +23,8 @@ export default function AllianceMapSheet({
   wide = false,
   children,
 }: AllianceMapSheetProps) {
+  useAllianceScreenHold(open);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {

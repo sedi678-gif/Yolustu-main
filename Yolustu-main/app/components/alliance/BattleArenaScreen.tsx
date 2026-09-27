@@ -39,6 +39,7 @@ import {
 import { ALLIANCE_BATTLE_MAX_PER_SIDE } from '@/app/lib/allianceBattleMatchService';
 import type { BattleChallenge } from '@/app/lib/battleClick';
 import type { PlayerProfile } from './types';
+import { useAllianceScreenHold } from './AllianceScreenBusy';
 import BattleClickChallengePanel from './BattleClickChallengePanel';
 import BattleLoadoutPicker from './BattleLoadoutPicker';
 import styles from './battleArena.module.css';
@@ -126,6 +127,7 @@ export default function BattleArenaScreen({
   joinRemainingMs?: number;
   onClose: () => void;
 }) {
+  useAllianceScreenHold(true);
   const battleId = battle.id;
   const mySide = (battle.attackerPlayerIds ?? []).includes(playerId) ? 'attacker' : 'defender';
   const myAlliance =
