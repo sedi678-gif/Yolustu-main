@@ -56,6 +56,8 @@ interface ProfileHeroDisplayProps {
 
   onEditBanner?: () => void;
 
+  bannerActions?: React.ReactNode;
+
   children?: React.ReactNode;
 
 }
@@ -91,6 +93,8 @@ export default function ProfileHeroDisplay({
   onEditAvatar,
 
   onEditBanner,
+
+  bannerActions,
 
   children,
 
@@ -168,25 +172,35 @@ export default function ProfileHeroDisplay({
 
         >
 
-          {editable && onEditBanner && (
+          {(bannerActions || (editable && onEditBanner)) && (
 
-            <button
+            <div className={profileStyles.heroBannerTools}>
 
-              type="button"
+              {bannerActions}
 
-              className={profileStyles.heroEditBannerBtn}
+              {editable && onEditBanner && (
 
-              onClick={onEditBanner}
+                <button
 
-              disabled={uploadingBanner}
+                  type="button"
 
-              aria-label="Qapaq şəkli dəyiş"
+                  className={profileStyles.heroIconBtn}
 
-            >
+                  onClick={onEditBanner}
 
-              {uploadingBanner ? '…' : '✏️ Qapaq'}
+                  disabled={uploadingBanner}
 
-            </button>
+                  aria-label="Qapaq şəkli dəyiş"
+
+                >
+
+                  {uploadingBanner ? '…' : '✎'}
+
+                </button>
+
+              )}
+
+            </div>
 
           )}
 
@@ -226,7 +240,7 @@ export default function ProfileHeroDisplay({
 
               >
 
-                {uploadingAvatar ? '…' : '✏️'}
+                {uploadingAvatar ? '…' : '✎'}
 
               </button>
 

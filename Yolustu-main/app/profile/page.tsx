@@ -129,7 +129,8 @@ const translations = {
     postsTitle: "Paylaşımlər (24 Saatlıq)",
     postsSubtitle: "Paylaşımlər 24 saat sonra avtomatik silinir.",
     total: "Cəmi",
-    noPosts: "Aktiv paylaşımınız yoxdur."
+    noPosts: "Aktiv paylaşımlarınız yoxdur",
+    noPostsHint: "İlk paylaşımını etmək üçün '+' düyməsini istifadə et!"
   },
   ru: {
     registerTitle: "Создать профиль & Регистрация",
@@ -189,7 +190,8 @@ const translations = {
     postsTitle: "Публикации",
     postsSubtitle: "Удаляются через 24 часа",
     total: "Всего",
-    noPosts: "Нет постов"
+    noPosts: "Активных публикаций нет",
+    noPostsHint: "Нажми «+», чтобы сделать первую публикацию!"
   },
   en: {
     registerTitle: "Create Profile & Register",
@@ -249,7 +251,8 @@ const translations = {
     postsTitle: "Posts",
     postsSubtitle: "Deleted after 24 hours",
     total: "Total",
-    noPosts: "No posts"
+    noPosts: "You have no active posts",
+    noPostsHint: "Tap + to share your first post!"
   }
 };
 
@@ -542,7 +545,14 @@ function ProfilePageContent() {
   const [showAllianceModal, setShowAllianceModal] = useState(false);
   const [showRankModal, setShowRankModal] = useState(false);
   const [showGiftsModal, setShowGiftsModal] = useState(false);
+  const [socialNotice, setSocialNotice] = useState<string | null>(null);
   const [showWalletModal, setShowWalletModal] = useState(false);
+
+  useEffect(() => {
+    if (!socialNotice) return;
+    const timer = window.setTimeout(() => setSocialNotice(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [socialNotice]);
   const [newCommentText, setNewCommentText] = useState('');
   const [viewerComments, setViewerComments] = useState<PostComment[]>([]);
   const [commentSubmitting, setCommentSubmitting] = useState(false);
@@ -959,6 +969,30 @@ function ProfilePageContent() {
         uploadingBanner={uploadingBanner}
         onEditAvatar={() => avatarInputRef.current?.click()}
         onEditBanner={() => bannerInputRef.current?.click()}
+        bannerActions={
+          <button
+            type="button"
+            className={`${profileStyles.heroIconBtn} ${playerProfile?.proPanelActive ? profileStyles.heroIconBtnOn : ''}`}
+            aria-pressed={Boolean(playerProfile?.proPanelActive)}
+            aria-label={playerProfile?.proPanelActive ? 'Sosial rejimi bağla' : 'Sosial rejimi aç'}
+            title={playerProfile?.proPanelActive ? 'Sosial rejim açıqdır' : 'Sosial rejim'}
+            onClick={() => {
+              if (!userId) return;
+              const next = !playerProfile?.proPanelActive;
+              void setProPanelActive(userId, next)
+                .then(() => {
+                  setSocialNotice(next ? 'Sosial rejim açıldı' : 'Sosial rejim bağlandı');
+                })
+                .catch((err) => {
+                  alert(err instanceof Error ? err.message : 'Sosial rejim dəyişmədi');
+                });
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+          </button>
+        }
       >
         <div className={profileStyles.statPills}>
           <button
@@ -1015,28 +1049,15 @@ function ProfilePageContent() {
       />
 
       <div className={profileStyles.profileQuickRow}>
-        <button
-          type="button"
-          className={profileStyles.profileQuickBtn}
-          onClick={() => {
-            if (!userId) return;
-            void setProPanelActive(userId, !playerProfile?.proPanelActive).catch((err) => {
-              alert(err instanceof Error ? err.message : 'Sosial rejim dəyişmədi');
-            });
-          }}
-        >
-          <span className={profileStyles.actionIcon}>💬</span>
-          {playerProfile?.proPanelActive ? 'Sosial: Açıq' : 'Sosial rejim'}
-        </button>
-        <button type="button" className={profileStyles.profileQuickBtn} onClick={() => setShowAllianceModal(true)}>
+        <button type="button" className={`${profileStyles.profileQuickBtn} ${profileStyles.quickAlliance}`} onClick={() => setShowAllianceModal(true)}>
           <span className={profileStyles.actionIcon}>🛡️</span>
           İttifaq
         </button>
-        <button type="button" className={profileStyles.profileQuickBtn} onClick={() => setShowRankModal(true)}>
+        <button type="button" className={`${profileStyles.profileQuickBtn} ${profileStyles.quickRank}`} onClick={() => setShowRankModal(true)}>
           <span className={profileStyles.actionIcon}>🏆</span>
           Reytinq
         </button>
-        <button type="button" className={profileStyles.profileQuickBtn} onClick={() => setShowGiftsModal(true)}>
+        <button type="button" className={`${profileStyles.profileQuickBtn} ${profileStyles.quickGifts}`} onClick={() => setShowGiftsModal(true)}>
           <span className={profileStyles.actionIcon}>🎁</span>
           Hədiyyələr
         </button>
@@ -1053,7 +1074,10 @@ function ProfilePageContent() {
             <div style={{ textAlign: 'center', padding: 16, color: '#f87171', fontSize: 13 }}>{postsLoadError}</div>
           ) : null}
           {posts.length === 0 ? (
-            <div className={profileStyles.postsEmpty}>{t.noPosts}</div>
+            <div className={profileStyles.postsEmpty}>
+              <p className={profileStyles.postsEmptyTitle}>{t.noPosts}</p>
+              <p className={profileStyles.postsEmptyHint}>{t.noPostsHint}</p>
+            </div>
           ) : (
             <div className={profileStyles.postGridPremium}>
               {posts.map((post) => (
@@ -1084,6 +1108,12 @@ function ProfilePageContent() {
       {isSuperAdmin(currentUser.id) && (
         <AdminPanel userId={currentUser.id} displayName={`${currentUser.name} ${currentUser.surname}`.trim()} />
       )}
+
+      {socialNotice ? (
+        <div className={profileStyles.profileNotice} role="status" aria-live="polite">
+          {socialNotice}
+        </div>
+      ) : null}
 
       <AppBottomNav activeTab="profile" />
 
