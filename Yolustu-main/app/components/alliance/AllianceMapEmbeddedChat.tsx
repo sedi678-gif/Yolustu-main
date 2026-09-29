@@ -28,6 +28,7 @@ interface AllianceMapEmbeddedChatProps {
 
   sheetMode?: boolean;
   neon?: boolean;
+  onCollapse?: () => void;
 
 }
 
@@ -47,6 +48,7 @@ export default function AllianceMapEmbeddedChat({
 
   sheetMode = false,
   neon = false,
+  onCollapse,
 
 }: AllianceMapEmbeddedChatProps) {
 
@@ -113,6 +115,11 @@ export default function AllianceMapEmbeddedChat({
         <div className={styles.epChatHeader}>
 
           <span>💬 CANLI SÖHBƏT</span>
+          {onCollapse ? (
+            <button type="button" className={styles.epChatClose} onClick={onCollapse} aria-label="Söhbəti yığ">
+              ✕
+            </button>
+          ) : null}
 
         </div>
 

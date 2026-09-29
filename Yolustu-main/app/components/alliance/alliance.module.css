@@ -972,6 +972,47 @@
   pointer-events: auto;
 }
 
+.allianceChatStay.allianceChatStayCollapsed {
+  height: auto;
+  min-height: 0;
+}
+
+.allianceChatPeek {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(8, 12, 28, 0.9);
+  color: #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.4);
+}
+
+.allianceChatPeekTitle {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #67e8f9;
+}
+
+.allianceChatPeekLine {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #e2e8f0;
+}
+
 .allianceChatStayHidden {
   display: none;
 }

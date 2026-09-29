@@ -27,7 +27,7 @@ export function useHoldAllianceScreen() {
   return useContext(AllianceScreenBusyContext)?.hold;
 }
 
-/** Ayrı ekran (sheet, xəritə, arena, reklam) açıq olanda söhbəti gizlədir. */
+/** Ayrı əməliyyat ekranı açıq olanda söhbəti gizlədir. Xəritənin özü söhbəti gizlətmir. */
 export function useAllianceScreenHold(active: boolean) {
   const hold = useHoldAllianceScreen();
   useEffect(() => {
