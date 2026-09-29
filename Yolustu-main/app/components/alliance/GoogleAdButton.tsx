@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { IconMapAd } from './AllianceMapIcons';
 import styles from './alliance.module.css';
 import { useUser } from '@/context/UserContext';
 import { normalizeUserPlanState, shouldShowAds } from '@/app/lib/userPlan';
@@ -15,16 +14,25 @@ declare global {
 }
 
 interface GoogleAdButtonProps {
-  onReward?: () => void;
-  variant?: 'pill' | 'nav' | 'xp';
+  onReward?: () => void | Promise<void>;
+  variant?: 'pill' | 'nav' | 'xp' | 'bolt';
   label?: string;
+  className?: string;
+}
+
+function LightningIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M13.2 2.1 4.4 13.4h6.3l-1.2 8.5 9.6-12.2h-6.5l1.6-7.6z" />
+    </svg>
+  );
 }
 
 /**
  * Google AdMob / AdSense inteqrasiyası üçün hazır düymə.
  * .env: NEXT_PUBLIC_GOOGLE_ADS_CLIENT, NEXT_PUBLIC_GOOGLE_ADS_SLOT
  */
-export default function GoogleAdButton({ onReward, variant = 'pill', label }: GoogleAdButtonProps) {
+export default function GoogleAdButton({ onReward, variant = 'pill', label, className }: GoogleAdButtonProps) {
   const { playerProfile } = useUser();
   const hideAds = !shouldShowAds(normalizeUserPlanState(playerProfile as unknown as Record<string, unknown> | null));
   const [open, setOpen] = useState(false);
@@ -53,43 +61,56 @@ export default function GoogleAdButton({ onReward, variant = 'pill', label }: Go
     }
   }, [open, clientId, slotId]);
 
+  const grantReward = useCallback(async () => {
+    await onReward?.();
+    setOpen(false);
+  }, [onReward]);
+
   const handleWatchAd = useCallback(async () => {
     setLoading(true);
     try {
       if (typeof window.showYolustuRewardedAd === 'function') {
         const ok = await window.showYolustuRewardedAd();
-        if (ok) onReward?.();
+        if (ok) await grantReward();
         return;
       }
       setOpen(true);
     } finally {
       setLoading(false);
     }
-  }, [onReward]);
+  }, [grantReward]);
 
   if (hideAds) return null;
 
-  const btnClass =
+  const btnClass = [
     variant === 'nav'
       ? `${styles.epAdBtn} ${styles.epAdBtnNav}`
       : variant === 'xp'
         ? styles.mapAdXpBtn
-        : styles.epAdBtn;
+        : variant === 'bolt'
+          ? styles.adBoltBtn
+          : styles.epAdBtn,
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  const btnLabel = label ?? (variant === 'xp' ? '+500 XP' : 'REKLAM');
+  const btnLabel = label ?? (variant === 'bolt' ? 'Kəşf boost' : variant === 'xp' ? '+500 XP' : 'REKLAM');
 
   return (
     <>
       <button
         type="button"
         className={btnClass}
-        onClick={handleWatchAd}
+        onClick={() => void handleWatchAd()}
         disabled={loading}
-        title="Reklam izlə — Google Ads"
+        title="Reklam izlə — videoların və şəkillərin 2 dəqiqə kəşfdə öndə olsun"
         aria-label={btnLabel}
       >
-        <span className={styles.epAdBtnIcon}><IconMapAd /></span>
-        <span>{loading ? '...' : btnLabel}</span>
+        <span className={styles.epAdBtnIcon}>
+          <LightningIcon />
+        </span>
+        {variant !== 'bolt' ? <span>{loading ? '...' : btnLabel}</span> : null}
       </button>
 
       {open && (
@@ -102,7 +123,7 @@ export default function GoogleAdButton({ onReward, variant = 'pill', label }: Go
               </button>
             </div>
             <p className={styles.adModalHint}>
-              AdSense slot ID-ni `.env` faylına əlavə edin. Capacitor AdMob üçün `showYolustuRewardedAd` funksiyasını bağlayın.
+              Reklamı izləyəndən sonra videoların və paylaşdığın şəkillər 2 dəqiqə kəşf lentinin əvvəlinə düşür.
             </p>
             {clientId && slotId ? (
               <ins
@@ -118,6 +139,13 @@ export default function GoogleAdButton({ onReward, variant = 'pill', label }: Go
                 NEXT_PUBLIC_GOOGLE_ADS_CLIENT və NEXT_PUBLIC_GOOGLE_ADS_SLOT təyin edin
               </div>
             )}
+            <button
+              type="button"
+              className={styles.adBoostConfirmBtn}
+              onClick={() => void grantReward()}
+            >
+              Reklamı izlədim — kəşfə düş
+            </button>
           </div>
         </div>
       )}

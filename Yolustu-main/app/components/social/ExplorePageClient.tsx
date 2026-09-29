@@ -228,7 +228,10 @@ export default function ExplorePageClient() {
             <div className={styles.mediaOverlayPremium} />
             <div className={styles.userChipPremium}>
               <AppLink href={`/profile?user=${current.userId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                <p className={styles.userChipName}>{current.userName}</p>
+                <p className={styles.userChipName}>
+                  {current.boostedUntil ? '⚡ ' : ''}
+                  {current.userName}
+                </p>
                 <p className={styles.userChipMeta}>
                   {current.userHandle} · {media.title}
                   {current.userRegion ? ` · ${current.userRegion}` : ''}

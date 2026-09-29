@@ -47,6 +47,7 @@ export interface UserFeedItem {
   likes: number;
   commentsCount: number;
   giftCount: number;
+  boostedUntil?: number;
 }
 
 export interface AppUserProfile {

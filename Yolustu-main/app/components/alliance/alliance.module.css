@@ -5627,6 +5627,48 @@
   text-align: center;
 }
 
+.adBoostConfirmBtn {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 0 14px 14px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.adBoltBtn {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(250, 204, 21, 0.55);
+  background: radial-gradient(circle at 30% 20%, rgba(253, 224, 71, 0.95), rgba(245, 158, 11, 0.92) 55%, rgba(217, 119, 6, 0.95));
+  color: #1c1917;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.45);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.adBoltBtn .epAdBtnIcon {
+  display: flex;
+  line-height: 0;
+}
+
+.adBoltBtn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .epMapPreviewBtn {
   position: relative;
   width: 100px;

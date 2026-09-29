@@ -28,7 +28,6 @@ import {
   ensurePlayerProfile,
   resetBattleCards,
   updateAllianceFlag,
-  addPlayerScore,
 } from './allianceService';
 import { getAllianceSocket, emitAllianceHubEvent } from './allianceSocket';
 import {
@@ -92,7 +91,6 @@ interface AllianceBrainContextValue {
   handleLeaveAlliance: () => Promise<void>;
   handleSendMessage: (text: string, channel: ChatChannel) => Promise<void>;
   handleUpdateAllianceFlag: (flag: AllianceFlagConfig) => Promise<void>;
-  handleAdXpReward: () => Promise<void>;
   handleUpgradeFortress: () => Promise<void>;
   attackTargetId: string | null;
   setAttackTargetId: (id: string | null) => void;
@@ -664,11 +662,6 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     [userId, userName, activeAlliance?.id, activeAlliance?.name]
   );
 
-  const handleAdXpReward = useCallback(async () => {
-    await addPlayerScore(userId, 500);
-    emitAllianceHubEvent('ad_xp_reward', { userId, amount: 500 });
-  }, [userId]);
-
   const handleUpgradeFortress = useCallback(async () => {
     if (!activeAlliance) throw new Error('İttifaq seçilməyib');
     if (!canManageFortress) throw new Error('Yalnız lider yüksəldə bilər');
@@ -707,7 +700,6 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     handleLeaveAlliance,
     handleSendMessage,
     handleUpdateAllianceFlag,
-    handleAdXpReward,
     handleUpgradeFortress,
     attackTargetId,
     setAttackTargetId,

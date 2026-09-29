@@ -8,14 +8,13 @@ import AzerbaijanAllianceMap from './AzerbaijanAllianceMap';
 import AllianceMapSidebar from './AllianceMapSidebar';
 import AllianceMapRightPanel from './AllianceMapRightPanel';
 import AllianceChatDock from './AllianceChatDock';
-import GoogleAdButton from './GoogleAdButton';
 import AppLink from '@/app/components/AppLink';
 import AllianceMapBattleHost from './AllianceMapBattleHost';
 import { AllianceScreenBusyProvider } from './AllianceScreenBusy';
 import styles from './alliance.module.css';
 
 function AlliancePageInner() {
-  const { alliances, activeAlliance, liveBattleAttacks, handleAdXpReward } = useAllianceBrain();
+  const { alliances, activeAlliance, liveBattleAttacks } = useAllianceBrain();
   const [mapOpen, setMapOpen] = useState(false);
   const [selectedAllianceId, setSelectedAllianceId] = useState<string | null>(null);
 
@@ -44,14 +43,6 @@ function AlliancePageInner() {
         >
           ⚔ Oyun masası
         </AppLink>
-
-        <div className={styles.allianceMapLaunchWrap}>
-          <GoogleAdButton
-            variant="xp"
-            label="+500 XP"
-            onReward={() => void handleAdXpReward()}
-          />
-        </div>
 
         <div
           className={`${styles.allianceMapOverlay} ${mapOpen ? styles.allianceMapOverlayOpen : ''}`}

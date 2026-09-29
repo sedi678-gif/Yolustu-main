@@ -17,6 +17,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/firebase';
 import { ensureFirebaseAuth, blobToDataUrl, compressImageSafe, withTimeout } from './firebaseAuth';
 import { SocialPost, UserFeedItem, AppUserProfile, PostComment } from './socialTypes';
+import { isDiscoverBoostActive, listenDiscoverBoostMap } from '@/app/lib/discoverBoost';
 
 const POST_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -238,32 +239,82 @@ export function postsToFeed(posts: SocialPost[]): UserFeedItem[] {
     .sort((a, b) => (b.mediaList[0]?.createdAt ?? 0) - (a.mediaList[0]?.createdAt ?? 0));
 }
 
+export function rankExploreFeed(
+  items: UserFeedItem[],
+  boosts: Map<string, number>,
+  now = Date.now()
+): UserFeedItem[] {
+  return items
+    .map((item) => {
+      const until = boosts.get(item.userId) ?? 0;
+      return {
+        ...item,
+        boostedUntil: isDiscoverBoostActive(until, now) ? until : 0,
+      };
+    })
+    .sort((a, b) => {
+      const aBoost = a.boostedUntil ? 1 : 0;
+      const bBoost = b.boostedUntil ? 1 : 0;
+      if (aBoost !== bBoost) return bBoost - aBoost;
+      return (b.mediaList[0]?.createdAt ?? 0) - (a.mediaList[0]?.createdAt ?? 0);
+    });
+}
+
 export function listenExploreFeed(
   callback: (feed: UserFeedItem[]) => void,
   blockedUserIds: string[] = [],
   onError?: (message: string) => void
 ): Unsubscribe {
   const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+  let posts: SocialPost[] = [];
+  let boosts = new Map<string, number>();
+  let expireTimer: ReturnType<typeof setTimeout> | null = null;
 
-  return onSnapshot(
+  const emit = () => {
+    const now = Date.now();
+    callback(rankExploreFeed(postsToFeed(posts), boosts, now));
+    if (expireTimer) {
+      clearTimeout(expireTimer);
+      expireTimer = null;
+    }
+    const nextExpiry = [...boosts.values()].filter((until) => until > now).sort((a, b) => a - b)[0];
+    if (nextExpiry) {
+      expireTimer = setTimeout(emit, Math.max(50, nextExpiry - now + 40));
+    }
+  };
+
+  const unsubPosts = onSnapshot(
     q,
     (snap) => {
-      const posts: SocialPost[] = [];
+      const next: SocialPost[] = [];
       snap.forEach((d) => {
         const raw = d.data() as Record<string, unknown>;
         const mapped = mapPostDoc(d.id, raw);
         if (!mapped) return;
         if (blockedUserIds.includes(mapped.userId)) return;
-        posts.push(mapped);
+        next.push(mapped);
       });
-      callback(postsToFeed(posts));
+      posts = next;
+      emit();
     },
     (err) => {
       console.error('Kəşf et feed xətası:', err);
       onError?.('Paylaşımlar yüklənmədi. İnternet bağlantısını yoxlayın.');
+      posts = [];
       callback([]);
     }
   );
+
+  const unsubBoosts = listenDiscoverBoostMap((next) => {
+    boosts = next;
+    emit();
+  });
+
+  return () => {
+    if (expireTimer) clearTimeout(expireTimer);
+    unsubPosts();
+    unsubBoosts();
+  };
 }
 
 export function listenUserPosts(

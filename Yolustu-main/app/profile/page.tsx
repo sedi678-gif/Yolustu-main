@@ -32,6 +32,12 @@ import profileStyles from '@/app/components/profile/profile.module.css';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/firebase';
 import { setProPanelActive } from '@/app/lib/userPlan';
+import GoogleAdButton from '@/app/components/alliance/GoogleAdButton';
+import {
+  activateDiscoverBoost,
+  isDiscoverBoostActive,
+  listenUserDiscoverBoost,
+} from '@/app/lib/discoverBoost';
 
 interface GiftItem {
   id: number;
@@ -546,7 +552,20 @@ function ProfilePageContent() {
   const [showRankModal, setShowRankModal] = useState(false);
   const [showGiftsModal, setShowGiftsModal] = useState(false);
   const [socialNotice, setSocialNotice] = useState<string | null>(null);
+  const [discoverBoostUntil, setDiscoverBoostUntil] = useState(0);
+  const [boostNow, setBoostNow] = useState(() => Date.now());
   const [showWalletModal, setShowWalletModal] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser.id) return;
+    return listenUserDiscoverBoost(currentUser.id, setDiscoverBoostUntil);
+  }, [currentUser.id]);
+
+  useEffect(() => {
+    if (!isDiscoverBoostActive(discoverBoostUntil)) return;
+    const timer = window.setInterval(() => setBoostNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [discoverBoostUntil]);
 
   useEffect(() => {
     if (!socialNotice) return;
@@ -934,8 +953,29 @@ function ProfilePageContent() {
       <div className={profileStyles.profileGlow} aria-hidden />
       <header className={profileStyles.profileTopBar}>
         <div className={profileStyles.profileTopLeft}>
-          <p className={profileStyles.profileEyebrow}>Hesabım</p>
-          <h1 className={profileStyles.profileTopTitle}>Profil</h1>
+          <div className={profileStyles.profileAdBoltWrap}>
+            <GoogleAdButton
+              variant="bolt"
+              className={isDiscoverBoostActive(discoverBoostUntil, boostNow) ? profileStyles.profileAdBoltOn : undefined}
+              onReward={async () => {
+                try {
+                  await activateDiscoverBoost(currentUser.id);
+                  setSocialNotice('Videoların və şəkillərin 2 dəqiqə kəşfdə öndədir');
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : 'Kəşf boostu alınmadı');
+                }
+              }}
+            />
+            {isDiscoverBoostActive(discoverBoostUntil, boostNow) ? (
+              <span className={profileStyles.profileAdBoltTimer}>
+                {Math.ceil((discoverBoostUntil - boostNow) / 1000)}s
+              </span>
+            ) : null}
+          </div>
+          <div>
+            <p className={profileStyles.profileEyebrow}>Hesabım</p>
+            <h1 className={profileStyles.profileTopTitle}>Profil</h1>
+          </div>
         </div>
         <div className={profileStyles.profileTopActions}>
           <AppLink href="/shop" className={profileStyles.shopLinkBtn}>
