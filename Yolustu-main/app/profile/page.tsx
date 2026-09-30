@@ -552,6 +552,8 @@ function ProfilePageContent() {
   const [showRankModal, setShowRankModal] = useState(false);
   const [showGiftsModal, setShowGiftsModal] = useState(false);
   const [socialNotice, setSocialNotice] = useState<string | null>(null);
+  const [socialToggling, setSocialToggling] = useState(false);
+  const [socialOn, setSocialOn] = useState(false);
   const [discoverBoostUntil, setDiscoverBoostUntil] = useState(0);
   const [boostNow, setBoostNow] = useState(() => Date.now());
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -572,6 +574,10 @@ function ProfilePageContent() {
     const timer = window.setTimeout(() => setSocialNotice(null), 2400);
     return () => window.clearTimeout(timer);
   }, [socialNotice]);
+
+  useEffect(() => {
+    setSocialOn(playerProfile?.proPanelActive === true);
+  }, [playerProfile?.proPanelActive]);
   const [newCommentText, setNewCommentText] = useState('');
   const [viewerComments, setViewerComments] = useState<PostComment[]>([]);
   const [commentSubmitting, setCommentSubmitting] = useState(false);
@@ -1010,28 +1016,41 @@ function ProfilePageContent() {
         onEditAvatar={() => avatarInputRef.current?.click()}
         onEditBanner={() => bannerInputRef.current?.click()}
         bannerActions={
-          <button
-            type="button"
-            className={`${profileStyles.heroIconBtn} ${playerProfile?.proPanelActive ? profileStyles.heroIconBtnOn : ''}`}
-            aria-pressed={Boolean(playerProfile?.proPanelActive)}
-            aria-label={playerProfile?.proPanelActive ? 'Sosial rejimi bağla' : 'Sosial rejimi aç'}
-            title={playerProfile?.proPanelActive ? 'Sosial rejim açıqdır' : 'Sosial rejim'}
-            onClick={() => {
-              if (!userId) return;
-              const next = !playerProfile?.proPanelActive;
-              void setProPanelActive(userId, next)
-                .then(() => {
-                  setSocialNotice(next ? 'Sosial rejim açıldı' : 'Sosial rejim bağlandı');
-                })
-                .catch((err) => {
-                  alert(err instanceof Error ? err.message : 'Sosial rejim dəyişmədi');
-                });
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-            </svg>
-          </button>
+          <div className={profileStyles.socialModeControl}>
+            <button
+              type="button"
+              className={`${profileStyles.socialModeBtn} ${socialOn ? profileStyles.socialModeBtnOn : profileStyles.socialModeBtnOff}`}
+              aria-pressed={socialOn}
+              disabled={socialToggling || !userId}
+              aria-label={socialOn ? 'Sosial rejim açıldı' : 'Sosial rejim bağlandı'}
+              onClick={() => {
+                if (!userId || socialToggling) return;
+                const next = !socialOn;
+                setSocialOn(next);
+                setSocialToggling(true);
+                void setProPanelActive(userId, next)
+                  .then(() => {
+                    setSocialNotice(next ? 'Sosial rejim açıldı' : 'Sosial rejim bağlandı');
+                  })
+                  .catch((err) => {
+                    setSocialOn(!next);
+                    alert(err instanceof Error ? err.message : 'Sosial rejim dəyişmədi');
+                  })
+                  .finally(() => setSocialToggling(false));
+              }}
+            >
+              <svg className={profileStyles.socialModeIcon} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <span>{socialOn ? 'Sosial rejim açıldı' : 'Sosial rejim bağlandı'}</span>
+            </button>
+            <p className={`${profileStyles.socialModeHint} text-[11px]`}>
+              {socialOn ? 'Siz artıq XP rejimindən istifadə edirsiniz' : 'XP rejimini söndürdünüz'}
+            </p>
+          </div>
         }
       >
         <div className={profileStyles.statPills}>
