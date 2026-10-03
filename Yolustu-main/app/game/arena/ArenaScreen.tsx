@@ -7,10 +7,13 @@ import BattleTable from './BattleTable';
 import ClickCardNotification from './ClickCardNotification';
 import HandCards from './HandCards';
 import PlayerRow from './PlayerRow';
+import ArenaLoadoutPicker from './ArenaLoadoutPicker';
 import {
   heartbeatArenaPresence,
   listenArenaMatch,
   listenArenaPresence,
+  makeArenaActionId,
+  playArenaCard,
   remainingTurnSeconds,
   timeoutArenaTurn,
   type ArenaMatchState,
@@ -62,6 +65,7 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
 
   useEffect(() => {
     if (view || !match || !matchId || serverNow <= 0) return;
+    if (match.phase !== 'combat') return;
     if (remainingTurnSeconds(match.turnExpiresAt, serverNow) > 0) return;
     if (timeoutLock.current) return;
     timeoutLock.current = true;
@@ -85,6 +89,22 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   }, [match, playerId, presence, serverNow]);
 
   const ui = view ?? liveView ?? (matchId ? EMPTY_ARENA_VIEW : createPlaceholderArenaView());
+  const needsLoadout = Boolean(match && playerId && match.phase === 'loadout' && !match.loadouts[playerId]);
+  const waitingLoadout = Boolean(match && playerId && match.phase === 'loadout' && match.loadouts[playerId]);
+
+  async function onPlayCard(cardId: string) {
+    if (!matchId || !playerId || match?.phase !== 'combat') return;
+    try {
+      await playArenaCard({
+        matchId,
+        playerId,
+        cardId,
+        actionId: makeArenaActionId(),
+      });
+    } catch {
+      /* server REJECT — UI match snapshot-dan yenilənir */
+    }
+  }
 
   return (
     <div className="flex h-dvh min-h-0 w-full max-w-[430px] flex-col overflow-hidden bg-[#070b14] text-white">
@@ -107,7 +127,14 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
             currentPlayerId={ui.currentTurn?.playerId}
           />
           <ClickCardNotification visible={ui.clickEvent.visible} cardTitle={ui.clickEvent.cardTitle} />
-          <HandCards cards={ui.cards.hand} />
+          {needsLoadout && matchId && playerId ? <ArenaLoadoutPicker matchId={matchId} playerId={playerId} /> : null}
+          {waitingLoadout ? (
+            <p className="px-3 text-center text-[11px] font-bold text-cyan-100/80">Kartların lock olundu. Döyüş gözlənilir.</p>
+          ) : null}
+          <HandCards
+            cards={ui.cards.hand}
+            onPlay={match?.phase === 'combat' && playerId === match.currentTurn ? onPlayCard : undefined}
+          />
         </div>
       </div>
     </div>

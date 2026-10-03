@@ -31,6 +31,7 @@ export interface ArenaHandCardView {
   energyCostLabel: string;
   remainingUsesLabel: string;
   selected: boolean;
+  disabled?: boolean;
 }
 
 export interface ArenaViewModel {

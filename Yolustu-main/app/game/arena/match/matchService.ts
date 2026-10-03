@@ -21,7 +21,16 @@ import {
 } from './config';
 import { assertArenaActionAllowed, assertArenaTimeoutAllowed, assertStartEnergy, rejectClientEnergyWrite } from './policy';
 import { advanceMatchTurn, createMatchSnapshot } from './turnOrder';
-import type { ArenaMatchState, ArenaPlayerState, ArenaPresenceState, ArenaSide, ArenaTurnRole } from './types';
+import { applyArenaCardPlay, applyLockedLoadout, assertArenaLoadoutLockAllowed } from './loadout';
+import type {
+  ArenaLoadoutCard,
+  ArenaMatchState,
+  ArenaPlayerLoadout,
+  ArenaPlayerState,
+  ArenaPresenceState,
+  ArenaSide,
+  ArenaTurnRole,
+} from './types';
 
 const TX_MS = 12_000;
 
@@ -50,6 +59,34 @@ function padIds(value: unknown): Array<string | null> {
     else next.push(null);
   }
   return next;
+}
+
+function parseLoadoutCard(raw: unknown): ArenaLoadoutCard | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+  const cardId = asString(data.cardId);
+  if (!cardId) return null;
+  const maxUses = asInt(data.maxUses, 3);
+  const used = asInt(data.used);
+  return {
+    cardId,
+    maxUses,
+    used,
+    remaining: asInt(data.remaining, Math.max(0, maxUses - used)),
+  };
+}
+
+function parseLoadout(raw: unknown, playerId: string, matchId: string): ArenaPlayerLoadout | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+  const cardsRaw = Array.isArray(data.cards) ? data.cards : [];
+  const cards = cardsRaw.map(parseLoadoutCard).filter((card): card is ArenaLoadoutCard => Boolean(card));
+  if (cards.length !== 5) return null;
+  return {
+    playerId: asString(data.playerId) || playerId,
+    matchId: asString(data.matchId) || matchId,
+    cards,
+  };
 }
 
 function parsePlayer(raw: unknown, fallbackId: string): ArenaPlayerState | null {
@@ -83,9 +120,22 @@ export function matchFromData(matchId: string, raw: Record<string, unknown> | un
   Object.entries(namesRaw).forEach(([id, value]) => {
     if (typeof value === 'string' && value.trim()) displayNames[id] = value.trim().slice(0, 32);
   });
+  const loadoutsRaw = raw.loadouts && typeof raw.loadouts === 'object' ? (raw.loadouts as Record<string, unknown>) : {};
+  const loadouts: Record<string, ArenaPlayerLoadout> = {};
+  Object.entries(loadoutsRaw).forEach(([id, value]) => {
+    const parsed = parseLoadout(value, id, matchId);
+    if (parsed) loadouts[id] = parsed;
+  });
+  const usedRaw =
+    raw.usedActionIds && typeof raw.usedActionIds === 'object' ? (raw.usedActionIds as Record<string, unknown>) : {};
+  const usedActionIds: Record<string, boolean> = {};
+  Object.entries(usedRaw).forEach(([id, value]) => {
+    if (value === true) usedActionIds[id] = true;
+  });
   return {
     matchId,
     status: raw.status === 'closed' ? 'closed' : 'active',
+    phase: raw.phase === 'loadout' ? 'loadout' : 'combat',
     createdBy: asString(raw.createdBy),
     homePlayerIds: padIds(raw.homePlayerIds),
     awayPlayerIds: padIds(raw.awayPlayerIds),
@@ -101,6 +151,8 @@ export function matchFromData(matchId: string, raw: Record<string, unknown> | un
     turnDuration: asInt(raw.turnDuration, ARENA_TURN_DURATION_MS),
     lastActionId: typeof raw.lastActionId === 'string' ? raw.lastActionId : null,
     lastActionTurnSeq: asInt(raw.lastActionTurnSeq, -1),
+    loadouts,
+    usedActionIds,
     createdAt: asInt(raw.createdAt),
     updatedAt: asInt(raw.updatedAt),
   };
@@ -110,6 +162,7 @@ function matchWrite(match: ArenaMatchState): Record<string, unknown> {
   return {
     matchId: match.matchId,
     status: match.status,
+    phase: match.phase,
     createdBy: match.createdBy,
     homePlayerIds: match.homePlayerIds,
     awayPlayerIds: match.awayPlayerIds,
@@ -125,6 +178,8 @@ function matchWrite(match: ArenaMatchState): Record<string, unknown> {
     turnDuration: match.turnDuration,
     lastActionId: match.lastActionId,
     lastActionTurnSeq: match.lastActionTurnSeq,
+    loadouts: match.loadouts,
+    usedActionIds: match.usedActionIds,
     energyStart: ARENA_ENERGY_START,
     energyMax: ARENA_ENERGY_MAX,
     schemaVersion: 1,
@@ -159,7 +214,7 @@ export async function createArenaMatch(input: {
       if (snap.exists()) {
         return matchFromData(snap.id, snap.data() as Record<string, unknown>);
       }
-      const match = createMatchSnapshot({
+      const created = createMatchSnapshot({
         matchId: ref.id,
         createdBy,
         homePlayerIds: input.homePlayerIds,
@@ -167,6 +222,7 @@ export async function createArenaMatch(input: {
         displayNames: input.displayNames,
         serverNow: now,
       });
+      const match = { ...created, phase: 'loadout' as const, loadouts: {}, usedActionIds: {} };
       assertStartEnergy(match.players);
       tx.set(ref, matchWrite(match));
       return match;
@@ -278,6 +334,65 @@ export async function timeoutArenaTurn(input: { matchId: string }): Promise<Aren
       }),
       TX_MS,
       'Arena timeout vaxtı bitdi'
+    )
+  );
+}
+
+export async function lockArenaLoadout(input: {
+  matchId: string;
+  playerId: string;
+  cardIds: unknown;
+}): Promise<ArenaMatchState> {
+  await requireFirebaseAuth();
+  const matchId = sanitizeBattleId(input.matchId);
+  const playerId = sanitizePlayerId(input.playerId);
+  const now = await requireServerNow();
+  const lockKey = `arena-loadout:${matchId}:${playerId}`;
+  return replayBattleRequest(lockKey, async () =>
+    withTimeout(
+      runTransaction(db, async (tx) => {
+        const snap = await tx.get(matchRef(matchId));
+        if (!snap.exists()) throw new Error('Match tapılmadı');
+        const match = matchFromData(snap.id, snap.data() as Record<string, unknown>);
+        const loadout = assertArenaLoadoutLockAllowed({ match, playerId, cardIds: input.cardIds });
+        const next = applyLockedLoadout(match, loadout, now);
+        tx.update(matchRef(matchId), matchWrite(next));
+        return next;
+      }),
+      TX_MS,
+      'Loadout yazılmadı'
+    )
+  );
+}
+
+export async function playArenaCard(input: {
+  matchId: string;
+  playerId: string;
+  cardId: string;
+  actionId: string;
+}): Promise<ArenaMatchState> {
+  await requireFirebaseAuth();
+  const matchId = sanitizeBattleId(input.matchId);
+  const playerId = sanitizePlayerId(input.playerId);
+  const cardId = asString(input.cardId);
+  const actionId = asString(input.actionId).slice(0, 64);
+  if (!cardId) throw new Error('Kart ID yoxdur');
+  if (!actionId) throw new Error('Action id yoxdur');
+  const now = await requireServerNow();
+  const lockKey = `arena-play:${matchId}:${actionId}`;
+  return replayBattleRequest(lockKey, async () =>
+    withTimeout(
+      runTransaction(db, async (tx) => {
+        const snap = await tx.get(matchRef(matchId));
+        if (!snap.exists()) throw new Error('Match tapılmadı');
+        const match = matchFromData(snap.id, snap.data() as Record<string, unknown>);
+        const next = applyArenaCardPlay({ match, playerId, cardId, actionId, serverNow: now });
+        if (next === match) return match;
+        tx.update(matchRef(matchId), matchWrite(next));
+        return next;
+      }),
+      TX_MS,
+      'Kart oynanılmadı'
     )
   );
 }

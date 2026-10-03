@@ -11,10 +11,13 @@ export type { ArenaTurnRole } from './config';
 export type {
   ArenaSide,
   ArenaMatchStatus,
+  ArenaMatchPhase,
   ArenaPlayerState,
   ArenaTurnSeat,
   ArenaMatchState,
   ArenaPresenceState,
+  ArenaLoadoutCard,
+  ArenaPlayerLoadout,
 } from './types';
 export {
   filledTurnQueue,
@@ -33,12 +36,29 @@ export {
   rejectClientEnergyWrite,
 } from './policy';
 export {
+  ARENA_CARD_IDS,
+  ARENA_CARD_CATALOG,
+  ARENA_LOADOUT_SIZE,
+  ARENA_CARD_MAX_USES,
+  officialArenaCardCost,
+} from './catalog';
+export {
+  validateArenaLoadoutIds,
+  assertArenaLoadoutLockAllowed,
+  assertArenaCardPlayAllowed,
+  applyArenaCardPlay,
+  applyLockedLoadout,
+  makeArenaActionId,
+} from './loadout';
+export {
   createArenaMatch,
   listenArenaMatch,
   listenArenaPresence,
   heartbeatArenaPresence,
   submitArenaTurnAction,
   timeoutArenaTurn,
+  lockArenaLoadout,
+  playArenaCard,
   matchFromData,
 } from './matchService';
 export { matchToArenaView } from './matchView';

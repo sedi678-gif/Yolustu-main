@@ -1995,6 +1995,7 @@ service cloud.firestore {
         && d.turnIndex == 0
         && d.turnSeq == 0
         && d.lastActionTurnSeq == -1
+        && d.phase == 'loadout'
         && d.homePlayerIds is list
         && d.awayPlayerIds is list
         && d.homePlayerIds.size() == 5
@@ -2024,6 +2025,10 @@ service cloud.firestore {
         && after.createdBy == before.createdBy
         && after.matchId == before.matchId
         && after.status == 'active'
+        && after.phase == 'combat'
+        && before.phase == 'combat'
+        && after.loadouts == before.loadouts
+        && after.usedActionIds == before.usedActionIds
         && after.turnDuration == 15000
         && after.turnExpiresAt == after.turnStartedAt + 15000
         && after.turnIndex == before.turnIndex + 1
@@ -2055,11 +2060,95 @@ service cloud.firestore {
         && resource.data.lastActionTurnSeq != resource.data.turnSeq;
     }
 
+    function arenaKnownCard(id) {
+      return id in ['sehrbaz', '2x', 'qaya', 'casus', 'duman', 'joker', 'guzgu', 'qul', 'tikanli', 'usyan', 'ogru', 'felaket', 'qutb'];
+    }
+
+    function arenaFreshCard(card) {
+      return card.keys().hasAll(['cardId', 'maxUses', 'used', 'remaining'])
+        && arenaKnownCard(card.cardId)
+        && card.maxUses == 3
+        && card.used == 0
+        && card.remaining == 3;
+    }
+
+    function isValidArenaLoadoutLock() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.phase == 'loadout'
+        && after.players == before.players
+        && after.energyStart == 30
+        && after.energyMax == 30
+        && after.status == 'active'
+        && after.homePlayerIds == before.homePlayerIds
+        && after.awayPlayerIds == before.awayPlayerIds
+        && after.createdBy == before.createdBy
+        && after.matchId == before.matchId
+        && after.displayNames == before.displayNames
+        && (
+          (
+            after.phase == 'loadout'
+            && after.turnStartedAt == before.turnStartedAt
+            && after.turnExpiresAt == before.turnExpiresAt
+          )
+          || (
+            after.phase == 'combat'
+            && after.turnDuration == 15000
+            && after.turnExpiresAt == after.turnStartedAt + 15000
+            && after.turnIndex == before.turnIndex
+          )
+        );
+    }
+
+    function isValidArenaCardPlay() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let pid = before.currentTurn;
+      return request.auth != null
+        && before.phase == 'combat'
+        && after.phase == 'combat'
+        && after.status == 'active'
+        && after.energyStart == 30
+        && after.energyMax == 30
+        && after.homePlayerIds == before.homePlayerIds
+        && after.awayPlayerIds == before.awayPlayerIds
+        && after.createdBy == before.createdBy
+        && after.matchId == before.matchId
+        && after.turnDuration == 15000
+        && after.turnExpiresAt == after.turnStartedAt + 15000
+        && after.turnIndex == before.turnIndex + 1
+        && after.turnSeq == before.turnSeq + 1
+        && request.time.toMillis() < before.turnExpiresAt
+        && after.players[pid].energy < before.players[pid].energy
+        && after.players[pid].energy >= 0
+        && after.players[pid].energy <= 30
+        && after.players[pid].maxEnergy == 30
+        && after.diff(before).affectedKeys().hasOnly([
+          'currentTurn',
+          'turnSide',
+          'turnSlotIndex',
+          'turnIndex',
+          'turnSeq',
+          'turnStartedAt',
+          'turnExpiresAt',
+          'lastActionId',
+          'lastActionTurnSeq',
+          'updatedAt',
+          'players',
+          'loadouts',
+          'usedActionIds'
+        ]);
+    }
+
     match /arena_matches/{matchId} {
       allow read: if request.auth != null;
       allow create: if isValidArenaMatchCreate()
         && request.resource.data.matchId == matchId;
-      allow update: if isValidArenaTimeout() || isValidArenaAction();
+      allow update: if isValidArenaTimeout()
+        || isValidArenaAction()
+        || isValidArenaLoadoutLock()
+        || isValidArenaCardPlay();
       allow delete: if false;
 
       match /presence/{playerId} {

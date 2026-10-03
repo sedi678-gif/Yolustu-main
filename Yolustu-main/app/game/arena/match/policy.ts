@@ -17,6 +17,9 @@ export function assertArenaMatchActive(match: ArenaMatchState): void {
 
 export function assertArenaTimeoutAllowed(match: ArenaMatchState, serverNow: number): void {
   assertArenaMatchActive(match);
+  if (match.phase !== 'combat') {
+    throw new Error('REJECT');
+  }
   const now = requireServerNow(serverNow);
   if (now < match.turnExpiresAt) {
     throw new Error('Növbə vaxtı hələ bitməyib');
@@ -32,6 +35,9 @@ export function assertArenaActionAllowed(input: {
   const { match, playerId, actionId } = input;
   assertArenaMatchActive(match);
   requireServerNow(input.serverNow);
+  if (match.phase !== 'combat') {
+    throw new Error('REJECT');
+  }
   if (!actionId.trim()) {
     throw new Error('Action id yoxdur');
   }
@@ -84,6 +90,11 @@ export function rejectClientEnergyWrite(): never {
 export function clientCannotWriteMatchFields(): readonly string[] {
   return [
     'energy',
+    'selected cards',
+    'remaining uses',
+    'used count',
+    'card cost',
+    'maxUses',
     'turnIndex',
     'currentTurn',
     'turnStartedAt',

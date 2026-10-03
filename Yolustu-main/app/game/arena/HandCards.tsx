@@ -5,9 +5,10 @@ import type { ArenaHandCardView } from './types';
 
 interface HandCardsProps {
   cards: ArenaHandCardView[];
+  onPlay?: (cardId: string) => void;
 }
 
-export default function HandCards({ cards }: HandCardsProps) {
+export default function HandCards({ cards, onPlay }: HandCardsProps) {
   const shown = cards.slice(0, 5);
   const empties = Math.max(0, 5 - shown.length);
 
@@ -15,7 +16,7 @@ export default function HandCards({ cards }: HandCardsProps) {
     <section className="w-full min-w-0 px-2 pb-[max(8px,env(safe-area-inset-bottom))]" aria-label="Kart əli">
       <div className="grid grid-cols-5 gap-1">
         {shown.map((card) => (
-          <CardPlaceholder key={card.id} card={card} />
+          <CardPlaceholder key={card.id} card={card} onPlay={onPlay} />
         ))}
         {Array.from({ length: empties }, (_, index) => (
           <div
