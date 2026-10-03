@@ -8,26 +8,24 @@ interface CardHandProps {
   onPlay?: (cardId: string) => void;
 }
 
-export default function CardHand({ cards, onPlay }: CardHandProps) {
-  const n = cards.length || 1;
+const ROTATES = [-16, -8, -1, 7, 14];
+const LIFTS = [10, 4, 0, 5, 12];
+const SHIFTS = [-8, -2, 0, 4, 10];
 
+export default function CardHand({ cards, onPlay }: CardHandProps) {
   return (
-    <div className="relative mx-auto flex h-[168px] w-full max-w-[430px] items-end justify-center px-1">
-      {cards.map((card, index) => {
-        const mid = (n - 1) / 2;
-        const rotate = (index - mid) * 8;
-        const lift = Math.abs(index - mid) * 6;
-        return (
-          <ArenaCard
-            key={card.id}
-            card={card}
-            rotate={rotate}
-            onClick={onPlay ? () => onPlay(card.id) : undefined}
-            lift={lift}
-            className="h-[150px] w-[102px] shrink-0 origin-bottom -ml-7 first:ml-0 shadow-lg"
-          />
-        );
-      })}
+    <div className="relative mx-auto flex h-[176px] w-full items-end justify-center px-2">
+      {cards.map((card, index) => (
+        <ArenaCard
+          key={card.id}
+          card={card}
+          rotate={ROTATES[index] ?? (index - 2) * 8}
+          lift={LIFTS[index] ?? 0}
+          shiftX={SHIFTS[index] ?? 0}
+          onClick={onPlay ? () => onPlay(card.id) : undefined}
+          className="z-[1] h-[158px] w-[108px] shrink-0 origin-bottom -ml-8 first:ml-0 shadow-lg hover:z-20"
+        />
+      ))}
     </div>
   );
 }

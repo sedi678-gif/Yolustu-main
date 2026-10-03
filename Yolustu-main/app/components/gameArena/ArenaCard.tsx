@@ -21,28 +21,29 @@ export default function ArenaCard({
   shiftX = 0,
   onClick,
 }: ArenaCardProps) {
-  const sharedClass = `relative overflow-hidden rounded-lg shadow-md border border-black/20 bg-white ${className}`;
+  const sharedClass = `relative overflow-hidden rounded-lg border border-black/25 bg-white shadow-md ${className}`;
   const sharedStyle = {
-    transform: `translate(${shiftX}px, ${lift}px) rotate(${rotate}deg)`,
+    transform: `translate(${shiftX}px, ${-lift}px) rotate(${rotate}deg)`,
   };
 
   const inner =
     face === 'back' || !card ? (
-      <div
-        className="h-full w-full"
-        style={{
-          background:
-            'repeating-linear-gradient(45deg, #166534 0 6px, #22c55e 6px 12px), repeating-linear-gradient(-45deg, #14532d 0 8px, #16a34a 8px 16px)',
-          backgroundBlendMode: 'multiply',
-        }}
-      >
-        <div className="absolute inset-[3px] rounded-md border border-white/40" />
+      <div className="h-full w-full bg-[#15803d] p-[2px]">
+        <div
+          className="h-full w-full rounded-[4px]"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(45deg, #166534 0 5px, #22c55e 5px 10px), repeating-linear-gradient(-45deg, #14532d 0 6px, #16a34a 6px 12px)',
+            backgroundBlendMode: 'multiply',
+          }}
+        />
       </div>
     ) : card.image ? (
       <img src={card.image} alt={card.title} className="h-full w-full object-cover" draggable={false} />
     ) : (
-      <div className="flex h-full w-full items-center justify-center text-2xl" style={{ background: card.accent }}>
-        {card.emoji}
+      <div className="flex h-full w-full flex-col items-center justify-center gap-1" style={{ background: card.accent }}>
+        <span className="text-2xl">{card.emoji}</span>
+        <span className="px-1 text-center text-[9px] font-extrabold leading-tight text-white">{card.title}</span>
       </div>
     );
 
