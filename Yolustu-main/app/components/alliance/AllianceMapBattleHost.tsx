@@ -248,7 +248,7 @@ export default function AllianceMapBattleHost({
         : null;
 
   const onAttack = useCallback(async () => {
-    if (!resolvedIdentified || attackLock.current || busy) return;
+    if (!resolvedIdentified || !activeAlliance || attackLock.current || busy) return;
     attackLock.current = true;
     setBusy(true);
     setError(null);
@@ -262,6 +262,9 @@ export default function AllianceMapBattleHost({
       await createArenaMatch({
         matchId: battle.id,
         createdBy: userId,
+        gameMode: '5v5',
+        homeAllianceId: activeAlliance.id,
+        awayAllianceId: resolvedIdentified.id,
         homePlayerIds: [userId, null, null, null, null],
         awayPlayerIds: [null, null, null, null, null],
         displayNames: { [userId]: playerName(players, userId) },
@@ -275,7 +278,7 @@ export default function AllianceMapBattleHost({
         attackLock.current = false;
       }, 800);
     }
-  }, [resolvedIdentified, busy, userId, players]);
+  }, [resolvedIdentified, busy, userId, players, activeAlliance]);
 
   const onJoin = useCallback(async () => {
     if (!liveView || busy) return;

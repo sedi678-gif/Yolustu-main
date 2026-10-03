@@ -60,7 +60,15 @@ export {
   lockArenaLoadout,
   playArenaCard,
   shareArenaClickEvent,
+  submitArenaReactionClick,
+  expireArenaReaction,
   matchFromData,
 } from './matchService';
 export { matchToArenaView } from './matchView';
 export { officialArenaDamage, resolveArenaCardEffect } from './effects';
+export {
+  getAllianceSizeTier,
+  officialArenaRequiredClicks,
+  officialReactionChatText,
+  ARENA_REACTION_DURATION_MS,
+} from './reaction';

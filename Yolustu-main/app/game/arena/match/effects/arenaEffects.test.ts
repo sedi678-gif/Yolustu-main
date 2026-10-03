@@ -145,15 +145,9 @@ describe('arena card mechanics', () => {
   });
 
   it('Qul edən successful', () => {
-    let match = setup(['A'], ['B']);
-    match = {
-      ...match,
-      scoreHistory: [{ at: match.turnStartedAt - 60_000, side: 'away', score: 80 }],
-    };
-    match = play(match, 'A', 'joker', { users: 5, id: 'skip' });
     const qulHome = {
       ...setup(['A'], ['B']),
-      scoreHistory: [{ at: 1_000_000 - 60_000, side: 'away', score: 80 }],
+      scoreHistory: [{ at: 1_000_000 - 60_000, side: 'away' as const, score: 80 }],
     };
     const resolved = resolveArenaCardEffect({
       match: qulHome,
@@ -196,11 +190,11 @@ describe('arena card mechanics', () => {
   });
 
   it('Üsyan → Qul edən', () => {
-    let match = setup(['A'], ['B']);
+    const match = setup(['A'], ['B']);
     const afterQul = resolveArenaCardEffect({
       match: {
         ...match,
-        scoreHistory: [{ at: 940_000, side: 'away', score: 40 }],
+        scoreHistory: [{ at: 940_000, side: 'away' as const, score: 40 }],
       },
       playerId: 'A',
       cardId: 'qul',
@@ -320,9 +314,9 @@ describe('arena counters', () => {
   it('peak window 10 dəqiqə / 60 dəqiqə', () => {
     const peak = peakTenMinuteWindow(
       [
-        { at: 1_000_000 - 50 * 60_000, side: 'away', score: 10 },
-        { at: 1_000_000 - 8 * 60_000, side: 'away', score: 30 },
-        { at: 1_000_000 - 7 * 60_000, side: 'away', score: 25 },
+        { at: 1_000_000 - 50 * 60_000, side: 'away' as const, score: 10 },
+        { at: 1_000_000 - 8 * 60_000, side: 'away' as const, score: 30 },
+        { at: 1_000_000 - 7 * 60_000, side: 'away' as const, score: 25 },
       ],
       'away',
       1_000_000

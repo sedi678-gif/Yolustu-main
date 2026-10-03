@@ -4,6 +4,7 @@ import { remainingTurnSeconds, roleLabelAz, sideSlots, turnLabel } from './turnO
 import type { ArenaMatchState, ArenaPresenceState } from './types';
 import type { ArenaHandCardView, ArenaSlotPlayer, ArenaViewModel } from '../types';
 import { createPlaceholderArenaView } from '../placeholderView';
+import { playerOnSide } from './reaction/policy';
 
 function slotsFromMatch(
   match: ArenaMatchState,
@@ -63,10 +64,25 @@ export function matchToArenaView(input: {
   const seconds = remainingTurnSeconds(match.turnExpiresAt, serverNow);
   const base = createPlaceholderArenaView();
   const loadoutPhase = match.phase === 'loadout';
-  const click = match.effects?.clickEvent;
+  const reaction = match.reaction;
+  const click = reaction?.status === 'ACTIVE' ? reaction : null;
   const last = match.effects?.lastPlay;
   const hide = Boolean(last?.hidden && last.playerId !== viewerPlayerId);
   const viewerRole = match.players[viewerPlayerId]?.role;
+  const modeLabel =
+    click?.cardId === 'qutb'
+      ? click.mode === 'ice'
+        ? 'Buz'
+        : 'Yanğın'
+      : click?.cardId === 'felaket'
+        ? click.mode === 'tsunami'
+          ? 'Tsunami'
+          : 'Zəlzələ'
+        : click?.cardId === 'qul'
+          ? 'Qul edən'
+          : click?.cardId === 'usyan'
+            ? 'Üsyan'
+            : '';
   return {
     ...base,
     matchState: { statusLabel: loadoutPhase ? 'Kart seçimi' : match.status === 'active' ? 'Arena' : 'Bağlı' },
@@ -84,9 +100,16 @@ export function matchToArenaView(input: {
         },
     cards: { hand: handFromMatch(match, viewerPlayerId) },
     clickEvent: {
-      visible: Boolean(click) && viewerRole === 'CLICKER',
+      visible: Boolean(click),
       cardTitle: click ? arenaCardTitle(click.cardId) : 'Klik kartı',
-      shareable: Boolean(click) && viewerRole === 'CLICKER' && !click?.sharedToChat,
+      shareable: Boolean(click) && viewerRole === 'CLICKER' && !click?.chatForwarded,
+      modeLabel,
+      remainingSeconds: click ? remainingTurnSeconds(click.expiresAt, serverNow) : 0,
+      currentClicks: click?.currentClicks ?? 0,
+      requiredClicks: click?.requiredClicks ?? 0,
+      canClick: Boolean(click && playerOnSide(match, viewerPlayerId, click.targetSide)),
+      chatText: click?.chatText,
+      reactionId: click?.reactionId,
     },
     effectLabel: hide ? 'Gizli kart' : match.effects?.lastSummary,
     doubleActive: match.effects?.pendingDoubleFor === viewerPlayerId,

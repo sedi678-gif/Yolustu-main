@@ -8,14 +8,17 @@ import ClickCardNotification from './ClickCardNotification';
 import HandCards from './HandCards';
 import PlayerRow from './PlayerRow';
 import ArenaClickerPanel from './ArenaClickerPanel';
+import ArenaReactionPanel from './ArenaReactionPanel';
 import ArenaLoadoutPicker from './ArenaLoadoutPicker';
 import {
+  expireArenaReaction,
   heartbeatArenaPresence,
   listenArenaMatch,
   listenArenaPresence,
   makeArenaActionId,
   playArenaCard,
   remainingTurnSeconds,
+  submitArenaReactionClick,
   timeoutArenaTurn,
   type ArenaMatchState,
   type ArenaPresenceState,
@@ -37,6 +40,7 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   const [serverNow, setServerNow] = useState(0);
   const [pendingModeCard, setPendingModeCard] = useState<string | null>(null);
   const timeoutLock = useRef(false);
+  const reactionLock = useRef(false);
 
   useEffect(() => {
     if (view || !matchId) return undefined;
@@ -80,6 +84,22 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
       });
   }, [match, matchId, serverNow, view]);
 
+  useEffect(() => {
+    if (view || !match || !matchId || serverNow <= 0) return;
+    const reaction = match.reaction;
+    if (!reaction || reaction.status !== 'ACTIVE') return;
+    if (remainingTurnSeconds(reaction.expiresAt, serverNow) > 0) return;
+    if (reactionLock.current) return;
+    reactionLock.current = true;
+    void expireArenaReaction({ matchId })
+      .catch(() => {})
+      .finally(() => {
+        window.setTimeout(() => {
+          reactionLock.current = false;
+        }, 750);
+      });
+  }, [match, matchId, serverNow, view]);
+
   const liveView = useMemo(() => {
     if (!match || !playerId) return null;
     return matchToArenaView({
@@ -108,6 +128,20 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
         cardId,
         actionId: makeArenaActionId(),
         mode,
+      });
+    } catch {
+      /* server REJECT */
+    }
+  }
+
+  async function onReactionClick() {
+    if (!matchId || !playerId || !ui.clickEvent.reactionId) return;
+    try {
+      await submitArenaReactionClick({
+        matchId,
+        playerId,
+        reactionId: ui.clickEvent.reactionId,
+        actionId: makeArenaActionId(),
       });
     } catch {
       /* server REJECT */
@@ -144,11 +178,23 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
             <p className="px-3 text-center text-[11px] font-bold text-cyan-100/80">Kartların lock olundu. Döyüş gözlənilir.</p>
           ) : null}
           {ui.clickEvent.visible && matchId && playerId ? (
+            <ArenaReactionPanel
+              cardTitle={ui.clickEvent.cardTitle}
+              modeLabel={ui.clickEvent.modeLabel ?? ''}
+              remainingSeconds={ui.clickEvent.remainingSeconds ?? 0}
+              currentClicks={ui.clickEvent.currentClicks ?? 0}
+              requiredClicks={ui.clickEvent.requiredClicks ?? 0}
+              canClick={Boolean(ui.clickEvent.canClick)}
+              onClick={() => void onReactionClick()}
+            />
+          ) : null}
+          {ui.clickEvent.visible && matchId && playerId && match?.players[playerId]?.role === 'CLICKER' ? (
             <ArenaClickerPanel
               matchId={matchId}
               playerId={playerId}
               cardTitle={ui.clickEvent.cardTitle}
               shareable={Boolean(ui.clickEvent.shareable)}
+              chatText={ui.clickEvent.chatText}
             />
           ) : null}
           {pendingModeCard === 'felaket' ? (
@@ -173,7 +219,11 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
           ) : null}
           <HandCards
             cards={ui.cards.hand}
-            onPlay={match?.phase === 'combat' && playerId === match.currentTurn ? onPlayCard : undefined}
+            onPlay={
+              match?.phase === 'combat' && playerId === match.currentTurn && match.players[playerId]?.role !== 'CLICKER'
+                ? onPlayCard
+                : undefined
+            }
           />
         </div>
       </div>

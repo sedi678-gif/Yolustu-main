@@ -18,12 +18,20 @@ import {
   ARENA_PRESENCE_COLLECTION,
   ARENA_SLOT_COUNT,
   ARENA_TURN_DURATION_MS,
+  type ArenaTurnRole,
 } from './config';
 import { assertArenaActionAllowed, assertArenaTimeoutAllowed, assertStartEnergy, rejectClientEnergyWrite } from './policy';
 import { advanceMatchTurn, createMatchSnapshot } from './turnOrder';
 import { applyArenaCardPlay, applyLockedLoadout, assertArenaLoadoutLockAllowed } from './loadout';
 import { emptyArenaEffects } from './effects/types';
 import { opponentPlayerId, serverActiveUsers } from './effects/engine';
+import {
+  applyArenaClick,
+  expireArenaReactionState,
+  forwardArenaReactionChat,
+  officialReactionChatText,
+} from './reaction';
+import type { ArenaReactionState } from './reaction/types';
 import type {
   ArenaLoadoutCard,
   ArenaMatchState,
@@ -31,7 +39,6 @@ import type {
   ArenaPlayerState,
   ArenaPresenceState,
   ArenaSide,
-  ArenaTurnRole,
 } from './types';
 
 const TX_MS = 12_000;
@@ -61,6 +68,60 @@ function padIds(value: unknown): Array<string | null> {
     else next.push(null);
   }
   return next;
+}
+
+function parseBoolMap(raw: unknown): Record<string, boolean> {
+  if (!raw || typeof raw !== 'object') return {};
+  const next: Record<string, boolean> = {};
+  Object.entries(raw as Record<string, unknown>).forEach(([id, value]) => {
+    if (value === true) next[id] = true;
+  });
+  return next;
+}
+
+function parseReaction(raw: unknown): ArenaReactionState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+  const status = asString(data.status);
+  if (!['ACTIVE', 'SUCCESS', 'FAILED', 'EXPIRED', 'CANCELLED'].includes(status)) return null;
+  const pendingRaw = data.pending && typeof data.pending === 'object' ? (data.pending as Record<string, unknown>) : {};
+  const kind = asString(pendingRaw.kind);
+  if (kind !== 'damage' && kind !== 'qul' && kind !== 'usyan') return null;
+  const peakRaw = pendingRaw.peak && typeof pendingRaw.peak === 'object' ? (pendingRaw.peak as Record<string, unknown>) : null;
+  const sizeTier = asString(data.sizeTier);
+  return {
+    active: data.active === true,
+    reactionId: asString(data.reactionId),
+    matchId: asString(data.matchId),
+    sourcePlayerId: asString(data.sourcePlayerId),
+    sourceAllianceId: asString(data.sourceAllianceId),
+    targetAllianceId: asString(data.targetAllianceId),
+    targetSide: data.targetSide === 'away' ? 'away' : 'home',
+    cardId: asString(data.cardId),
+    mode:
+      data.mode === 'earthquake' || data.mode === 'tsunami' || data.mode === 'fire' || data.mode === 'ice'
+        ? data.mode
+        : null,
+    startedAt: asInt(data.startedAt),
+    expiresAt: asInt(data.expiresAt),
+    durationMs: asInt(data.durationMs, 15_000),
+    requiredClicks: asInt(data.requiredClicks),
+    currentClicks: asInt(data.currentClicks),
+    status: status as ArenaReactionState['status'],
+    sizeTier: sizeTier === 'MEDIUM' || sizeTier === 'LARGE' ? sizeTier : 'SMALL',
+    usedActionIds: parseBoolMap(data.usedActionIds),
+    clickers: parseBoolMap(data.clickers),
+    pending: {
+      kind,
+      damage: asInt(pendingRaw.damage),
+      attackerId: asString(pendingRaw.attackerId),
+      attackerSide: pendingRaw.attackerSide === 'away' ? 'away' : 'home',
+      defenderSide: pendingRaw.defenderSide === 'away' ? 'away' : 'home',
+      peak: peakRaw ? { startAt: asInt(peakRaw.startAt), score: asInt(peakRaw.score) } : null,
+    },
+    chatForwarded: data.chatForwarded === true,
+    chatText: asString(data.chatText),
+  };
 }
 
 function parseLoadoutCard(raw: unknown): ArenaLoadoutCard | null {
@@ -156,6 +217,9 @@ export function matchFromData(matchId: string, raw: Record<string, unknown> | un
     loadouts,
     usedActionIds,
     gameMode: raw.gameMode === '5v5' ? '5v5' : '1v1',
+    homeAllianceId: asString(raw.homeAllianceId),
+    awayAllianceId: asString(raw.awayAllianceId),
+    reaction: parseReaction(raw.reaction),
     sideScores: {
       home: asInt((raw.sideScores as Record<string, unknown> | undefined)?.home),
       away: asInt((raw.sideScores as Record<string, unknown> | undefined)?.away),
@@ -202,6 +266,9 @@ function matchWrite(match: ArenaMatchState): Record<string, unknown> {
     loadouts: match.loadouts,
     usedActionIds: match.usedActionIds,
     gameMode: match.gameMode,
+    homeAllianceId: match.homeAllianceId,
+    awayAllianceId: match.awayAllianceId,
+    reaction: match.reaction,
     sideScores: match.sideScores,
     scoreHistory: match.scoreHistory,
     effects: match.effects,
@@ -226,6 +293,9 @@ export async function createArenaMatch(input: {
   awayPlayerIds: Array<string | null>;
   displayNames?: Record<string, string>;
   matchId?: string;
+  gameMode?: '1v1' | '5v5';
+  homeAllianceId?: string;
+  awayAllianceId?: string;
 }): Promise<ArenaMatchState> {
   await requireFirebaseAuth();
   const createdBy = sanitizePlayerId(input.createdBy);
@@ -246,6 +316,9 @@ export async function createArenaMatch(input: {
         awayPlayerIds: input.awayPlayerIds,
         displayNames: input.displayNames,
         serverNow: now,
+        gameMode: input.gameMode,
+        homeAllianceId: input.homeAllianceId,
+        awayAllianceId: input.awayAllianceId,
       });
       const match = { ...created, phase: 'loadout' as const, loadouts: {}, usedActionIds: {} };
       assertStartEnergy(match.players);
@@ -443,10 +516,112 @@ export async function playArenaCard(input: {
           result: next.effects.lastSummary,
           actionId,
         });
+        if (next.reaction && next.reaction.reactionId) {
+          const eventRef = doc(db, ARENA_MATCH_COLLECTION, matchId, 'reaction_events', `${actionId}_created`);
+          tx.set(eventRef, {
+            type: 'reactionCreated',
+            matchId,
+            reactionId: next.reaction.reactionId,
+            playerId,
+            timestamp: now,
+            cardId: next.reaction.cardId,
+            currentClicks: 0,
+            requiredClicks: next.reaction.requiredClicks,
+            actionId,
+          });
+        }
         return next;
       }),
       TX_MS,
       'Kart oynanılmadı'
+    )
+  );
+}
+
+export async function submitArenaReactionClick(input: {
+  matchId: string;
+  playerId: string;
+  reactionId: string;
+  actionId: string;
+}): Promise<ArenaMatchState> {
+  await requireFirebaseAuth();
+  const matchId = sanitizeBattleId(input.matchId);
+  const playerId = sanitizePlayerId(input.playerId);
+  const reactionId = asString(input.reactionId).slice(0, 64);
+  const actionId = asString(input.actionId).slice(0, 64);
+  if (!reactionId || !actionId) throw new Error('REJECT');
+  const now = await requireServerNow();
+  const lockKey = `arena-click:${matchId}:${actionId}`;
+  return replayBattleRequest(lockKey, async () =>
+    withTimeout(
+      runTransaction(db, async (tx) => {
+        const snap = await tx.get(matchRef(matchId));
+        if (!snap.exists()) throw new Error('Match tapılmadı');
+        const clickRef = doc(db, ARENA_MATCH_COLLECTION, matchId, 'reaction_clicks', actionId);
+        const clickSnap = await tx.get(clickRef);
+        if (clickSnap.exists()) throw new Error('REJECT');
+        const match = matchFromData(snap.id, snap.data() as Record<string, unknown>);
+        const next = applyArenaClick({
+          match,
+          playerId,
+          reactionId,
+          actionId,
+          serverNow: now,
+        });
+        tx.update(matchRef(matchId), matchWrite(next));
+        tx.set(clickRef, { actionId, playerId, reactionId, timestamp: now });
+        const eventType =
+          next.reaction?.status === 'SUCCESS' ? 'reactionSucceeded' : 'clickReceived';
+        tx.set(doc(db, ARENA_MATCH_COLLECTION, matchId, 'reaction_events', `${actionId}_${eventType}`), {
+          type: eventType,
+          matchId,
+          reactionId,
+          playerId,
+          timestamp: now,
+          cardId: next.reaction?.cardId ?? '',
+          currentClicks: next.reaction?.currentClicks ?? 0,
+          requiredClicks: next.reaction?.requiredClicks ?? 0,
+          actionId,
+        });
+        return next;
+      }),
+      TX_MS,
+      'Klik yazılmadı'
+    )
+  );
+}
+
+export async function expireArenaReaction(input: { matchId: string }): Promise<ArenaMatchState> {
+  await requireFirebaseAuth();
+  const matchId = sanitizeBattleId(input.matchId);
+  const now = await requireServerNow();
+  const lockKey = `arena-reaction-expire:${matchId}`;
+  return replayBattleRequest(lockKey, async () =>
+    withTimeout(
+      runTransaction(db, async (tx) => {
+        const snap = await tx.get(matchRef(matchId));
+        if (!snap.exists()) throw new Error('Match tapılmadı');
+        const match = matchFromData(snap.id, snap.data() as Record<string, unknown>);
+        const next = expireArenaReactionState(match, now);
+        tx.update(matchRef(matchId), matchWrite(next));
+        const reaction = next.reaction;
+        if (reaction) {
+          tx.set(doc(db, ARENA_MATCH_COLLECTION, matchId, 'reaction_events', `${reaction.reactionId}_expired`), {
+            type: reaction.status === 'SUCCESS' ? 'reactionSucceeded' : 'reactionExpired',
+            matchId,
+            reactionId: reaction.reactionId,
+            playerId: '',
+            timestamp: now,
+            cardId: reaction.cardId,
+            currentClicks: reaction.currentClicks,
+            requiredClicks: reaction.requiredClicks,
+            actionId: '',
+          });
+        }
+        return next;
+      }),
+      TX_MS,
+      'Reaction timeout yazılmadı'
     )
   );
 }
@@ -461,19 +636,29 @@ export async function shareArenaClickEvent(input: { matchId: string; playerId: s
       const snap = await tx.get(matchRef(matchId));
       if (!snap.exists()) throw new Error('Match tapılmadı');
       const match = matchFromData(snap.id, snap.data() as Record<string, unknown>);
-      const role = match.players[playerId]?.role;
-      if (role !== 'CLICKER') throw new Error('REJECT');
-      if (!match.effects.clickEvent) throw new Error('REJECT');
-      const next = {
-        ...match,
-        effects: {
-          ...match.effects,
-          clickEvent: { ...match.effects.clickEvent, sharedToChat: true },
-        },
-        updatedAt: now,
+      const next = forwardArenaReactionChat(match, playerId, now);
+      const text = officialReactionChatText(next.reaction?.cardId ?? '', next.reaction?.mode ?? null);
+      const withEffects = {
+        ...next,
+        effects: next.effects.clickEvent
+          ? { ...next.effects, clickEvent: { ...next.effects.clickEvent, sharedToChat: true } }
+          : next.effects,
       };
-      tx.update(matchRef(matchId), matchWrite(next));
-      return next;
+      tx.update(matchRef(matchId), matchWrite(withEffects));
+      const reactionId = withEffects.reaction?.reactionId ?? 'none';
+      tx.set(doc(db, ARENA_MATCH_COLLECTION, matchId, 'reaction_events', `${reactionId}_chat`), {
+        type: 'chatForwarded',
+        matchId,
+        reactionId,
+        playerId,
+        timestamp: now,
+        cardId: withEffects.reaction?.cardId ?? '',
+        currentClicks: withEffects.reaction?.currentClicks ?? 0,
+        requiredClicks: withEffects.reaction?.requiredClicks ?? 0,
+        actionId: '',
+        chatText: text,
+      });
+      return withEffects;
     }),
     TX_MS,
     'Click event paylaşılmadı'

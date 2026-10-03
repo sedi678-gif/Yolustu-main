@@ -1,6 +1,7 @@
 import type { ArenaTurnRole } from './config';
 import type { ArenaEffectState } from './effects/types';
 import type { ArenaScoreTick } from './effects/scoreHistory';
+import type { ArenaReactionState } from './reaction/types';
 
 export type ArenaSide = 'home' | 'away';
 export type ArenaMatchStatus = 'active' | 'closed';
@@ -57,9 +58,12 @@ export type ArenaMatchState = {
   loadouts: Record<string, ArenaPlayerLoadout>;
   usedActionIds: Record<string, boolean>;
   gameMode: '1v1' | '5v5';
+  homeAllianceId: string;
+  awayAllianceId: string;
   sideScores: { home: number; away: number };
   scoreHistory: ArenaScoreTick[];
   effects: ArenaEffectState;
+  reaction: ArenaReactionState | null;
   createdAt: number;
   updatedAt: number;
 };

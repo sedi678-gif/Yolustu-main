@@ -111,6 +111,7 @@ export function assertArenaCardPlayAllowed(input: {
   if (!playerInMatch(match, playerId)) reject('REJECT');
   if (!actionId.trim()) reject('Action id yoxdur');
   if (match.usedActionIds[actionId]) return 'duplicate';
+  if (match.players[playerId]?.role === 'CLICKER') reject('REJECT');
   if (match.currentTurn !== playerId) reject('REJECT');
   if (serverNow >= match.turnExpiresAt) reject('REJECT');
   if (match.lastActionTurnSeq === match.turnSeq) {

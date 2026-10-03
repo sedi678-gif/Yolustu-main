@@ -2141,7 +2141,8 @@ service cloud.firestore {
           'usedActionIds',
           'effects',
           'sideScores',
-          'scoreHistory'
+          'scoreHistory',
+          'reaction'
         ]);
     }
 
@@ -2152,8 +2153,57 @@ service cloud.firestore {
         && after.players == before.players
         && after.loadouts == before.loadouts
         && after.turnIndex == before.turnIndex
-        && after.sideScores == before.sideScores
-        && after.diff(before).affectedKeys().hasOnly(['effects', 'updatedAt']);
+        && after.diff(before).affectedKeys().hasOnly(['effects', 'updatedAt', 'reaction']);
+    }
+
+    function isValidArenaReactionClick() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.gameMode == '5v5'
+        && after.gameMode == '5v5'
+        && before.reaction != null
+        && after.reaction != null
+        && before.reaction.status == 'ACTIVE'
+        && after.reaction.reactionId == before.reaction.reactionId
+        && after.reaction.requiredClicks == before.reaction.requiredClicks
+        && after.reaction.startedAt == before.reaction.startedAt
+        && after.reaction.expiresAt == before.reaction.expiresAt
+        && after.reaction.currentClicks == before.reaction.currentClicks + 1
+        && after.turnIndex == before.turnIndex
+        && after.turnSeq == before.turnSeq
+        && after.players == before.players
+        && after.loadouts == before.loadouts
+        && after.currentTurn == before.currentTurn
+        && request.time.toMillis() < before.reaction.expiresAt
+        && after.diff(before).affectedKeys().hasOnly([
+          'reaction',
+          'updatedAt',
+          'effects',
+          'sideScores',
+          'scoreHistory'
+        ]);
+    }
+
+    function isValidArenaReactionExpire() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && before.reaction != null
+        && after.reaction != null
+        && before.reaction.status == 'ACTIVE'
+        && after.reaction.status in ['EXPIRED', 'FAILED', 'SUCCESS']
+        && after.turnIndex == before.turnIndex
+        && after.players == before.players
+        && after.loadouts == before.loadouts
+        && request.time.toMillis() >= before.reaction.expiresAt
+        && after.diff(before).affectedKeys().hasOnly([
+          'reaction',
+          'updatedAt',
+          'effects',
+          'sideScores',
+          'scoreHistory'
+        ]);
     }
 
     match /arena_matches/{matchId} {
@@ -2164,7 +2214,9 @@ service cloud.firestore {
         || isValidArenaAction()
         || isValidArenaLoadoutLock()
         || isValidArenaCardPlay()
-        || isValidArenaClickShare();
+        || isValidArenaClickShare()
+        || isValidArenaReactionClick()
+        || isValidArenaReactionExpire();
       allow delete: if false;
 
       match /audit/{actionId} {
@@ -2176,6 +2228,25 @@ service cloud.firestore {
             'matchId', 'playerId', 'cardId', 'timestamp', 'energyBefore', 'energyAfter',
             'usesBefore', 'usesAfter', 'effectType', 'damage', 'actionId', 'result'
           ]);
+        allow update, delete: if false;
+      }
+
+      match /reaction_events/{eventId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && request.resource.data.matchId == matchId
+          && request.resource.data.keys().hasAll([
+            'type', 'matchId', 'reactionId', 'playerId', 'timestamp',
+            'cardId', 'currentClicks', 'requiredClicks', 'actionId'
+          ]);
+        allow update, delete: if false;
+      }
+
+      match /reaction_clicks/{actionId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && request.resource.data.actionId == actionId
+          && request.resource.data.keys().hasOnly(['actionId', 'playerId', 'reactionId', 'timestamp']);
         allow update, delete: if false;
       }
 

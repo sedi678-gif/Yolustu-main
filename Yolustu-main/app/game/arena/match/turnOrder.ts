@@ -122,6 +122,9 @@ export function createMatchSnapshot(input: {
   awayPlayerIds: Array<string | null>;
   displayNames?: Record<string, string>;
   serverNow: number;
+  gameMode?: '1v1' | '5v5';
+  homeAllianceId?: string;
+  awayAllianceId?: string;
 }): ArenaMatchState {
   const homePlayerIds = padSlots(input.homePlayerIds);
   const awayPlayerIds = padSlots(input.awayPlayerIds);
@@ -138,10 +141,13 @@ export function createMatchSnapshot(input: {
     phase: 'combat',
     loadouts: {},
     usedActionIds: {},
-    gameMode: '1v1',
+    gameMode: input.gameMode === '5v5' ? '5v5' : '1v1',
+    homeAllianceId: input.homeAllianceId ?? '',
+    awayAllianceId: input.awayAllianceId ?? '',
     sideScores: { home: 0, away: 0 },
     scoreHistory: [],
     effects: emptyArenaEffects(),
+    reaction: null,
     currentTurn: first.playerId,
     turnSide: first.side,
     turnSlotIndex: first.slotIndex,

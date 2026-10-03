@@ -47,7 +47,18 @@ export interface ArenaViewModel {
     cards: { hand: ArenaHandCardView[] };
   activeCard: null;
   currentTurn: { playerId: string; label: string } | null;
-  clickEvent: { visible: boolean; cardTitle: string; shareable?: boolean };
+  clickEvent: {
+    visible: boolean;
+    cardTitle: string;
+    shareable?: boolean;
+    modeLabel?: string;
+    remainingSeconds?: number;
+    currentClicks?: number;
+    requiredClicks?: number;
+    canClick?: boolean;
+    chatText?: string;
+    reactionId?: string;
+  };
   effectLabel?: string;
   doubleActive?: boolean;
   spyReveal?: string[];

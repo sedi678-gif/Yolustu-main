@@ -10,6 +10,8 @@ import {
 } from './damage';
 import { peakTenMinuteWindow } from './scoreHistory';
 import { emptyArenaEffects, type ArenaChainStep, type ArenaEffectResult, type ArenaEffectState } from './types';
+import { createArenaReaction, defendingSideForCard, qulPendingPeak } from '../reaction/policy';
+import type { ArenaReactionPending } from '../reaction/types';
 
 const ARENA_TRANSFER_MAX = 500;
 
@@ -163,14 +165,102 @@ export function resolveArenaCardEffect(input: {
 
   let next = match;
   let chain: ArenaChainStep = 'ATTACK';
-  let hiddenFromOpponent = cardId === 'duman';
+  const hiddenFromOpponent = cardId === 'duman';
   let replaced: ArenaEffectResult['replaced'] = null;
   let revealedCardIds: string[] = [];
   let peak = null as ArenaEffectResult['peak'];
   let slaveStatus: ArenaEffectResult['slaveStatus'] = null;
   let summary = '';
+  const deferClick = match.gameMode !== '1v1' && isArenaClickCard(cardId);
 
-  if (cardId === '2x') {
+  if (deferClick) {
+    if (match.reaction?.status === 'ACTIVE') reject('REJECT');
+    if (cardId === 'usyan' || resolvedCard === 'usyan') {
+      const slave = prior.slave;
+      if (!slave || slave.attackerId === playerId) reject('REJECT');
+      if (slave.status !== 'failed' && slave.status !== 'success') reject('REJECT');
+    }
+    const defenderSide = defendingSideForCard(side, cardId);
+    let pending: ArenaReactionPending;
+    if (cardId === 'qul' || resolvedCard === 'qul') {
+      peak = qulPendingPeak(next, defenderSide, serverNow);
+      slaveStatus = 'pending';
+      pending = {
+        kind: 'qul',
+        damage: 0,
+        attackerId: playerId,
+        attackerSide: side,
+        defenderSide,
+        peak,
+      };
+    } else if (cardId === 'usyan' || resolvedCard === 'usyan') {
+      peak = prior.slave ? { ...prior.slave.peak } : null;
+      pending = {
+        kind: 'usyan',
+        damage: 0,
+        attackerId: playerId,
+        attackerSide: side,
+        defenderSide,
+        peak,
+      };
+    } else {
+      pending = {
+        kind: 'damage',
+        damage: totalDamage,
+        attackerId: playerId,
+        attackerSide: side,
+        defenderSide,
+        peak: null,
+      };
+    }
+    const reaction = createArenaReaction({
+      match: next,
+      playerId,
+      cardId,
+      mode,
+      actionId,
+      serverNow,
+      activeUsers: input.activeUsers,
+      pending,
+    });
+    summary =
+      cardId === 'qutb'
+        ? mode === 'ice'
+          ? 'Buz — müdafiə klikləri'
+          : 'Yanğın — müdafiə klikləri'
+        : cardId === 'felaket'
+          ? mode === 'tsunami'
+            ? 'Tsunami — müdafiə klikləri'
+            : 'Zəlzələ — müdafiə klikləri'
+          : cardId === 'qul'
+            ? 'Qul edən — müdafiə klikləri'
+            : 'Üsyan — müdafiə klikləri';
+    next = {
+      ...next,
+      reaction,
+      effects: {
+        ...pushChain(prior, 'ATTACK', cardId, playerId),
+        clickEvent: {
+          cardId,
+          mode,
+          playerId,
+          createdAt: serverNow,
+          sharedToChat: false,
+        },
+        slave:
+          cardId === 'qul'
+            ? {
+                attackerId: playerId,
+                defenderSide,
+                peak: peak ?? { startAt: serverNow, score: 0 },
+                status: 'pending',
+                at: serverNow,
+              }
+            : prior.slave,
+        lastSummary: summary,
+      },
+    };
+  } else if (cardId === '2x') {
     next = {
       ...next,
       effects: { ...pushChain(prior, 'ATTACK', cardId, playerId), pendingDoubleFor: playerId, lastSummary: '2X aktivdir' },
