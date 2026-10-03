@@ -33,7 +33,6 @@ import BattleEnergyPanel from './BattleEnergyPanel';
 import BattleScorePanel from './BattleScorePanel';
 import BattleClickChallengePanel from './BattleClickChallengePanel';
 import BattleEventLogPanel from './BattleEventLogPanel';
-import BattleArenaScreen from './BattleArenaScreen';
 import styles from './alliance.module.css';
 
 function playerName(players: PlayerProfile[], id: string) {
@@ -282,22 +281,8 @@ export default function AllianceMapBattleHost({
   }, [liveView, busy, userId]);
 
   const localAlliance = resolvedIdentified || alliances.find((item) => item.id === selectedAllianceId) || null;
-  const realFinish = Boolean(
-    liveView &&
-      liveView.battle.status === 'finished' &&
-      liveView.battle.finishReason &&
-      liveView.battle.finishReason !== 'join_failed'
-  );
   const showInfo = Boolean(selectedAllianceId) && !lobbyId;
-  const showArena = Boolean(
-    alreadyIn &&
-      liveView &&
-      (liveView.battle.status === 'joining' ||
-        liveView.battle.status === 'locked' ||
-        liveView.battle.status === 'active' ||
-        realFinish)
-  );
-  const showLobby = Boolean(lobbyId && liveView && !showArena);
+  const showLobby = Boolean(lobbyId && liveView);
 
   useEffect(() => {
     if (!liveView || !userId || !activeAlliance?.id || busy) return;
@@ -447,25 +432,6 @@ export default function AllianceMapBattleHost({
           <p>Döyüş yüklənir…</p>
         )}
       </AllianceMapSheet>
-
-      {showArena && liveView ? (
-        <BattleArenaScreen
-          battle={liveView.battle}
-          playerId={userId}
-          players={players}
-          joinRemainingMs={liveView.joinRemainingMs}
-          restoredEnergy={
-            reconnectSnap?.battle.id === liveView.battle.id ? reconnectSnap.energy : null
-          }
-          restoredChallenges={
-            reconnectSnap?.battle.id === liveView.battle.id ? reconnectSnap.challenges : undefined
-          }
-          onClose={() => {
-            setLobbyId(null);
-            onClearSelected();
-          }}
-        />
-      ) : null}
     </>
   );
 }
