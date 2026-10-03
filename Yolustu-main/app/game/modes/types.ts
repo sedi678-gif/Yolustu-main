@@ -1,8 +1,3 @@
-export type GameMode = '1v1' | '4v4';
+export type GameMode = '1v1' | '5v5';
 
-export interface GameModeRules {
-  mode: GameMode;
-  seatsPerSide: number;
-  hasRoles: boolean;
-  energyLimit: number;
-}
+export type GameModeSettings = Record<string, never>;

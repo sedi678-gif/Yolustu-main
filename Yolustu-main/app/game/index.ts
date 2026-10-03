@@ -1,8 +1,8 @@
 export type { GameId, GameStatus, GameSnapshot } from './game';
 export { createGame } from './game';
 
-export type { GameMode, GameModeRules } from './modes';
-export { MODE_RULES, getModeRules } from './modes';
+export type { GameMode, GameModeSettings } from './modes';
+export { GAME_MODES, MODE_NAMES, MODE_SETTINGS, getModeSettings } from './modes';
 
 export type { GameCardId, GameCard } from './cards';
 export { GAME_CARD_IDS } from './cards';
