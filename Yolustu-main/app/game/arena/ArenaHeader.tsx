@@ -22,6 +22,11 @@ export default function ArenaHeader({ view, onClose }: ArenaHeaderProps) {
         <div className="rounded-md border border-cyan-400/25 bg-black/35 px-2 py-1 text-[11px] font-black tabular-nums text-cyan-100">
           {view.energy.label}
         </div>
+        {view.currentTurn ? (
+          <p className="max-w-[140px] truncate text-right text-[9px] font-bold text-amber-50/90">
+            {view.currentTurn.label}
+          </p>
+        ) : null}
       </div>
       <button
         type="button"

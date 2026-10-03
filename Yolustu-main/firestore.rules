@@ -13,7 +13,8 @@ service cloud.firestore {
         path[0] == 'leaderboard_resets' ||
         path[0] == 'leaderboard_archives' ||
         path[0] == 'leaderboard_awards' ||
-        path[0] == 'alliances'
+        path[0] == 'alliances' ||
+        path[0] == 'arena_matches'
       );
     }
 
@@ -1969,6 +1970,107 @@ service cloud.firestore {
         && request.resource.data.until is int
         && request.resource.data.updatedAt is int;
       allow delete: if false;
+    }
+
+    function arenaSlotEnergyOk(ids, i, side) {
+      return !(ids[i] is string)
+        || (
+          request.resource.data.players[ids[i]].energy == 30
+          && request.resource.data.players[ids[i]].maxEnergy == 30
+          && request.resource.data.players[ids[i]].side == side
+          && request.resource.data.players[ids[i]].slotIndex == i
+          && request.resource.data.players[ids[i]].playerId == ids[i]
+        );
+    }
+
+    function isValidArenaMatchCreate() {
+      let d = request.resource.data;
+      return request.auth != null
+        && d.status == 'active'
+        && d.schemaVersion == 1
+        && d.energyStart == 30
+        && d.energyMax == 30
+        && d.turnDuration == 15000
+        && d.turnExpiresAt == d.turnStartedAt + 15000
+        && d.turnIndex == 0
+        && d.turnSeq == 0
+        && d.lastActionTurnSeq == -1
+        && d.homePlayerIds is list
+        && d.awayPlayerIds is list
+        && d.homePlayerIds.size() == 5
+        && d.awayPlayerIds.size() == 5
+        && d.players is map
+        && arenaSlotEnergyOk(d.homePlayerIds, 0, 'home')
+        && arenaSlotEnergyOk(d.homePlayerIds, 1, 'home')
+        && arenaSlotEnergyOk(d.homePlayerIds, 2, 'home')
+        && arenaSlotEnergyOk(d.homePlayerIds, 3, 'home')
+        && arenaSlotEnergyOk(d.homePlayerIds, 4, 'home')
+        && arenaSlotEnergyOk(d.awayPlayerIds, 0, 'away')
+        && arenaSlotEnergyOk(d.awayPlayerIds, 1, 'away')
+        && arenaSlotEnergyOk(d.awayPlayerIds, 2, 'away')
+        && arenaSlotEnergyOk(d.awayPlayerIds, 3, 'away')
+        && arenaSlotEnergyOk(d.awayPlayerIds, 4, 'away');
+    }
+
+    function isValidArenaTurnAdvance() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && after.players == before.players
+        && after.energyStart == 30
+        && after.energyMax == 30
+        && after.homePlayerIds == before.homePlayerIds
+        && after.awayPlayerIds == before.awayPlayerIds
+        && after.createdBy == before.createdBy
+        && after.matchId == before.matchId
+        && after.status == 'active'
+        && after.turnDuration == 15000
+        && after.turnExpiresAt == after.turnStartedAt + 15000
+        && after.turnIndex == before.turnIndex + 1
+        && after.turnSeq == before.turnSeq + 1
+        && after.lastActionId == null
+        && after.lastActionTurnSeq == -1
+        && after.diff(before).affectedKeys().hasOnly([
+          'currentTurn',
+          'turnSide',
+          'turnSlotIndex',
+          'turnIndex',
+          'turnSeq',
+          'turnStartedAt',
+          'turnExpiresAt',
+          'lastActionId',
+          'lastActionTurnSeq',
+          'updatedAt'
+        ]);
+    }
+
+    function isValidArenaTimeout() {
+      return isValidArenaTurnAdvance()
+        && request.time.toMillis() >= resource.data.turnExpiresAt;
+    }
+
+    function isValidArenaAction() {
+      return isValidArenaTurnAdvance()
+        && request.time.toMillis() < resource.data.turnExpiresAt
+        && resource.data.lastActionTurnSeq != resource.data.turnSeq;
+    }
+
+    match /arena_matches/{matchId} {
+      allow read: if request.auth != null;
+      allow create: if isValidArenaMatchCreate()
+        && request.resource.data.matchId == matchId;
+      allow update: if isValidArenaTimeout() || isValidArenaAction();
+      allow delete: if false;
+
+      match /presence/{playerId} {
+        allow read: if request.auth != null;
+        allow create, update: if request.auth != null
+          && request.resource.data.keys().hasOnly(['playerId', 'online', 'updatedAt'])
+          && request.resource.data.playerId == playerId
+          && request.resource.data.online is bool
+          && request.resource.data.updatedAt is int;
+        allow delete: if false;
+      }
     }
 
     match /{document=**} {

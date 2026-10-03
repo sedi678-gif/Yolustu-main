@@ -6,9 +6,10 @@ import { slotRoleAt } from './slotLayout';
 interface PlayerSlotProps {
   player: ArenaSlotPlayer | null;
   index: number;
+  current?: boolean;
 }
 
-export default function PlayerSlot({ player, index }: PlayerSlotProps) {
+export default function PlayerSlot({ player, index, current }: PlayerSlotProps) {
   const role = player?.role ?? slotRoleAt(index);
   const empty = !player;
 
@@ -16,7 +17,11 @@ export default function PlayerSlot({ player, index }: PlayerSlotProps) {
     <div className="flex min-w-0 flex-col items-center gap-1">
       <div
         className={`relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border ${
-          empty ? 'border-dashed border-white/25 bg-slate-950/40' : 'border-cyan-300/40 bg-slate-800'
+          empty
+            ? 'border-dashed border-white/25 bg-slate-950/40'
+            : current
+              ? 'border-amber-300 bg-slate-800 ring-2 ring-amber-300/80'
+              : 'border-cyan-300/40 bg-slate-800'
         }`}
       >
         {player?.avatarUrl ? (

@@ -34,6 +34,7 @@ import BattleScorePanel from './BattleScorePanel';
 import BattleClickChallengePanel from './BattleClickChallengePanel';
 import BattleEventLogPanel from './BattleEventLogPanel';
 import { GameTable } from '@/app/game/table';
+import { createArenaMatch } from '@/app/game/arena/match';
 import styles from './alliance.module.css';
 
 function playerName(players: PlayerProfile[], id: string) {
@@ -258,6 +259,13 @@ export default function AllianceMapBattleHost({
       });
       rememberLiveBattleHint(userId, battle.id);
       setLobbyId(battle.id);
+      await createArenaMatch({
+        matchId: battle.id,
+        createdBy: userId,
+        homePlayerIds: [userId, null, null, null, null],
+        awayPlayerIds: [null, null, null, null, null],
+        displayNames: { [userId]: playerName(players, userId) },
+      });
       setTableOpen(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hücum başlamadı');
@@ -267,7 +275,7 @@ export default function AllianceMapBattleHost({
         attackLock.current = false;
       }, 800);
     }
-  }, [resolvedIdentified, busy, userId]);
+  }, [resolvedIdentified, busy, userId, players]);
 
   const onJoin = useCallback(async () => {
     if (!liveView || busy) return;
@@ -435,7 +443,12 @@ export default function AllianceMapBattleHost({
           <p>Döyüş yüklənir…</p>
         )}
       </AllianceMapSheet>
-      <GameTable open={tableOpen} onClose={() => setTableOpen(false)} />
+      <GameTable
+        open={tableOpen}
+        onClose={() => setTableOpen(false)}
+        matchId={lobbyId}
+        playerId={userId}
+      />
     </>
   );
 }

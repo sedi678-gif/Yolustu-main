@@ -45,7 +45,7 @@ export interface ArenaViewModel {
   };
   cards: { hand: ArenaHandCardView[] };
   activeCard: null;
-  currentTurn: null;
+  currentTurn: { playerId: string; label: string } | null;
   clickEvent: { visible: boolean; cardTitle: string };
 }
 

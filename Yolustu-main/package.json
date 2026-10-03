@@ -13,6 +13,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:battle-security": "npx tsx --test app/lib/battleSecurity/battleSecurityAudit.test.ts",
+    "test:arena-match": "npx tsx --test app/game/arena/match/arenaMatch.test.ts",
     "test:battle-e2e": "npx tsx --test --test-concurrency=1 app/lib/battleE2E/battlePipeline.e2e.test.ts",
     "firebase:login": "firebase login",
     "firebase:use": "firebase use youstu-cab15",
