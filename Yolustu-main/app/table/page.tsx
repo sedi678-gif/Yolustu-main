@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import GameArenaScreen from '@/app/components/gameArena/GameArenaScreen';
+import BattleArena from '@/app/components/BattleArena';
 
 export const metadata: Metadata = {
-  title: 'Oyun masası — Yol Üstü',
+  title: 'Battle Arena — Yol Üstü',
 };
 
 export default function GameTablePage() {
-  return <GameArenaScreen />;
+  return <BattleArena gameMode="1v1" hasLiveClicker={false} currentUserRole="MEMBER" />;
 }
