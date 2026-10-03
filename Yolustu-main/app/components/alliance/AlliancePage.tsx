@@ -8,7 +8,6 @@ import AzerbaijanAllianceMap from './AzerbaijanAllianceMap';
 import AllianceMapSidebar from './AllianceMapSidebar';
 import AllianceMapRightPanel from './AllianceMapRightPanel';
 import AllianceChatDock from './AllianceChatDock';
-import AppLink from '@/app/components/AppLink';
 import AllianceMapBattleHost from './AllianceMapBattleHost';
 import { AllianceScreenBusyProvider } from './AllianceScreenBusy';
 import styles from './alliance.module.css';
@@ -35,14 +34,6 @@ function AlliancePageInner() {
         <AllianceMapSidebar />
         <AllianceMapRightPanel mapOpen={mapOpen} onToggleMap={() => setMapOpen((open) => !open)} />
         <AllianceChatDock />
-
-        <AppLink
-          href="/table"
-          className="absolute left-3 z-20 rounded-full border border-amber-300/40 bg-black/55 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-amber-100"
-          style={{ bottom: 'max(86px, calc(env(safe-area-inset-bottom, 0px) + 72px))' }}
-        >
-          ⚔ Oyun masası
-        </AppLink>
 
         <div
           className={`${styles.allianceMapOverlay} ${mapOpen ? styles.allianceMapOverlayOpen : ''}`}
