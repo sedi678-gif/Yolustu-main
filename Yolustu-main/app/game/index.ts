@@ -19,3 +19,6 @@ export { GAME_ROLES } from './players';
 
 export type { EnergyState } from './energy';
 export { energyLimitForMode, createEnergyState } from './energy';
+
+export type { GameTableProps } from './table';
+export { GameTable } from './table';

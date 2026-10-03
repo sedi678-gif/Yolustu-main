@@ -33,6 +33,7 @@ import BattleEnergyPanel from './BattleEnergyPanel';
 import BattleScorePanel from './BattleScorePanel';
 import BattleClickChallengePanel from './BattleClickChallengePanel';
 import BattleEventLogPanel from './BattleEventLogPanel';
+import { GameTable } from '@/app/game/table';
 import styles from './alliance.module.css';
 
 function playerName(players: PlayerProfile[], id: string) {
@@ -97,6 +98,7 @@ export default function AllianceMapBattleHost({
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tableOpen, setTableOpen] = useState(false);
   const [restored, setRestored] = useState(false);
   const [reconnectSnap, setReconnectSnap] = useState<BattleReconnectSnapshot | null>(null);
   const attackLock = useRef(false);
@@ -256,6 +258,7 @@ export default function AllianceMapBattleHost({
       });
       rememberLiveBattleHint(userId, battle.id);
       setLobbyId(battle.id);
+      setTableOpen(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hücum başlamadı');
     } finally {
@@ -432,6 +435,7 @@ export default function AllianceMapBattleHost({
           <p>Döyüş yüklənir…</p>
         )}
       </AllianceMapSheet>
+      <GameTable open={tableOpen} onClose={() => setTableOpen(false)} />
     </>
   );
 }
