@@ -22,3 +22,6 @@ export { energyLimitForMode, createEnergyState } from './energy';
 
 export type { GameTableProps } from './table';
 export { GameTable } from './table';
+
+export type { ArenaViewModel, ArenaSlotPlayer, ArenaHandCardView } from './arena';
+export { ArenaScreen, ARENA_SLOT_ROLES, ARENA_ROLE_LABEL, EMPTY_ARENA_VIEW } from './arena';

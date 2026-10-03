@@ -1,0 +1,66 @@
+import type { GameRole } from '../players/types';
+
+export const ARENA_SLOT_ROLES: readonly GameRole[] = [
+  'LIDER',
+  'HELP_LIDER',
+  'CLICKER',
+  'MEMBER',
+  'MEMBER',
+];
+
+export const ARENA_ROLE_LABEL: Record<GameRole, string> = {
+  LIDER: 'Lider',
+  HELP_LIDER: 'Köməkçi',
+  CLICKER: 'Kliker',
+  MEMBER: 'Üzv',
+};
+
+export interface ArenaSlotPlayer {
+  id: string;
+  name: string;
+  role: GameRole;
+  online: boolean;
+  avatarUrl?: string;
+}
+
+export interface ArenaHandCardView {
+  id: string;
+  title: string;
+  image?: string;
+  emoji?: string;
+  energyCostLabel: string;
+  remainingUsesLabel: string;
+  selected: boolean;
+}
+
+export interface ArenaViewModel {
+  homeAllianceName: string;
+  awayAllianceName: string;
+  matchState: { statusLabel: string };
+  timer: { label: string };
+  energy: { label: string };
+  players: {
+    home: Array<ArenaSlotPlayer | null>;
+    away: Array<ArenaSlotPlayer | null>;
+  };
+  cards: { hand: ArenaHandCardView[] };
+  activeCard: null;
+  currentTurn: null;
+  clickEvent: { visible: boolean; cardTitle: string };
+}
+
+export const EMPTY_ARENA_VIEW: ArenaViewModel = {
+  homeAllianceName: 'Öz ittifaqı',
+  awayAllianceName: 'Rəqib ittifaqı',
+  matchState: { statusLabel: 'Arena' },
+  timer: { label: '--:--' },
+  energy: { label: '-- / --' },
+  players: {
+    away: [null, null, null, null, null],
+    home: [null, null, null, null, null],
+  },
+  cards: { hand: [] },
+  activeCard: null,
+  currentTurn: null,
+  clickEvent: { visible: false, cardTitle: 'Klik kartı' },
+};
