@@ -1,0 +1,85 @@
+import type { ArenaSide } from '../types';
+import type { ArenaCardMode } from './damage';
+import type { ArenaPeakWindow } from './scoreHistory';
+
+export type ArenaChainStep = 'ATTACK' | 'COUNTER' | 'REFLECT' | 'CANCEL' | 'REPLAY';
+
+export type ArenaClickEvent = {
+  cardId: string;
+  mode: ArenaCardMode | null;
+  playerId: string;
+  createdAt: number;
+  sharedToChat: boolean;
+};
+
+export type ArenaLastPlay = {
+  playerId: string;
+  side: ArenaSide;
+  cardId: string;
+  mode: ArenaCardMode | null;
+  damage: number;
+  hidden: boolean;
+  cancelled: boolean;
+  reflected: boolean;
+  chain: ArenaChainStep;
+};
+
+export type ArenaSlaveState = {
+  attackerId: string;
+  defenderSide: ArenaSide;
+  peak: ArenaPeakWindow;
+  status: 'pending' | 'success' | 'failed';
+  at: number;
+};
+
+export type ArenaForcedReplay = {
+  playerId: string;
+  cardId: string;
+};
+
+export type ArenaEffectState = {
+  pendingDoubleFor: string | null;
+  lastPlay: ArenaLastPlay | null;
+  lastCounterOk: boolean;
+  countered: { playerId: string; cardId: string } | null;
+  forcedReplay: ArenaForcedReplay | null;
+  slave: ArenaSlaveState | null;
+  clickEvent: ArenaClickEvent | null;
+  spyReveal: Record<string, string[]>;
+  jokerMimic: string | null;
+  chain: Array<{ step: ArenaChainStep; cardId: string; playerId: string }>;
+  lastSummary: string;
+};
+
+export type ArenaEffectResult = {
+  cardId: string;
+  mode: ArenaCardMode | null;
+  effectType: string;
+  damage: number;
+  multiplier: number;
+  chain: ArenaChainStep;
+  mimicCardId: string | null;
+  revealedCardIds: string[];
+  replaced: { playerId: string; from: string; to: string } | null;
+  hiddenFromOpponent: boolean;
+  peak: ArenaPeakWindow | null;
+  slaveStatus: ArenaSlaveState['status'] | null;
+  clickEvent: ArenaClickEvent | null;
+  summary: string;
+};
+
+export function emptyArenaEffects(): ArenaEffectState {
+  return {
+    pendingDoubleFor: null,
+    lastPlay: null,
+    lastCounterOk: false,
+    countered: null,
+    forcedReplay: null,
+    slave: null,
+    clickEvent: null,
+    spyReveal: {},
+    jokerMimic: null,
+    chain: [],
+    lastSummary: '',
+  };
+}

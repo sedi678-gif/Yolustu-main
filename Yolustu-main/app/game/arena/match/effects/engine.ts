@@ -1,0 +1,361 @@
+import { ARENA_CARD_IDS } from '../catalog';
+import { addOfficialScore, takeOfficialScore, BATTLE_SCORE_MAX } from '@/app/lib/battleScore/battleScoreConfig';
+import type { ArenaMatchState, ArenaSide } from '../types';
+import {
+  isArenaClickCard,
+  officialActiveUsers,
+  officialArenaDamage,
+  validateArenaCardMode,
+  type ArenaCardMode,
+} from './damage';
+import { peakTenMinuteWindow } from './scoreHistory';
+import { emptyArenaEffects, type ArenaChainStep, type ArenaEffectResult, type ArenaEffectState } from './types';
+
+const ARENA_TRANSFER_MAX = 500;
+
+function reject(message = 'REJECT'): never {
+  throw new Error(message);
+}
+
+function opposite(side: ArenaSide): ArenaSide {
+  return side === 'home' ? 'away' : 'home';
+}
+
+export function opponentPlayerId(match: ArenaMatchState, playerId: string): string | null {
+  const side = match.players[playerId]?.side;
+  if (!side) return null;
+  const ids = side === 'home' ? match.awayPlayerIds : match.homePlayerIds;
+  return ids.find((id): id is string => Boolean(id)) ?? null;
+}
+
+function pickStable(seed: string, items: string[]): string | null {
+  if (!items.length) return null;
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return items[Math.abs(hash) % items.length] ?? null;
+}
+
+function effectsOf(match: ArenaMatchState): ArenaEffectState {
+  return match.effects ?? emptyArenaEffects();
+}
+
+function transferScore(
+  match: ArenaMatchState,
+  fromSide: ArenaSide,
+  toSide: ArenaSide,
+  amount: number,
+  serverNow: number
+): ArenaMatchState {
+  if (amount <= 0) return match;
+  const taken = takeOfficialScore(match.sideScores[fromSide], amount, ARENA_TRANSFER_MAX);
+  const added = addOfficialScore(match.sideScores[toSide], taken.taken, ARENA_TRANSFER_MAX);
+  if (added > BATTLE_SCORE_MAX) reject('REJECT');
+  return {
+    ...match,
+    sideScores: {
+      ...match.sideScores,
+      [fromSide]: taken.next,
+      [toSide]: added,
+    },
+    scoreHistory: [
+      ...match.scoreHistory,
+      { at: serverNow, side: toSide, score: taken.taken },
+    ].slice(-120),
+  };
+}
+
+function replaceOpponentCard(
+  match: ArenaMatchState,
+  opponentId: string,
+  seed: string
+): { match: ArenaMatchState; replaced: ArenaEffectResult['replaced'] } {
+  const loadout = match.loadouts[opponentId];
+  if (!loadout) return { match, replaced: null };
+  const owned = loadout.cards.map((card) => card.cardId);
+  const pool = ARENA_CARD_IDS.filter((id) => !owned.includes(id));
+  const from = pickStable(`${seed}:from`, owned);
+  const to = pickStable(`${seed}:to`, pool);
+  if (!from || !to) return { match, replaced: null };
+  return {
+    match: {
+      ...match,
+      loadouts: {
+        ...match.loadouts,
+        [opponentId]: {
+          ...loadout,
+          cards: loadout.cards.map((card) =>
+            card.cardId === from ? { ...card, cardId: to, used: 0, remaining: card.maxUses } : card
+          ),
+        },
+      },
+    },
+    replaced: { playerId: opponentId, from, to },
+  };
+}
+
+function spyReveal(match: ArenaMatchState, opponentId: string, viewerId: string): { match: ArenaMatchState; ids: string[] } {
+  const cards = (match.loadouts[opponentId]?.cards ?? [])
+    .map((card) => card.cardId)
+    .filter((id) => id !== 'duman')
+    .slice(0, 3);
+  const effects = effectsOf(match);
+  return {
+    ids: cards,
+    match: {
+      ...match,
+      effects: {
+        ...effects,
+        spyReveal: { ...effects.spyReveal, [viewerId]: cards },
+      },
+    },
+  };
+}
+
+function pushChain(effects: ArenaEffectState, step: ArenaChainStep, cardId: string, playerId: string): ArenaEffectState {
+  return {
+    ...effects,
+    chain: [...effects.chain, { step, cardId, playerId }].slice(-40),
+  };
+}
+
+export function resolveArenaCardEffect(input: {
+  match: ArenaMatchState;
+  playerId: string;
+  cardId: string;
+  actionId: string;
+  serverNow: number;
+  activeUsers: unknown;
+  mode?: unknown;
+}): { match: ArenaMatchState; result: ArenaEffectResult } {
+  const { match, playerId, cardId, actionId, serverNow } = input;
+  const side = match.players[playerId]?.side;
+  if (!side) reject('REJECT');
+  const mode = validateArenaCardMode(cardId, input.mode);
+  const prior = effectsOf(match);
+  const multiplier = prior.pendingDoubleFor === playerId && cardId !== '2x' ? 2 : 1;
+  let resolvedCard = cardId;
+  let mimicCardId: string | null = null;
+  const opponentId = opponentPlayerId(match, playerId);
+
+  if (cardId === 'joker') {
+    const pool = (opponentId ? match.loadouts[opponentId]?.cards ?? [] : [])
+      .map((card) => card.cardId)
+      .filter((id) => id !== 'joker' && id !== 'tikanli' && id !== 'usyan');
+    mimicCardId = pickStable(`${actionId}:joker`, pool.length ? pool : ARENA_CARD_IDS.filter((id) => id !== 'joker'));
+    resolvedCard = mimicCardId || cardId;
+  }
+
+  const mimicMode = resolvedCard !== cardId ? validateArenaCardMode(resolvedCard, null) : mode;
+  const damage = officialArenaDamage({
+    cardId: resolvedCard === cardId ? cardId : resolvedCard,
+    mode: resolvedCard === cardId ? mode : mimicMode,
+    activeUsers: input.activeUsers,
+    multiplier,
+  });
+  const extra = cardId === 'joker' ? officialArenaDamage({ cardId: 'joker', activeUsers: input.activeUsers, multiplier }) : 0;
+  const totalDamage =
+    cardId === 'joker'
+      ? Math.min(ARENA_TRANSFER_MAX, damage + extra)
+      : officialArenaDamage({ cardId, mode, activeUsers: input.activeUsers, multiplier });
+
+  let next = match;
+  let chain: ArenaChainStep = 'ATTACK';
+  let hiddenFromOpponent = cardId === 'duman';
+  let replaced: ArenaEffectResult['replaced'] = null;
+  let revealedCardIds: string[] = [];
+  let peak = null as ArenaEffectResult['peak'];
+  let slaveStatus: ArenaEffectResult['slaveStatus'] = null;
+  let summary = '';
+
+  if (cardId === '2x') {
+    next = {
+      ...next,
+      effects: { ...pushChain(prior, 'ATTACK', cardId, playerId), pendingDoubleFor: playerId, lastSummary: '2X aktivdir' },
+    };
+    summary = '2X aktivdir';
+  } else if (cardId === 'qaya') {
+    const last = prior.lastPlay;
+    const breaksMirror = last?.cardId === 'guzgu' && last.playerId !== playerId;
+    const cancels = Boolean(last && last.playerId !== playerId && !last.cancelled);
+    chain = breaksMirror || cancels ? 'CANCEL' : 'COUNTER';
+    if (cancels && last && last.damage > 0 && !last.reflected) {
+      next = transferScore(next, side, last.side, last.damage, serverNow);
+    }
+    next = {
+      ...next,
+      effects: {
+        ...pushChain(effectsOf(next), chain, cardId, playerId),
+        lastCounterOk: cancels || breaksMirror,
+        countered: last && last.playerId !== playerId ? { playerId: last.playerId, cardId: last.cardId } : prior.countered,
+        lastPlay: last ? { ...last, cancelled: true } : null,
+        lastSummary: breaksMirror ? 'Daş Adam güzgünü qırdı' : cancels ? 'Daş Adam kartı blokladı' : 'Daş Adam',
+      },
+    };
+    summary = next.effects.lastSummary;
+    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+  } else if (cardId === 'guzgu') {
+    const last = prior.lastPlay;
+    const canReflect = Boolean(last && last.playerId !== playerId && last.damage > 0 && !last.cancelled);
+    chain = canReflect ? 'REFLECT' : 'ATTACK';
+    if (canReflect && last) {
+      next = transferScore(next, last.side, side, last.damage, serverNow);
+      next = {
+        ...next,
+        effects: {
+          ...pushChain(effectsOf(next), 'REFLECT', cardId, playerId),
+          lastPlay: { ...last, reflected: true, cancelled: true },
+          lastSummary: 'Güzgü hücumu əks etdirdi',
+        },
+      };
+      summary = 'Güzgü hücumu əks etdirdi';
+    }
+    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+  } else if (cardId === 'tikanli') {
+    if (!prior.lastCounterOk || !prior.countered) reject('REJECT');
+    const forcedCard = prior.countered.cardId;
+    const target = prior.countered.playerId;
+    chain = 'REPLAY';
+    next = {
+      ...next,
+      effects: {
+        ...pushChain(prior, 'REPLAY', cardId, playerId),
+        forcedReplay: { playerId: target, cardId: forcedCard },
+        lastCounterOk: false,
+        lastSummary: 'Tikanlı Məftil replay məcbur etdi',
+      },
+    };
+    summary = 'Tikanlı Məftil replay məcbur etdi';
+  } else if (resolvedCard === 'sehrbaz' || cardId === 'sehrbaz') {
+    if (opponentId) {
+      const swapped = replaceOpponentCard(next, opponentId, actionId);
+      next = swapped.match;
+      replaced = swapped.replaced;
+    }
+    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+    summary = replaced ? `Sehrbaz ${replaced.from} → ${replaced.to}` : 'Sehrbaz';
+  } else if (resolvedCard === 'casus' || cardId === 'casus') {
+    if (opponentId) {
+      const spy = spyReveal(next, opponentId, playerId);
+      next = spy.match;
+      revealedCardIds = spy.ids;
+    }
+    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+    summary = `Casus ${revealedCardIds.length} kart göstərdi`;
+  } else if (cardId === 'qul' || resolvedCard === 'qul') {
+    const defSide = opposite(side);
+    peak = peakTenMinuteWindow(next.scoreHistory, defSide, serverNow);
+    slaveStatus = peak.score > 0 ? 'success' : 'failed';
+    if (slaveStatus === 'success') {
+      next = transferScore(next, defSide, side, Math.min(ARENA_TRANSFER_MAX, peak.score), serverNow);
+    }
+    next = {
+      ...next,
+      effects: {
+        ...pushChain(effectsOf(next), 'ATTACK', 'qul', playerId),
+        slave: {
+          attackerId: playerId,
+          defenderSide: defSide,
+          peak,
+          status: slaveStatus,
+          at: serverNow,
+        },
+        lastSummary: slaveStatus === 'success' ? 'Qul edən uğurlu' : 'Qul edən uğursuz',
+      },
+    };
+    summary = next.effects.lastSummary;
+  } else if (cardId === 'usyan' || resolvedCard === 'usyan') {
+    const slave = prior.slave;
+    if (!slave || slave.attackerId === playerId) reject('REJECT');
+    if (slave.status !== 'failed' && slave.status !== 'success') reject('REJECT');
+    const boosted = Math.min(ARENA_TRANSFER_MAX, slave.peak.score * 2);
+    next = transferScore(next, opposite(side), side, boosted, serverNow);
+    peak = { ...slave.peak, score: boosted };
+    summary = 'Üsyan 2X interval tətbiq etdi';
+  } else {
+    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+    summary =
+      cardId === 'duman'
+        ? 'Duman gizlətdi'
+        : cardId === 'ogru'
+          ? 'Oğru'
+          : cardId === 'felaket'
+            ? mode === 'tsunami'
+              ? 'Tsunami'
+              : 'Zəlzələ'
+            : cardId === 'qutb'
+              ? mode === 'ice'
+                ? 'Buz'
+                : 'Yanğın'
+              : cardId;
+  }
+
+  const clickEvent =
+    isArenaClickCard(cardId) && match.gameMode !== '1v1'
+      ? {
+          cardId,
+          mode,
+          playerId,
+          createdAt: serverNow,
+          sharedToChat: false,
+        }
+      : match.gameMode === '1v1'
+        ? null
+        : effectsOf(next).clickEvent;
+
+  const lastPlay = {
+    playerId,
+    side,
+    cardId,
+    mode,
+    damage: totalDamage,
+    hidden: hiddenFromOpponent,
+    cancelled: chain === 'CANCEL',
+    reflected: chain === 'REFLECT',
+    chain,
+  };
+
+  const effects: ArenaEffectState = {
+    ...effectsOf(next),
+    pendingDoubleFor: cardId === '2x' ? playerId : prior.pendingDoubleFor === playerId ? null : prior.pendingDoubleFor,
+    lastPlay,
+    lastCounterOk: cardId === 'qaya' ? effectsOf(next).lastCounterOk : cardId === 'tikanli' ? false : prior.lastCounterOk,
+    countered: cardId === 'qaya' ? effectsOf(next).countered : cardId === 'tikanli' ? null : prior.countered,
+    forcedReplay: cardId === 'tikanli' ? effectsOf(next).forcedReplay : prior.forcedReplay?.playerId === playerId ? null : prior.forcedReplay,
+    jokerMimic: mimicCardId,
+    clickEvent,
+    lastSummary: summary || effectsOf(next).lastSummary,
+    chain: pushChain(effectsOf(next), chain, cardId, playerId).chain,
+  };
+
+  const result: ArenaEffectResult = {
+    cardId,
+    mode,
+    effectType: mimicCardId ? `joker:${mimicCardId}` : cardId,
+    damage: totalDamage,
+    multiplier,
+    chain,
+    mimicCardId,
+    revealedCardIds,
+    replaced,
+    hiddenFromOpponent,
+    peak,
+    slaveStatus,
+    clickEvent,
+    summary: effects.lastSummary,
+  };
+
+  return { match: { ...next, effects }, result };
+}
+
+export function serverActiveUsers(match: ArenaMatchState, presence: Record<string, { online?: boolean }>, side: ArenaSide): number {
+  const ids = side === 'home' ? match.homePlayerIds : match.awayPlayerIds;
+  const seated = ids.filter((id): id is string => Boolean(id));
+  if (!seated.length) return 1;
+  const online = seated.filter((id) => presence[id]?.online !== false).length;
+  return officialActiveUsers(online || seated.length);
+}
+
+export type { ArenaCardMode };

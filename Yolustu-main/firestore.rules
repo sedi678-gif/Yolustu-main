@@ -2045,7 +2045,8 @@ service cloud.firestore {
           'turnExpiresAt',
           'lastActionId',
           'lastActionTurnSeq',
-          'updatedAt'
+          'updatedAt',
+          'effects'
         ]);
     }
 
@@ -2137,8 +2138,22 @@ service cloud.firestore {
           'updatedAt',
           'players',
           'loadouts',
-          'usedActionIds'
+          'usedActionIds',
+          'effects',
+          'sideScores',
+          'scoreHistory'
         ]);
+    }
+
+    function isValidArenaClickShare() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.auth != null
+        && after.players == before.players
+        && after.loadouts == before.loadouts
+        && after.turnIndex == before.turnIndex
+        && after.sideScores == before.sideScores
+        && after.diff(before).affectedKeys().hasOnly(['effects', 'updatedAt']);
     }
 
     match /arena_matches/{matchId} {
@@ -2148,8 +2163,21 @@ service cloud.firestore {
       allow update: if isValidArenaTimeout()
         || isValidArenaAction()
         || isValidArenaLoadoutLock()
-        || isValidArenaCardPlay();
+        || isValidArenaCardPlay()
+        || isValidArenaClickShare();
       allow delete: if false;
+
+      match /audit/{actionId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && request.resource.data.actionId == actionId
+          && request.resource.data.matchId == matchId
+          && request.resource.data.keys().hasAll([
+            'matchId', 'playerId', 'cardId', 'timestamp', 'energyBefore', 'energyAfter',
+            'usesBefore', 'usesAfter', 'effectType', 'damage', 'actionId', 'result'
+          ]);
+        allow update, delete: if false;
+      }
 
       match /presence/{playerId} {
         allow read: if request.auth != null;

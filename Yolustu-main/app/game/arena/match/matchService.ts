@@ -22,6 +22,8 @@ import {
 import { assertArenaActionAllowed, assertArenaTimeoutAllowed, assertStartEnergy, rejectClientEnergyWrite } from './policy';
 import { advanceMatchTurn, createMatchSnapshot } from './turnOrder';
 import { applyArenaCardPlay, applyLockedLoadout, assertArenaLoadoutLockAllowed } from './loadout';
+import { emptyArenaEffects } from './effects/types';
+import { opponentPlayerId, serverActiveUsers } from './effects/engine';
 import type {
   ArenaLoadoutCard,
   ArenaMatchState,
@@ -153,6 +155,25 @@ export function matchFromData(matchId: string, raw: Record<string, unknown> | un
     lastActionTurnSeq: asInt(raw.lastActionTurnSeq, -1),
     loadouts,
     usedActionIds,
+    gameMode: raw.gameMode === '5v5' ? '5v5' : '1v1',
+    sideScores: {
+      home: asInt((raw.sideScores as Record<string, unknown> | undefined)?.home),
+      away: asInt((raw.sideScores as Record<string, unknown> | undefined)?.away),
+    },
+    scoreHistory: Array.isArray(raw.scoreHistory)
+      ? raw.scoreHistory
+          .map((tick) => {
+            if (!tick || typeof tick !== 'object') return null;
+            const row = tick as Record<string, unknown>;
+            return {
+              at: asInt(row.at),
+              side: row.side === 'away' ? 'away' as const : 'home' as const,
+              score: asInt(row.score),
+            };
+          })
+          .filter((tick): tick is NonNullable<typeof tick> => Boolean(tick))
+      : [],
+    effects: { ...emptyArenaEffects(), ...(raw.effects && typeof raw.effects === 'object' ? (raw.effects as object) : {}) },
     createdAt: asInt(raw.createdAt),
     updatedAt: asInt(raw.updatedAt),
   };
@@ -180,6 +201,10 @@ function matchWrite(match: ArenaMatchState): Record<string, unknown> {
     lastActionTurnSeq: match.lastActionTurnSeq,
     loadouts: match.loadouts,
     usedActionIds: match.usedActionIds,
+    gameMode: match.gameMode,
+    sideScores: match.sideScores,
+    scoreHistory: match.scoreHistory,
+    effects: match.effects,
     energyStart: ARENA_ENERGY_START,
     energyMax: ARENA_ENERGY_MAX,
     schemaVersion: 1,
@@ -370,6 +395,7 @@ export async function playArenaCard(input: {
   playerId: string;
   cardId: string;
   actionId: string;
+  mode?: unknown;
 }): Promise<ArenaMatchState> {
   await requireFirebaseAuth();
   const matchId = sanitizeBattleId(input.matchId);
@@ -386,14 +412,71 @@ export async function playArenaCard(input: {
         const snap = await tx.get(matchRef(matchId));
         if (!snap.exists()) throw new Error('Match tapılmadı');
         const match = matchFromData(snap.id, snap.data() as Record<string, unknown>);
-        const next = applyArenaCardPlay({ match, playerId, cardId, actionId, serverNow: now });
+        const energyBefore = match.players[playerId]?.energy ?? 0;
+        const usesBefore = match.loadouts[playerId]?.cards.find((card) => card.cardId === cardId)?.remaining ?? 0;
+        const oppSide = match.players[playerId]?.side === 'home' ? 'away' : 'home';
+        const next = applyArenaCardPlay({
+          match,
+          playerId,
+          cardId,
+          actionId,
+          serverNow: now,
+          mode: input.mode,
+          activeUsers: serverActiveUsers(match, {}, oppSide),
+        });
         if (next === match) return match;
         tx.update(matchRef(matchId), matchWrite(next));
+        const auditRef = doc(db, ARENA_MATCH_COLLECTION, matchId, 'audit', actionId);
+        tx.set(auditRef, {
+          matchId,
+          playerId,
+          cardId,
+          mode: input.mode ?? null,
+          timestamp: now,
+          energyBefore,
+          energyAfter: next.players[playerId]?.energy ?? energyBefore,
+          usesBefore,
+          usesAfter: next.loadouts[playerId]?.cards.find((card) => card.cardId === cardId)?.remaining ?? usesBefore,
+          effectType: next.effects.lastSummary,
+          damage: next.effects.lastPlay?.damage ?? 0,
+          targetPlayer: opponentPlayerId(match, playerId),
+          result: next.effects.lastSummary,
+          actionId,
+        });
         return next;
       }),
       TX_MS,
       'Kart oynanılmadı'
     )
+  );
+}
+
+export async function shareArenaClickEvent(input: { matchId: string; playerId: string }): Promise<ArenaMatchState> {
+  await requireFirebaseAuth();
+  const matchId = sanitizeBattleId(input.matchId);
+  const playerId = sanitizePlayerId(input.playerId);
+  const now = await requireServerNow();
+  return withTimeout(
+    runTransaction(db, async (tx) => {
+      const snap = await tx.get(matchRef(matchId));
+      if (!snap.exists()) throw new Error('Match tapılmadı');
+      const match = matchFromData(snap.id, snap.data() as Record<string, unknown>);
+      const role = match.players[playerId]?.role;
+      if (role !== 'CLICKER') throw new Error('REJECT');
+      if (!match.effects.clickEvent) throw new Error('REJECT');
+      const next = {
+        ...match,
+        effects: {
+          ...match.effects,
+          clickEvent: { ...match.effects.clickEvent, sharedToChat: true },
+        },
+        updatedAt: now,
+      };
+      tx.update(matchRef(matchId), matchWrite(next));
+      return next;
+    }),
+    TX_MS,
+    'Click event paylaşılmadı'
   );
 }
 

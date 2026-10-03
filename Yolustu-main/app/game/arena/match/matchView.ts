@@ -1,5 +1,5 @@
 import { ARENA_ENERGY_MAX, ARENA_ENERGY_START, ARENA_SLOT_COUNT } from './config';
-import { arenaCardMeta, isArenaCardId, officialArenaCardCost } from './catalog';
+import { arenaCardMeta, arenaCardTitle, isArenaCardId, officialArenaCardCost } from './catalog';
 import { remainingTurnSeconds, roleLabelAz, sideSlots, turnLabel } from './turnOrder';
 import type { ArenaMatchState, ArenaPresenceState } from './types';
 import type { ArenaHandCardView, ArenaSlotPlayer, ArenaViewModel } from '../types';
@@ -63,6 +63,10 @@ export function matchToArenaView(input: {
   const seconds = remainingTurnSeconds(match.turnExpiresAt, serverNow);
   const base = createPlaceholderArenaView();
   const loadoutPhase = match.phase === 'loadout';
+  const click = match.effects?.clickEvent;
+  const last = match.effects?.lastPlay;
+  const hide = Boolean(last?.hidden && last.playerId !== viewerPlayerId);
+  const viewerRole = match.players[viewerPlayerId]?.role;
   return {
     ...base,
     matchState: { statusLabel: loadoutPhase ? 'Kart seçimi' : match.status === 'active' ? 'Arena' : 'Bağlı' },
@@ -79,7 +83,14 @@ export function matchToArenaView(input: {
           label: turnLabel(match),
         },
     cards: { hand: handFromMatch(match, viewerPlayerId) },
-    clickEvent: { visible: false, cardTitle: 'Klik kartı' },
+    clickEvent: {
+      visible: Boolean(click) && viewerRole === 'CLICKER',
+      cardTitle: click ? arenaCardTitle(click.cardId) : 'Klik kartı',
+      shareable: Boolean(click) && viewerRole === 'CLICKER' && !click?.sharedToChat,
+    },
+    effectLabel: hide ? 'Gizli kart' : match.effects?.lastSummary,
+    doubleActive: match.effects?.pendingDoubleFor === viewerPlayerId,
+    spyReveal: match.effects?.spyReveal?.[viewerPlayerId] ?? [],
   };
 }
 

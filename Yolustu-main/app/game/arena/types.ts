@@ -44,10 +44,13 @@ export interface ArenaViewModel {
     home: Array<ArenaSlotPlayer | null>;
     away: Array<ArenaSlotPlayer | null>;
   };
-  cards: { hand: ArenaHandCardView[] };
+    cards: { hand: ArenaHandCardView[] };
   activeCard: null;
   currentTurn: { playerId: string; label: string } | null;
-  clickEvent: { visible: boolean; cardTitle: string };
+  clickEvent: { visible: boolean; cardTitle: string; shareable?: boolean };
+  effectLabel?: string;
+  doubleActive?: boolean;
+  spyReveal?: string[];
 }
 
 export const EMPTY_ARENA_VIEW: ArenaViewModel = {

@@ -59,6 +59,8 @@ export {
   timeoutArenaTurn,
   lockArenaLoadout,
   playArenaCard,
+  shareArenaClickEvent,
   matchFromData,
 } from './matchService';
 export { matchToArenaView } from './matchView';
+export { officialArenaDamage, resolveArenaCardEffect } from './effects';

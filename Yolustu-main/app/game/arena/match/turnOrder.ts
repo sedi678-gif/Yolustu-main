@@ -5,6 +5,7 @@ import {
   ARENA_TURN_DURATION_MS,
   ARENA_TURN_ROLES,
 } from './config';
+import { emptyArenaEffects } from './effects/types';
 import type { ArenaMatchState, ArenaPlayerState, ArenaSide, ArenaTurnSeat } from './types';
 
 function padSlots(ids: Array<string | null> | undefined): Array<string | null> {
@@ -137,6 +138,10 @@ export function createMatchSnapshot(input: {
     phase: 'combat',
     loadouts: {},
     usedActionIds: {},
+    gameMode: '1v1',
+    sideScores: { home: 0, away: 0 },
+    scoreHistory: [],
+    effects: emptyArenaEffects(),
     currentTurn: first.playerId,
     turnSide: first.side,
     turnSlotIndex: first.slotIndex,
@@ -155,8 +160,16 @@ export function createMatchSnapshot(input: {
 export function advanceMatchTurn(match: ArenaMatchState, serverNow: number): ArenaMatchState {
   const seats = filledTurnQueue(match.homePlayerIds, match.awayPlayerIds);
   const next = nextFilledSeat(seats, currentSeatFromMatch(match));
+  const effects = match.effects
+    ? {
+        ...match.effects,
+        forcedReplay:
+          match.effects.forcedReplay?.playerId === match.currentTurn ? null : match.effects.forcedReplay,
+      }
+    : match.effects;
   return {
     ...match,
+    effects,
     currentTurn: next.playerId,
     turnSide: next.side,
     turnSlotIndex: next.slotIndex,

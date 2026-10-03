@@ -7,6 +7,7 @@ import BattleTable from './BattleTable';
 import ClickCardNotification from './ClickCardNotification';
 import HandCards from './HandCards';
 import PlayerRow from './PlayerRow';
+import ArenaClickerPanel from './ArenaClickerPanel';
 import ArenaLoadoutPicker from './ArenaLoadoutPicker';
 import {
   heartbeatArenaPresence,
@@ -34,6 +35,7 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   const [match, setMatch] = useState<ArenaMatchState | null>(null);
   const [presence, setPresence] = useState<Record<string, ArenaPresenceState>>({});
   const [serverNow, setServerNow] = useState(0);
+  const [pendingModeCard, setPendingModeCard] = useState<string | null>(null);
   const timeoutLock = useRef(false);
 
   useEffect(() => {
@@ -92,17 +94,23 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   const needsLoadout = Boolean(match && playerId && match.phase === 'loadout' && !match.loadouts[playerId]);
   const waitingLoadout = Boolean(match && playerId && match.phase === 'loadout' && match.loadouts[playerId]);
 
-  async function onPlayCard(cardId: string) {
+  async function onPlayCard(cardId: string, mode?: 'earthquake' | 'tsunami' | 'fire' | 'ice') {
     if (!matchId || !playerId || match?.phase !== 'combat') return;
+    if ((cardId === 'felaket' || cardId === 'qutb') && !mode) {
+      setPendingModeCard(cardId);
+      return;
+    }
+    setPendingModeCard(null);
     try {
       await playArenaCard({
         matchId,
         playerId,
         cardId,
         actionId: makeArenaActionId(),
+        mode,
       });
     } catch {
-      /* server REJECT — UI match snapshot-dan yenilənir */
+      /* server REJECT */
     }
   }
 
@@ -120,6 +128,10 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
             <p className="px-4 text-center text-[11px] font-bold text-cyan-100/70">
               {ui.currentTurn?.label ?? 'Oyun masası'}
             </p>
+            {ui.effectLabel ? (
+              <p className="px-4 text-center text-[10px] font-semibold text-amber-100/90">{ui.effectLabel}</p>
+            ) : null}
+            {ui.doubleActive ? <p className="text-center text-[10px] font-bold text-cyan-200">2X aktivdir</p> : null}
           </BattleTable>
           <PlayerRow
             label="Öz tərəfi"
@@ -130,6 +142,34 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
           {needsLoadout && matchId && playerId ? <ArenaLoadoutPicker matchId={matchId} playerId={playerId} /> : null}
           {waitingLoadout ? (
             <p className="px-3 text-center text-[11px] font-bold text-cyan-100/80">Kartların lock olundu. Döyüş gözlənilir.</p>
+          ) : null}
+          {ui.clickEvent.visible && matchId && playerId ? (
+            <ArenaClickerPanel
+              matchId={matchId}
+              playerId={playerId}
+              cardTitle={ui.clickEvent.cardTitle}
+              shareable={Boolean(ui.clickEvent.shareable)}
+            />
+          ) : null}
+          {pendingModeCard === 'felaket' ? (
+            <div className="mx-2 flex gap-2">
+              <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('felaket', 'earthquake')}>
+                Zəlzələ
+              </button>
+              <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('felaket', 'tsunami')}>
+                Tsunami
+              </button>
+            </div>
+          ) : null}
+          {pendingModeCard === 'qutb' ? (
+            <div className="mx-2 flex gap-2">
+              <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('qutb', 'fire')}>
+                Yanğın
+              </button>
+              <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('qutb', 'ice')}>
+                Buz
+              </button>
+            </div>
           ) : null}
           <HandCards
             cards={ui.cards.hand}

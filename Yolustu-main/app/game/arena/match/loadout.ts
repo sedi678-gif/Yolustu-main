@@ -1,5 +1,6 @@
 import { ARENA_CARD_MAX_USES, ARENA_LOADOUT_SIZE, isArenaCardId, officialArenaCardCost } from './catalog';
 import { ARENA_ENERGY_MAX } from './config';
+import { resolveArenaCardEffect } from './effects/engine';
 import { assertArenaMatchActive } from './policy';
 import { advanceMatchTurn, filledTurnQueue } from './turnOrder';
 import type { ArenaLoadoutCard, ArenaMatchState, ArenaPlayerLoadout } from './types';
@@ -118,6 +119,8 @@ export function assertArenaCardPlayAllowed(input: {
   }
   const loadout = match.loadouts[playerId];
   if (!loadout) reject('REJECT');
+  const forced = match.effects?.forcedReplay;
+  if (forced && forced.playerId === playerId && forced.cardId !== cardId) reject('REJECT');
   const card = findLoadoutCard(loadout.cards, cardId);
   if (!card) reject('REJECT');
   if (card.remaining <= 0 || card.used >= card.maxUses) reject('REJECT');
@@ -134,6 +137,8 @@ export function applyArenaCardPlay(input: {
   cardId: string;
   actionId: string;
   serverNow: number;
+  mode?: unknown;
+  activeUsers?: unknown;
 }): ArenaMatchState {
   const verdict = assertArenaCardPlayAllowed(input);
   if (verdict === 'duplicate') return input.match;
@@ -172,7 +177,17 @@ export function applyArenaCardPlay(input: {
     updatedAt: serverNow,
   };
 
-  return advanceMatchTurn(spent, serverNow);
+  const resolved = resolveArenaCardEffect({
+    match: spent,
+    playerId,
+    cardId,
+    actionId,
+    serverNow,
+    activeUsers: input.activeUsers,
+    mode: input.mode,
+  });
+
+  return advanceMatchTurn(resolved.match, serverNow);
 }
 
 export function rejectClientLoadoutWrite(): never {
