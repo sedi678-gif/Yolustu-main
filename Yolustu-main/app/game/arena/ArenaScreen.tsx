@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { listenServerClock } from '@/app/lib/battlePlay/battleServerClock';
 import ArenaHeader from './ArenaHeader';
-import BattleTable from './BattleTable';
 import ClickCardNotification from './ClickCardNotification';
 import HandCards from './HandCards';
 import PlayerRow from './PlayerRow';
@@ -26,6 +25,7 @@ import {
 import { matchToArenaView } from './match/matchView';
 import { createPlaceholderArenaView } from './placeholderView';
 import { EMPTY_ARENA_VIEW, type ArenaViewModel } from './types';
+import styles from '../table/gameTable.module.css';
 
 interface ArenaScreenProps {
   onClose: () => void;
@@ -148,85 +148,91 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
     }
   }
 
+  const energyMax = ui.energy.max || (ui.gameMode === '1v1' ? 35 : 30);
+  const energyCurrent = Math.max(0, Math.min(energyMax, ui.energy.current ?? 0));
+  const energyPct = energyMax > 0 ? Math.round((energyCurrent / energyMax) * 100) : 0;
+  const handPlay =
+    match?.phase === 'combat' && playerId === match.currentTurn && match.players[playerId]?.role !== 'CLICKER'
+      ? onPlayCard
+      : undefined;
+
   return (
-    <div className="flex h-dvh min-h-0 w-full max-w-[430px] flex-col overflow-hidden bg-[#070b14] text-white">
+    <div className={styles.body}>
       <ArenaHeader view={ui} onClose={onClose} />
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="flex min-h-full flex-col gap-2 py-2">
-          <PlayerRow
-            label="Rəqib tərəfi"
-            players={ui.players.away}
-            currentPlayerId={ui.currentTurn?.playerId}
-          />
-          <BattleTable>
-            <p className="px-4 text-center text-[11px] font-bold text-cyan-100/70">
-              {ui.currentTurn?.label ?? 'Oyun masası'}
-            </p>
-            {ui.effectLabel ? (
-              <p className="px-4 text-center text-[10px] font-semibold text-amber-100/90">{ui.effectLabel}</p>
-            ) : null}
-            {ui.doubleActive ? <p className="text-center text-[10px] font-bold text-cyan-200">2X aktivdir</p> : null}
-          </BattleTable>
-          <PlayerRow
-            label="Öz tərəfi"
-            players={ui.players.home}
-            currentPlayerId={ui.currentTurn?.playerId}
-          />
-          <ClickCardNotification visible={ui.clickEvent.visible} cardTitle={ui.clickEvent.cardTitle} />
-          {needsLoadout && matchId && playerId ? <ArenaLoadoutPicker matchId={matchId} playerId={playerId} /> : null}
-          {waitingLoadout ? (
-            <p className="px-3 text-center text-[11px] font-bold text-cyan-100/80">Kartların lock olundu. Döyüş gözlənilir.</p>
-          ) : null}
-          {ui.clickEvent.visible && matchId && playerId ? (
-            <ArenaReactionPanel
-              cardTitle={ui.clickEvent.cardTitle}
-              modeLabel={ui.clickEvent.modeLabel ?? ''}
-              remainingSeconds={ui.clickEvent.remainingSeconds ?? 0}
-              currentClicks={ui.clickEvent.currentClicks ?? 0}
-              requiredClicks={ui.clickEvent.requiredClicks ?? 0}
-              canClick={Boolean(ui.clickEvent.canClick)}
-              onClick={() => void onReactionClick()}
-            />
-          ) : null}
-          {ui.clickEvent.visible && matchId && playerId && match?.players[playerId]?.role === 'CLICKER' ? (
-            <ArenaClickerPanel
-              matchId={matchId}
-              playerId={playerId}
-              cardTitle={ui.clickEvent.cardTitle}
-              shareable={Boolean(ui.clickEvent.shareable)}
-              chatText={ui.clickEvent.chatText}
-            />
-          ) : null}
-          {pendingModeCard === 'felaket' ? (
-            <div className="mx-2 flex gap-2">
-              <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('felaket', 'earthquake')}>
-                Zəlzələ
-              </button>
-              <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('felaket', 'tsunami')}>
-                Tsunami
-              </button>
-            </div>
-          ) : null}
-          {pendingModeCard === 'qutb' ? (
-            <div className="mx-2 flex gap-2">
-              <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('qutb', 'fire')}>
-                Yanğın
-              </button>
-              <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('qutb', 'ice')}>
-                Buz
-              </button>
-            </div>
-          ) : null}
-          <HandCards
-            cards={ui.cards.hand}
-            onPlay={
-              match?.phase === 'combat' && playerId === match.currentTurn && match.players[playerId]?.role !== 'CLICKER'
-                ? onPlayCard
-                : undefined
-            }
-          />
+      <PlayerRow
+        label="Rəqib ittifaqı"
+        players={ui.players.away}
+        currentPlayerId={ui.currentTurn?.playerId}
+        gameMode={ui.gameMode}
+      />
+      <div className={styles.table}>
+        <HandCards cards={ui.cards.hand} onPlay={handPlay} />
+        <p className={styles.vs}>VS</p>
+        <div className={styles.energyWrap}>
+          <p className={styles.energyLabel}>{`⚡ ${energyCurrent}/${energyMax}`}</p>
+          <div className={styles.energyTrack}>
+            <div className={styles.energyFill} style={{ width: `${energyPct}%` }} />
+          </div>
         </div>
+        {ui.currentTurn?.label ? (
+          <p className="px-2 text-center text-[10px] font-bold text-cyan-100/80">{ui.currentTurn.label}</p>
+        ) : null}
+        {ui.effectLabel ? (
+          <p className="px-2 text-center text-[10px] font-semibold text-amber-100/90">{ui.effectLabel}</p>
+        ) : null}
+        {ui.doubleActive ? <p className="text-center text-[10px] font-bold text-cyan-200">2X aktivdir</p> : null}
       </div>
+      <PlayerRow
+        label="Öz ittifaqı"
+        players={ui.players.home}
+        currentPlayerId={ui.currentTurn?.playerId}
+        gameMode={ui.gameMode}
+      />
+      <ClickCardNotification visible={ui.clickEvent.visible} cardTitle={ui.clickEvent.cardTitle} />
+      {needsLoadout && matchId && playerId ? <ArenaLoadoutPicker matchId={matchId} playerId={playerId} /> : null}
+      {waitingLoadout ? (
+        <p className="px-3 text-center text-[11px] font-bold text-cyan-100/80">Kartların lock olundu. Döyüş gözlənilir.</p>
+      ) : null}
+      {ui.clickEvent.visible && matchId && playerId ? (
+        <ArenaReactionPanel
+          cardTitle={ui.clickEvent.cardTitle}
+          modeLabel={ui.clickEvent.modeLabel ?? ''}
+          remainingSeconds={ui.clickEvent.remainingSeconds ?? 0}
+          currentClicks={ui.clickEvent.currentClicks ?? 0}
+          requiredClicks={ui.clickEvent.requiredClicks ?? 0}
+          canClick={Boolean(ui.clickEvent.canClick)}
+          onClick={() => void onReactionClick()}
+        />
+      ) : null}
+      {ui.clickEvent.visible && matchId && playerId && match?.players[playerId]?.role === 'CLICKER' ? (
+        <ArenaClickerPanel
+          matchId={matchId}
+          playerId={playerId}
+          cardTitle={ui.clickEvent.cardTitle}
+          shareable={Boolean(ui.clickEvent.shareable)}
+          chatText={ui.clickEvent.chatText}
+        />
+      ) : null}
+      {pendingModeCard === 'felaket' ? (
+        <div className="mx-2 flex gap-2">
+          <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('felaket', 'earthquake')}>
+            Zəlzələ
+          </button>
+          <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('felaket', 'tsunami')}>
+            Tsunami
+          </button>
+        </div>
+      ) : null}
+      {pendingModeCard === 'qutb' ? (
+        <div className="mx-2 flex gap-2">
+          <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('qutb', 'fire')}>
+            Yanğın
+          </button>
+          <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('qutb', 'ice')}>
+            Buz
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

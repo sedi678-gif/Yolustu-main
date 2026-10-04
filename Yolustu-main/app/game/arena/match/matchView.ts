@@ -1,4 +1,4 @@
-import { ARENA_ENERGY_MAX, ARENA_ENERGY_START, ARENA_SLOT_COUNT } from './config';
+import { ARENA_SLOT_COUNT } from './config';
 import { arenaCardMeta, arenaCardTitle, isArenaCardId, officialArenaCardCost } from './catalog';
 import { remainingTurnSeconds, roleLabelAz, sideSlots, turnLabel } from './turnOrder';
 import type { ArenaMatchState, ArenaPresenceState } from './types';
@@ -59,8 +59,9 @@ export function matchToArenaView(input: {
 }): ArenaViewModel {
   const { match, viewerPlayerId, serverNow, presence } = input;
   const viewer = match.players[viewerPlayerId];
-  const energy = viewer?.energy ?? ARENA_ENERGY_START;
-  const maxEnergy = viewer?.maxEnergy ?? ARENA_ENERGY_MAX;
+  const mode = match.gameMode === '1v1' ? '1v1' : '5v5';
+  const energyCap = mode === '1v1' ? 35 : 30;
+  const energy = viewer?.energy ?? energyCap;
   const seconds = remainingTurnSeconds(match.turnExpiresAt, serverNow);
   const base = createPlaceholderArenaView();
   const loadoutPhase = match.phase === 'loadout';
@@ -87,7 +88,8 @@ export function matchToArenaView(input: {
     ...base,
     matchState: { statusLabel: loadoutPhase ? 'Kart seçimi' : match.status === 'active' ? 'Arena' : 'Bağlı' },
     timer: { label: loadoutPhase || serverNow <= 0 ? '--' : String(seconds) },
-    energy: { label: `⚡ ${energy}/${maxEnergy}` },
+    energy: { label: `⚡ ${energy}/${energyCap}`, current: energy, max: energyCap },
+    gameMode: mode,
     players: {
       home: slotsFromMatch(match, 'home', presence),
       away: slotsFromMatch(match, 'away', presence),

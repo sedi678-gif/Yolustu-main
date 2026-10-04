@@ -12,6 +12,15 @@ import { peakTenMinuteWindow } from './scoreHistory';
 import { emptyArenaEffects, type ArenaChainStep, type ArenaEffectResult, type ArenaEffectState } from './types';
 import { createArenaReaction, defendingSideForCard, qulPendingPeak } from '../reaction/policy';
 import type { ArenaReactionPending } from '../reaction/types';
+import {
+  ARENA_JOKER_COPY_MAX_DEPTH,
+  ARENA_REFLECT_MAX_DEPTH,
+  arenaInteractionEvents,
+  canReflectAttack,
+  pickJokerMimic,
+  revealCasusCards,
+  tikanliReplayAllowed,
+} from './interaction';
 
 const ARENA_TRANSFER_MAX = 500;
 
@@ -99,10 +108,7 @@ function replaceOpponentCard(
 }
 
 function spyReveal(match: ArenaMatchState, opponentId: string, viewerId: string): { match: ArenaMatchState; ids: string[] } {
-  const cards = (match.loadouts[opponentId]?.cards ?? [])
-    .map((card) => card.cardId)
-    .filter((id) => id !== 'duman')
-    .slice(0, 3);
+  const cards = revealCasusCards((match.loadouts[opponentId]?.cards ?? []).map((card) => card.cardId));
   const effects = effectsOf(match);
   return {
     ids: cards,
@@ -143,11 +149,12 @@ export function resolveArenaCardEffect(input: {
   const opponentId = opponentPlayerId(match, playerId);
 
   if (cardId === 'joker') {
-    const pool = (opponentId ? match.loadouts[opponentId]?.cards ?? [] : [])
-      .map((card) => card.cardId)
-      .filter((id) => id !== 'joker' && id !== 'tikanli' && id !== 'usyan');
-    mimicCardId = pickStable(`${actionId}:joker`, pool.length ? pool : ARENA_CARD_IDS.filter((id) => id !== 'joker'));
-    resolvedCard = mimicCardId || cardId;
+    const pool = (opponentId ? match.loadouts[opponentId]?.cards ?? [] : []).map((card) => card.cardId);
+    const copyDepth = 1;
+    mimicCardId = copyDepth <= ARENA_JOKER_COPY_MAX_DEPTH ? pickJokerMimic(`${actionId}:joker`, pool) : null;
+    if (mimicCardId && mimicCardId !== 'joker') {
+      resolvedCard = mimicCardId;
+    }
   }
 
   const mimicMode = resolvedCard !== cardId ? validateArenaCardMode(resolvedCard, null) : mode;
@@ -163,6 +170,7 @@ export function resolveArenaCardEffect(input: {
       ? Math.min(ARENA_TRANSFER_MAX, damage + extra)
       : officialArenaDamage({ cardId, mode, activeUsers: input.activeUsers, multiplier });
 
+  const replayed = prior.forcedReplay?.playerId === playerId && prior.forcedReplay.cardId === cardId;
   let next = match;
   let chain: ArenaChainStep = 'ATTACK';
   const hiddenFromOpponent = cardId === 'duman';
@@ -288,7 +296,7 @@ export function resolveArenaCardEffect(input: {
     next = transferScore(next, opposite(side), side, totalDamage, serverNow);
   } else if (cardId === 'guzgu') {
     const last = prior.lastPlay;
-    const canReflect = Boolean(last && last.playerId !== playerId && last.damage > 0 && !last.cancelled);
+    const canReflect = canReflectAttack(last, playerId);
     chain = canReflect ? 'REFLECT' : 'ATTACK';
     if (canReflect && last) {
       next = transferScore(next, last.side, side, last.damage, serverNow);
@@ -304,7 +312,16 @@ export function resolveArenaCardEffect(input: {
     }
     next = transferScore(next, opposite(side), side, totalDamage, serverNow);
   } else if (cardId === 'tikanli') {
-    if (!prior.lastCounterOk || !prior.countered) reject('REJECT');
+    if (
+      !tikanliReplayAllowed({
+        lastCounterOk: prior.lastCounterOk,
+        countered: prior.countered,
+        forcedReplay: prior.forcedReplay,
+        lastPlay: prior.lastPlay,
+      })
+    ) {
+      reject('REJECT');
+    }
     const forcedCard = prior.countered.cardId;
     const target = prior.countered.playerId;
     chain = 'REPLAY';
@@ -405,7 +422,17 @@ export function resolveArenaCardEffect(input: {
     cancelled: chain === 'CANCEL',
     reflected: chain === 'REFLECT',
     chain,
+    reflectDepth: chain === 'REFLECT' ? ARENA_REFLECT_MAX_DEPTH : 0,
   };
+
+  const lastEvents = arenaInteractionEvents({
+    cardId,
+    chain,
+    mimicCardId,
+    replayed,
+    replayRequired: cardId === 'tikanli',
+    hidden: hiddenFromOpponent,
+  });
 
   const effects: ArenaEffectState = {
     ...effectsOf(next),
@@ -417,6 +444,7 @@ export function resolveArenaCardEffect(input: {
     jokerMimic: mimicCardId,
     clickEvent,
     lastSummary: summary || effectsOf(next).lastSummary,
+    lastEvents,
     chain: pushChain(effectsOf(next), chain, cardId, playerId).chain,
   };
 

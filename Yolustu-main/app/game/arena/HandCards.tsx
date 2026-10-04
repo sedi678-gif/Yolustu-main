@@ -13,8 +13,8 @@ export default function HandCards({ cards, onPlay }: HandCardsProps) {
   const empties = Math.max(0, 5 - shown.length);
 
   return (
-    <section className="w-full min-w-0 px-2 pb-[max(8px,env(safe-area-inset-bottom))]" aria-label="Kart əli">
-      <div className="grid grid-cols-5 gap-1">
+    <section className="w-full min-w-0" aria-label="Kart əli">
+      <div className="grid w-full grid-cols-5 gap-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
         {shown.map((card) => (
           <CardPlaceholder key={card.id} card={card} onPlay={onPlay} />
         ))}

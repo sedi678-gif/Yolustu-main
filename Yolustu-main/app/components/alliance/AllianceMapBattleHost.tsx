@@ -317,7 +317,7 @@ export default function AllianceMapBattleHost({
   return (
     <>
       <AllianceMapSheet
-        open={showInfo}
+        open={showInfo && !tableOpen}
         onClose={onClearSelected}
         title={localAlliance ? localAlliance.name : 'İttifaq'}
       >
@@ -358,7 +358,7 @@ export default function AllianceMapBattleHost({
       </AllianceMapSheet>
 
       <AllianceMapSheet
-        open={showLobby}
+        open={showLobby && !tableOpen}
         onClose={() => {
           setLobbyId(null);
           onClearSelected();

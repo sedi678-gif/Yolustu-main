@@ -323,4 +323,62 @@ describe('arena counters', () => {
     );
     assert.ok(peak.score >= 55);
   });
+
+  it('Güzgü reflect dərinliyi 1', () => {
+    let match = play(setup(['A'], ['B']), 'A', 'ogru', { users: 10 });
+    const first = resolveArenaCardEffect({
+      match,
+      playerId: 'B',
+      cardId: 'guzgu',
+      actionId: 'g1',
+      serverNow: 1_000_200,
+      activeUsers: 10,
+    });
+    assert.equal(first.result.chain, 'REFLECT');
+    const second = resolveArenaCardEffect({
+      match: first.match,
+      playerId: 'A',
+      cardId: 'guzgu',
+      actionId: 'g2',
+      serverNow: 1_000_300,
+      activeUsers: 10,
+    });
+    assert.notEqual(second.result.chain, 'REFLECT');
+  });
+
+  it('Tikanli ikinci replay loop REJECT', () => {
+    let match = setup(['A'], ['B']);
+    match = play(match, 'A', 'ogru', { users: 10 });
+    match = play(match, 'B', 'qaya', { users: 10 });
+    const first = resolveArenaCardEffect({
+      match,
+      playerId: 'B',
+      cardId: 'tikanli',
+      actionId: 'w1',
+      serverNow: match.turnStartedAt + 20,
+      activeUsers: 10,
+    });
+    assert.throws(() =>
+      resolveArenaCardEffect({
+        match: first.match,
+        playerId: 'B',
+        cardId: 'tikanli',
+        actionId: 'w2',
+        serverNow: match.turnStartedAt + 40,
+        activeUsers: 10,
+      })
+    );
+  });
+
+  it('Joker joker kopyalamır', () => {
+    const result = resolveArenaCardEffect({
+      match: setup(['A'], ['B']),
+      playerId: 'A',
+      cardId: 'joker',
+      actionId: 'jj',
+      serverNow: 1_000_100,
+      activeUsers: 10,
+    });
+    assert.notEqual(result.result.mimicCardId, 'joker');
+  });
 });

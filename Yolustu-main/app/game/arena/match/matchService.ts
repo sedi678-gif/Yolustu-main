@@ -24,6 +24,7 @@ import { advanceMatchTurn, createMatchSnapshot } from './turnOrder';
 import { applyArenaCardPlay, applyLockedLoadout, assertArenaLoadoutLockAllowed } from './loadout';
 import { emptyArenaEffects } from './effects/types';
 import { opponentPlayerId, serverActiveUsers } from './effects/engine';
+import { publicAuditCardId } from './effects/interaction';
 import {
   applyArenaClick,
   expireArenaReactionState,
@@ -500,21 +501,23 @@ export async function playArenaCard(input: {
         if (next === match) return match;
         tx.update(matchRef(matchId), matchWrite(next));
         const auditRef = doc(db, ARENA_MATCH_COLLECTION, matchId, 'audit', actionId);
+        const hidden = Boolean(next.effects.lastPlay?.hidden);
         tx.set(auditRef, {
           matchId,
           playerId,
-          cardId,
-          mode: input.mode ?? null,
+          cardId: publicAuditCardId(cardId, hidden),
+          mode: hidden ? null : input.mode ?? null,
           timestamp: now,
           energyBefore,
           energyAfter: next.players[playerId]?.energy ?? energyBefore,
           usesBefore,
           usesAfter: next.loadouts[playerId]?.cards.find((card) => card.cardId === cardId)?.remaining ?? usesBefore,
-          effectType: next.effects.lastSummary,
+          effectType: hidden ? 'Gizli kart' : next.effects.lastSummary,
           damage: next.effects.lastPlay?.damage ?? 0,
           targetPlayer: opponentPlayerId(match, playerId),
-          result: next.effects.lastSummary,
+          result: hidden ? 'Gizli kart' : next.effects.lastSummary,
           actionId,
+          events: next.effects.lastEvents ?? ['CARD_PLAYED', 'CARD_EFFECT_FINALIZED'],
         });
         if (next.reaction && next.reaction.reactionId) {
           const eventRef = doc(db, ARENA_MATCH_COLLECTION, matchId, 'reaction_events', `${actionId}_created`);

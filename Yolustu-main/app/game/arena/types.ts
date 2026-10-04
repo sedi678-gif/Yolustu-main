@@ -39,7 +39,8 @@ export interface ArenaViewModel {
   awayAllianceName: string;
   matchState: { statusLabel: string };
   timer: { label: string };
-  energy: { label: string };
+  energy: { label: string; current: number; max: number };
+  gameMode: '1v1' | '5v5';
   players: {
     home: Array<ArenaSlotPlayer | null>;
     away: Array<ArenaSlotPlayer | null>;
@@ -69,7 +70,8 @@ export const EMPTY_ARENA_VIEW: ArenaViewModel = {
   awayAllianceName: 'Rəqib ittifaqı',
   matchState: { statusLabel: 'Arena' },
   timer: { label: '--:--' },
-  energy: { label: '-- / --' },
+  energy: { label: '-- / --', current: 0, max: 30 },
+  gameMode: '5v5',
   players: {
     away: [null, null, null, null, null],
     home: [null, null, null, null, null],

@@ -4,6 +4,18 @@ import type { ArenaPeakWindow } from './scoreHistory';
 
 export type ArenaChainStep = 'ATTACK' | 'COUNTER' | 'REFLECT' | 'CANCEL' | 'REPLAY';
 
+export type ArenaInteractionEventType =
+  | 'CARD_PLAYED'
+  | 'COUNTER_WINDOW_STARTED'
+  | 'COUNTER_PLAYED'
+  | 'COUNTER_RESOLVED'
+  | 'CARD_REFLECTED'
+  | 'CARD_BLOCKED'
+  | 'CARD_COPIED'
+  | 'CARD_REPLAY_REQUIRED'
+  | 'CARD_REPLAYED'
+  | 'CARD_EFFECT_FINALIZED';
+
 export type ArenaClickEvent = {
   cardId: string;
   mode: ArenaCardMode | null;
@@ -22,6 +34,7 @@ export type ArenaLastPlay = {
   cancelled: boolean;
   reflected: boolean;
   chain: ArenaChainStep;
+  reflectDepth?: number;
 };
 
 export type ArenaSlaveState = {
@@ -49,6 +62,7 @@ export type ArenaEffectState = {
   jokerMimic: string | null;
   chain: Array<{ step: ArenaChainStep; cardId: string; playerId: string }>;
   lastSummary: string;
+  lastEvents: ArenaInteractionEventType[];
 };
 
 export type ArenaEffectResult = {
@@ -81,5 +95,6 @@ export function emptyArenaEffects(): ArenaEffectState {
     jokerMimic: null,
     chain: [],
     lastSummary: '',
+    lastEvents: [],
   };
 }

@@ -10,5 +10,16 @@ export {
 export { peakTenMinuteWindow } from './scoreHistory';
 export { resolveArenaCardEffect, serverActiveUsers, opponentPlayerId } from './engine';
 export { emptyArenaEffects } from './types';
-export type { ArenaEffectResult, ArenaEffectState, ArenaChainStep } from './types';
+export type { ArenaEffectResult, ArenaEffectState, ArenaChainStep, ArenaInteractionEventType } from './types';
 export type { ArenaCardMode } from './damage';
+export {
+  ARENA_COUNTER_PRIORITY,
+  ARENA_REFLECT_MAX_DEPTH,
+  ARENA_JOKER_COPY_MAX_DEPTH,
+  canReflectAttack,
+  pickJokerMimic,
+  revealCasusCards,
+  tikanliReplayAllowed,
+  arenaInteractionEvents,
+  publicAuditCardId,
+} from './interaction';

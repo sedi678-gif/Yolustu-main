@@ -66,6 +66,7 @@ export {
 } from './matchService';
 export { matchToArenaView } from './matchView';
 export { officialArenaDamage, resolveArenaCardEffect } from './effects';
+export type { ArenaInteractionEventType } from './effects';
 export {
   getAllianceSizeTier,
   officialArenaRequiredClicks,
