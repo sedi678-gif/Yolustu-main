@@ -11,11 +11,13 @@ export {
   ARENA_WEEKLY_REWARD_SOURCE_TYPE,
   ARENA_REWARD_ALLOCATION,
   ARENA_REWARD_PAGE_SIZE,
+  ARENA_REWARD_PAYOUT_PAGE_SIZE,
   lookupArenaRewardAllocation,
 } from './config';
 export type {
   ArenaRewardStatus,
   ArenaRewardSecurityStatus,
+  ArenaRewardPayoutCheckStatus,
   ArenaRewardRecipientType,
   ArenaRewardSourceType,
   ArenaRewardType,
@@ -52,3 +54,8 @@ export {
   arenaWeeklySettlementId,
   arenaWeeklySettlementRef,
 } from './settlement';
+export {
+  resolveArenaRewardPayoutCheck,
+  runArenaRewardPayoutChecks,
+} from './payoutCheck';
+export type { ArenaRewardPayoutDecision, ArenaRewardPayoutCheckInput } from './payoutCheck';

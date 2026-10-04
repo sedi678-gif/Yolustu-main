@@ -11,6 +11,7 @@ import type {
   ArenaRewardStatus,
   ArenaRewardSourceType,
   ArenaRewardType,
+  ArenaRewardPayoutCheckStatus,
 } from './types';
 import { toArenaRewardPublic } from './eligibility';
 
@@ -37,6 +38,11 @@ export function parseArenaReward(raw: Record<string, unknown> | undefined, fallb
   const rewardType = asString(raw.rewardType) || 'BATTLE_COMPLETION';
   if (sourceType !== 'ARENA_MATCH' && sourceType !== 'WEEKLY_RANKING') return null;
   if (rewardType !== 'BATTLE_COMPLETION' && rewardType !== 'WEEKLY_RANKING') return null;
+  const payoutRaw = asString(raw.payoutCheckStatus);
+  const payoutCheckStatus =
+    payoutRaw === 'APPROVED' || payoutRaw === 'BLOCKED' || payoutRaw === 'REVIEW'
+      ? (payoutRaw as ArenaRewardPayoutCheckStatus)
+      : null;
   return {
     rewardId: asString(raw.rewardId) || fallbackId,
     periodId: asString(raw.periodId),
@@ -58,6 +64,9 @@ export function parseArenaReward(raw: Record<string, unknown> | undefined, fallb
     viewerIds: Array.isArray(raw.viewerIds)
       ? raw.viewerIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
       : [],
+    payoutCheckStatus,
+    payoutCheckedAt: raw.payoutCheckedAt == null ? null : asInt(raw.payoutCheckedAt),
+    payoutReady: raw.payoutReady === true,
   };
 }
 
@@ -83,6 +92,9 @@ export function arenaRewardLedgerWrite(record: ArenaRewardRecord): Record<string
     viewerIds: record.viewerIds,
     schemaVersion: 1,
     walletCredited: false,
+    payoutCheckStatus: record.payoutCheckStatus,
+    payoutCheckedAt: record.payoutCheckedAt,
+    payoutReady: record.payoutReady,
   };
 }
 

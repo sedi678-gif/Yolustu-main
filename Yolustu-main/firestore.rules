@@ -2386,6 +2386,7 @@ service cloud.firestore {
         && request.resource.data.sourceId is string
         && request.resource.data.matchId is string
         && request.resource.data.periodId is string
+        && request.resource.data.payoutReady == false
         && (
           (
             request.resource.data.sourceType == 'ARENA_MATCH'
@@ -2415,7 +2416,44 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/leaderboard_resets/$(('weekly_' + request.resource.data.periodId))).data.kind == 'weekly'
           )
         );
-      allow update, delete: if false;
+      allow update: if request.auth != null
+        && resource.data.walletCredited == false
+        && request.resource.data.walletCredited == false
+        && request.resource.data.rewardId == resource.data.rewardId
+        && request.resource.data.periodId == resource.data.periodId
+        && request.resource.data.sourceType == resource.data.sourceType
+        && request.resource.data.sourceId == resource.data.sourceId
+        && request.resource.data.matchId == resource.data.matchId
+        && request.resource.data.rewardType == resource.data.rewardType
+        && request.resource.data.recipientType == resource.data.recipientType
+        && request.resource.data.recipientId == resource.data.recipientId
+        && request.resource.data.countryCode == resource.data.countryCode
+        && request.resource.data.rank == resource.data.rank
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.currency == resource.data.currency
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.securityStatus == resource.data.securityStatus
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.payoutCheckStatus in ['APPROVED', 'BLOCKED', 'REVIEW']
+        && request.resource.data.payoutCheckedAt is int
+        && request.resource.data.payoutReady is bool
+        && (
+          request.resource.data.payoutCheckStatus == 'APPROVED'
+            ? request.resource.data.payoutReady == true
+            : request.resource.data.payoutReady == false
+        )
+        && (
+          !('payoutCheckStatus' in resource.data)
+          || resource.data.payoutCheckStatus == null
+          || request.resource.data.payoutCheckStatus == resource.data.payoutCheckStatus
+        )
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['payoutCheckStatus', 'payoutCheckedAt', 'payoutReady'])
+        && exists(/databases/$(database)/documents/leaderboard_weekly/$(resource.data.periodId))
+        && get(/databases/$(database)/documents/leaderboard_weekly/$(resource.data.periodId)).data.status == 'closed'
+        && exists(/databases/$(database)/documents/leaderboard_resets/$(('weekly_' + resource.data.periodId)))
+        && get(/databases/$(database)/documents/leaderboard_resets/$(('weekly_' + resource.data.periodId))).data.status == 'done';
+      allow delete: if false;
 
       match /reward_events/{eventId} {
         allow read: if request.auth != null
@@ -2432,7 +2470,11 @@ service cloud.firestore {
             'REWARD_SECURITY_CHECKED',
             'REWARD_APPROVED',
             'REWARD_REJECTED',
-            'REWARD_ALLOCATION_CREATED'
+            'REWARD_ALLOCATION_CREATED',
+            'PAYOUT_CHECKED',
+            'PAYOUT_APPROVED',
+            'PAYOUT_BLOCKED',
+            'PAYOUT_REVIEW'
           ]
           && request.resource.data.keys().hasOnly([
             'type', 'rewardId', 'matchId', 'sourceId', 'periodId', 'status', 'timestamp'

@@ -1,5 +1,6 @@
 export type ArenaRewardStatus = 'PENDING' | 'SECURITY_CHECK' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type ArenaRewardSecurityStatus = 'CLEAR' | 'BLOCKED';
+export type ArenaRewardPayoutCheckStatus = 'APPROVED' | 'BLOCKED' | 'REVIEW';
 export type ArenaRewardRecipientType = 'USER' | 'ALLIANCE';
 export type ArenaRewardSourceType = 'ARENA_MATCH' | 'WEEKLY_RANKING';
 export type ArenaRewardType = 'BATTLE_COMPLETION' | 'WEEKLY_RANKING';
@@ -24,6 +25,9 @@ export type ArenaRewardRecord = {
   rejectedAt: number | null;
   securityStatus: ArenaRewardSecurityStatus;
   viewerIds: string[];
+  payoutCheckStatus: ArenaRewardPayoutCheckStatus | null;
+  payoutCheckedAt: number | null;
+  payoutReady: boolean;
 };
 
 export type ArenaRewardPublic = {
@@ -39,6 +43,8 @@ export type ArenaRewardPublic = {
   status: ArenaRewardStatus;
   createdAt: number;
   approvedAt: number | null;
+  payoutCheckStatus: ArenaRewardPayoutCheckStatus | null;
+  payoutReady: boolean;
 };
 
 export type ArenaRewardEventType =
@@ -49,7 +55,11 @@ export type ArenaRewardEventType =
   | 'REWARD_REJECTED'
   | 'REWARD_ALLOCATION_STARTED'
   | 'REWARD_ALLOCATION_CREATED'
-  | 'REWARD_ALLOCATION_COMPLETED';
+  | 'REWARD_ALLOCATION_COMPLETED'
+  | 'PAYOUT_CHECKED'
+  | 'PAYOUT_APPROVED'
+  | 'PAYOUT_BLOCKED'
+  | 'PAYOUT_REVIEW';
 
 export type ArenaRewardPlan = {
   rewardId: string;

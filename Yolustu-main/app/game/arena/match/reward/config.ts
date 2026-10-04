@@ -18,6 +18,7 @@ export const ARENA_WEEKLY_REWARD_SOURCE_TYPE = 'WEEKLY_RANKING';
  */
 export const ARENA_REWARD_ALLOCATION: ArenaRewardAllocationTable = { entries: [] };
 export const ARENA_REWARD_PAGE_SIZE = 20;
+export const ARENA_REWARD_PAYOUT_PAGE_SIZE = 80;
 
 export function lookupArenaRewardAllocation(input: {
   countryCode: string;

@@ -210,6 +210,9 @@ export function buildArenaRewardRecord(input: {
     rejectedAt: security.status === 'REJECTED' ? input.createdAt : null,
     securityStatus: security.securityStatus,
     viewerIds: input.plan.viewerIds,
+    payoutCheckStatus: null,
+    payoutCheckedAt: null,
+    payoutReady: false,
   };
 }
 
@@ -227,5 +230,7 @@ export function toArenaRewardPublic(record: ArenaRewardRecord): ArenaRewardPubli
     status: record.status,
     createdAt: record.createdAt,
     approvedAt: record.approvedAt,
+    payoutCheckStatus: record.payoutCheckStatus,
+    payoutReady: record.payoutReady,
   };
 }

@@ -50,11 +50,14 @@ import {
 } from './leaderboardService';
 import { previousOfficialWeekKey as previousWeekFromKey } from './leaderboardConfig';
 import { settleWeeklyRankingRewards } from '@/app/game/arena/match/reward/settlement';
+import { runArenaRewardPayoutChecks } from '@/app/game/arena/match/reward/payoutCheck';
 
 export type { BattleLeaderboardAward } from './leaderboardService';
 
 async function settleClosedWeeklyPeriod(weekKey: string): Promise<void> {
-  await settleWeeklyRankingRewards({ periodId: previousWeekFromKey(weekKey) }).catch(() => {});
+  const periodId = previousWeekFromKey(weekKey);
+  await settleWeeklyRankingRewards({ periodId }).catch(() => {});
+  await runArenaRewardPayoutChecks({ periodId }).catch(() => {});
 }
 
 export async function requireLeaderboardPeriod() {
