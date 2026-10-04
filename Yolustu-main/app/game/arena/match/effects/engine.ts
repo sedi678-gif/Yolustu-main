@@ -13,11 +13,11 @@ import { emptyArenaEffects, type ArenaChainStep, type ArenaEffectResult, type Ar
 import { createArenaReaction, defendingSideForCard, qulPendingPeak } from '../reaction/policy';
 import type { ArenaReactionPending } from '../reaction/types';
 import {
-  ARENA_JOKER_COPY_MAX_DEPTH,
   ARENA_REFLECT_MAX_DEPTH,
   arenaInteractionEvents,
   canReflectAttack,
   pickJokerMimic,
+  qayaCounterOutcome,
   revealCasusCards,
   tikanliReplayAllowed,
 } from './interaction';
@@ -150,10 +150,11 @@ export function resolveArenaCardEffect(input: {
 
   if (cardId === 'joker') {
     const pool = (opponentId ? match.loadouts[opponentId]?.cards ?? [] : []).map((card) => card.cardId);
-    const copyDepth = 1;
-    mimicCardId = copyDepth <= ARENA_JOKER_COPY_MAX_DEPTH ? pickJokerMimic(`${actionId}:joker`, pool) : null;
+    mimicCardId = pickJokerMimic(`${actionId}:joker`, pool);
     if (mimicCardId && mimicCardId !== 'joker') {
       resolvedCard = mimicCardId;
+    } else {
+      mimicCardId = null;
     }
   }
 
@@ -276,9 +277,10 @@ export function resolveArenaCardEffect(input: {
     summary = '2X aktivdir';
   } else if (cardId === 'qaya') {
     const last = prior.lastPlay;
-    const breaksMirror = last?.cardId === 'guzgu' && last.playerId !== playerId;
-    const cancels = Boolean(last && last.playerId !== playerId && !last.cancelled);
-    chain = breaksMirror || cancels ? 'CANCEL' : 'COUNTER';
+    const outcome = qayaCounterOutcome(last, playerId);
+    const breaksMirror = outcome.breaksMirror;
+    const cancels = outcome.cancels;
+    chain = outcome.chain;
     if (cancels && last && last.damage > 0 && !last.reflected) {
       next = transferScore(next, side, last.side, last.damage, serverNow);
     }

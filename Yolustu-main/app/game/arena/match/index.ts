@@ -68,6 +68,12 @@ export { matchToArenaView } from './matchView';
 export { officialArenaDamage, resolveArenaCardEffect } from './effects';
 export type { ArenaInteractionEventType } from './effects';
 export {
+  ARENA_COUNTER_PRIORITY,
+  ARENA_REFLECT_MAX_DEPTH,
+  ARENA_JOKER_COPY_MAX_DEPTH,
+  publicAuditCardId,
+} from './effects';
+export {
   getAllianceSizeTier,
   officialArenaRequiredClicks,
   officialReactionChatText,

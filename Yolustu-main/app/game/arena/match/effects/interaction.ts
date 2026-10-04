@@ -1,11 +1,24 @@
 import { ARENA_CARD_IDS } from '../catalog';
-import type { ArenaLastPlay, ArenaInteractionEventType } from './types';
+import type { ArenaChainStep, ArenaLastPlay, ArenaInteractionEventType } from './types';
 
 /** Sequential counter order already encoded in lastPlay; not a parallel window. */
 export const ARENA_COUNTER_PRIORITY = ['qaya', 'guzgu', 'tikanli', 'usyan'] as const;
 
 export const ARENA_REFLECT_MAX_DEPTH = 1;
 export const ARENA_JOKER_COPY_MAX_DEPTH = 1;
+
+export function qayaCounterOutcome(
+  last: ArenaLastPlay | null,
+  playerId: string
+): { chain: ArenaChainStep; breaksMirror: boolean; cancels: boolean } {
+  const breaksMirror = Boolean(last && last.cardId === 'guzgu' && last.playerId !== playerId);
+  const cancels = Boolean(last && last.playerId !== playerId && !last.cancelled);
+  return {
+    breaksMirror,
+    cancels,
+    chain: breaksMirror || cancels ? 'CANCEL' : 'COUNTER',
+  };
+}
 
 export function canReflectAttack(last: ArenaLastPlay | null, playerId: string): boolean {
   if (!last || last.playerId === playerId) return false;
@@ -26,7 +39,11 @@ export function pickJokerMimic(seed: string, opponentCardIds: string[]): string 
 }
 
 export function revealCasusCards(opponentCardIds: string[]): string[] {
-  return opponentCardIds.filter((id) => id !== 'duman').slice(0, 3);
+  return sanitizeSpyReveal(opponentCardIds);
+}
+
+export function sanitizeSpyReveal(ids: string[]): string[] {
+  return ids.filter((id) => id !== 'duman').slice(0, 3);
 }
 
 export function tikanliReplayAllowed(input: {

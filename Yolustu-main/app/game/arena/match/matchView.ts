@@ -5,6 +5,7 @@ import type { ArenaMatchState, ArenaPresenceState } from './types';
 import type { ArenaHandCardView, ArenaSlotPlayer, ArenaViewModel } from '../types';
 import { createPlaceholderArenaView } from '../placeholderView';
 import { playerOnSide } from './reaction/policy';
+import { sanitizeSpyReveal } from './effects/interaction';
 
 function slotsFromMatch(
   match: ArenaMatchState,
@@ -115,7 +116,7 @@ export function matchToArenaView(input: {
     },
     effectLabel: hide ? 'Gizli kart' : match.effects?.lastSummary,
     doubleActive: match.effects?.pendingDoubleFor === viewerPlayerId,
-    spyReveal: match.effects?.spyReveal?.[viewerPlayerId] ?? [],
+    spyReveal: sanitizeSpyReveal(match.effects?.spyReveal?.[viewerPlayerId] ?? []),
   };
 }
 

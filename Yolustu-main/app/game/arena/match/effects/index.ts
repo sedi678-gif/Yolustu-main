@@ -19,7 +19,9 @@ export {
   canReflectAttack,
   pickJokerMimic,
   revealCasusCards,
+  sanitizeSpyReveal,
   tikanliReplayAllowed,
   arenaInteractionEvents,
   publicAuditCardId,
+  qayaCounterOutcome,
 } from './interaction';
