@@ -66,8 +66,36 @@ export {
   submitArenaReactionClick,
   expireArenaReaction,
   completeArenaMatch,
+  persistArenaMatchRewards,
   matchFromData,
 } from './matchService';
+export {
+  ARENA_REWARD_COLLECTION,
+  ARENA_REWARD_CURRENCY,
+  ARENA_REWARD_COUNTRY_CODE,
+  ARENA_REWARD_TYPE,
+  ARENA_REWARD_SOURCE_TYPE,
+  ARENA_REWARD_ALLOCATION,
+  ARENA_REWARD_PAGE_SIZE,
+  officialArenaRewardPeriodId,
+  arenaRewardId,
+  planArenaMatchRewards,
+  assertArenaRewardEligible,
+  resolveArenaRewardSecurity,
+  buildArenaRewardRecord,
+  toArenaRewardPublic,
+  listArenaRewardsForPlayer,
+  getArenaRewardPublic,
+} from './reward';
+export type {
+  ArenaRewardStatus,
+  ArenaRewardSecurityStatus,
+  ArenaRewardRecipientType,
+  ArenaRewardRecord,
+  ArenaRewardPublic,
+  ArenaRewardEventType,
+  ArenaRewardPlan,
+} from './reward';
 export {
   officialArenaFinishReason,
   officialArenaLeader,

@@ -77,6 +77,14 @@
         { "fieldPath": "result.completedAt", "order": "DESCENDING" },
         { "fieldPath": "matchId", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "arena_rewards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "viewerIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
