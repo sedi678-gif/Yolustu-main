@@ -25,13 +25,8 @@ import {
   listenBattleReconnect,
   rememberLiveBattleHint,
   clearLiveBattleHint,
-  type BattleReconnectSnapshot,
 } from '@/app/lib/battleReconnect';
 import { finishBattle, officialFinishReason } from '@/app/lib/battleFinish';
-import BattleEnergyPanel from './BattleEnergyPanel';
-import BattleScorePanel from './BattleScorePanel';
-import BattleClickChallengePanel from './BattleClickChallengePanel';
-import BattleEventLogPanel from './BattleEventLogPanel';
 import { GameTable } from '@/app/game/table';
 import { createArenaMatch, listenArenaMatch, type ArenaMatchState } from '@/app/game/arena/match';
 import ArenaLoadoutPicker from '@/app/game/arena/ArenaLoadoutPicker';
@@ -102,7 +97,6 @@ export default function AllianceMapBattleHost({
   const [tableOpen, setTableOpen] = useState(false);
   const [arenaMatch, setArenaMatch] = useState<ArenaMatchState | null>(null);
   const [restored, setRestored] = useState(false);
-  const [reconnectSnap, setReconnectSnap] = useState<BattleReconnectSnapshot | null>(null);
   const attackLock = useRef(false);
   const autoJoinRef = useRef<string | null>(null);
   const seatedRef = useRef<string | null>(null);
@@ -117,10 +111,8 @@ export default function AllianceMapBattleHost({
     return listenBattleReconnect(userId, (snap) => {
       if (!snap) {
         setRestored(false);
-        setReconnectSnap(null);
         return;
       }
-      setReconnectSnap(snap);
       setLobbyId(snap.battle.id);
       setView(viewAllianceBattle(snap.battle, snap.serverNow || Date.now()));
       setRestored(true);
@@ -430,30 +422,6 @@ export default function AllianceMapBattleHost({
               <button type="button" className={styles.battleAttackBtn} onClick={() => setTableOpen(true)}>
                 Hücum
               </button>
-            ) : null}
-            {alreadyIn ? (
-              <BattleEnergyPanel
-                battle={liveView.battle}
-                playerId={userId}
-                restoredEnergy={
-                  reconnectSnap?.battle.id === liveView.battle.id ? reconnectSnap.energy : null
-                }
-              />
-            ) : null}
-            <BattleScorePanel battle={liveView.battle} playerId={userId} />
-            {alreadyIn ? (
-              <BattleClickChallengePanel
-                key={liveView.battle.id}
-                battleId={liveView.battle.id}
-                playerId={userId}
-                restoredChallenges={
-                  reconnectSnap?.battle.id === liveView.battle.id ? reconnectSnap.challenges : undefined
-                }
-              />
-            ) : null}
-            <BattleEventLogPanel battleId={liveView.battle.id} />
-            {liveView && !alreadyIn ? (
-              <p className={styles.battleJoinHint}>Rəqib kart seçimi gizlidir.</p>
             ) : null}
           </>
         ) : (
