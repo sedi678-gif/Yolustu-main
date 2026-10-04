@@ -18,7 +18,6 @@ import {
   ARENA_PRESENCE_COLLECTION,
   ARENA_SLOT_COUNT,
   ARENA_TURN_DURATION_MS,
-  type ArenaTurnRole,
 } from './config';
 import { assertArenaActionAllowed, assertArenaTimeoutAllowed, assertStartEnergy, rejectClientEnergyWrite } from './policy';
 import { advanceMatchTurn, createMatchSnapshot } from './turnOrder';
@@ -39,6 +38,7 @@ import type {
   ArenaPlayerState,
   ArenaPresenceState,
   ArenaSide,
+  ArenaTurnRole,
 } from './types';
 
 const TX_MS = 12_000;

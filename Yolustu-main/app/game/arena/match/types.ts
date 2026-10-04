@@ -3,6 +3,8 @@ import type { ArenaEffectState } from './effects/types';
 import type { ArenaScoreTick } from './effects/scoreHistory';
 import type { ArenaReactionState } from './reaction/types';
 
+export type { ArenaTurnRole };
+
 export type ArenaSide = 'home' | 'away';
 export type ArenaMatchStatus = 'active' | 'closed';
 export type ArenaMatchPhase = 'loadout' | 'combat';
