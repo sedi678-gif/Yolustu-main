@@ -312,18 +312,20 @@ export function resolveArenaCardEffect(input: {
     }
     next = transferScore(next, opposite(side), side, totalDamage, serverNow);
   } else if (cardId === 'tikanli') {
+    const countered = prior.countered;
     if (
+      !countered ||
       !tikanliReplayAllowed({
         lastCounterOk: prior.lastCounterOk,
-        countered: prior.countered,
+        countered,
         forcedReplay: prior.forcedReplay,
         lastPlay: prior.lastPlay,
       })
     ) {
       reject('REJECT');
     }
-    const forcedCard = prior.countered.cardId;
-    const target = prior.countered.playerId;
+    const forcedCard = countered.cardId;
+    const target = countered.playerId;
     chain = 'REPLAY';
     next = {
       ...next,
