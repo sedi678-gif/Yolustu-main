@@ -28,13 +28,13 @@ import {
   type BattleReconnectSnapshot,
 } from '@/app/lib/battleReconnect';
 import { finishBattle, officialFinishReason } from '@/app/lib/battleFinish';
-import BattleLoadoutPicker from './BattleLoadoutPicker';
 import BattleEnergyPanel from './BattleEnergyPanel';
 import BattleScorePanel from './BattleScorePanel';
 import BattleClickChallengePanel from './BattleClickChallengePanel';
 import BattleEventLogPanel from './BattleEventLogPanel';
 import { GameTable } from '@/app/game/table';
-import { createArenaMatch } from '@/app/game/arena/match';
+import { createArenaMatch, listenArenaMatch, type ArenaMatchState } from '@/app/game/arena/match';
+import ArenaLoadoutPicker from '@/app/game/arena/ArenaLoadoutPicker';
 import styles from './alliance.module.css';
 
 function playerName(players: PlayerProfile[], id: string) {
@@ -100,12 +100,12 @@ export default function AllianceMapBattleHost({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
+  const [arenaMatch, setArenaMatch] = useState<ArenaMatchState | null>(null);
   const [restored, setRestored] = useState(false);
   const [reconnectSnap, setReconnectSnap] = useState<BattleReconnectSnapshot | null>(null);
   const attackLock = useRef(false);
   const autoJoinRef = useRef<string | null>(null);
   const seatedRef = useRef<string | null>(null);
-  const openedTableFor = useRef<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -166,6 +166,14 @@ export default function AllianceMapBattleHost({
       if (id) setLobbyId(id);
     });
   }, [selectedAllianceId]);
+
+  useEffect(() => {
+    if (!lobbyId) {
+      setArenaMatch(null);
+      return undefined;
+    }
+    return listenArenaMatch(lobbyId, setArenaMatch);
+  }, [lobbyId]);
 
   useEffect(() => {
     if (!lobbyId) return;
@@ -241,12 +249,6 @@ export default function AllianceMapBattleHost({
   const alreadyIn =
     liveView &&
     [...(liveView.battle.attackerPlayerIds ?? []), ...(liveView.battle.defenderPlayerIds ?? [])].includes(userId);
-  const mySide =
-    liveView && (liveView.battle.attackerPlayerIds ?? []).includes(userId)
-      ? 'attacker'
-      : liveView && (liveView.battle.defenderPlayerIds ?? []).includes(userId)
-        ? 'defender'
-        : null;
 
   const onAttack = useCallback(async () => {
     if (!resolvedIdentified || !activeAlliance || attackLock.current || busy) return;
@@ -260,7 +262,6 @@ export default function AllianceMapBattleHost({
       });
       rememberLiveBattleHint(userId, battle.id);
       setLobbyId(battle.id);
-      setTableOpen(true);
       try {
         await createArenaMatch({
           matchId: battle.id,
@@ -319,16 +320,8 @@ export default function AllianceMapBattleHost({
     void onJoin();
   }, [activeAlliance?.id, busy, liveView, onJoin, userId]);
 
-  useEffect(() => {
-    if (!view || !userId) return;
-    const inBattle = [...(view.battle.attackerPlayerIds ?? []), ...(view.battle.defenderPlayerIds ?? [])].includes(
-      userId
-    );
-    if (!inBattle) return;
-    if (openedTableFor.current === view.battle.id) return;
-    openedTableFor.current = view.battle.id;
-    setTableOpen(true);
-  }, [userId, view]);
+  const loadoutReady = Boolean(userId && arenaMatch?.loadouts[userId]);
+  const tableReady = Boolean(alreadyIn && (loadoutReady || arenaMatch?.phase === 'combat' || arenaMatch?.status === 'closed'));
 
   return (
     <>
@@ -421,22 +414,22 @@ export default function AllianceMapBattleHost({
                 {busy ? 'Qoşulur…' : 'Döyüşə qoşul'}
               </button>
             ) : null}
-            {alreadyIn ? (
-              <button type="button" className={styles.battleAttackBtn} onClick={() => setTableOpen(true)}>
-                Döyüş masasını aç
-              </button>
-            ) : null}
             {alreadyIn && liveView.phase === 'joining' ? (
-              <p className={styles.battleJoinHint}>Qoşuldun. Digər oyunçular gözlənilir. 5 kartını seç.</p>
+              <p className={styles.battleJoinHint}>Qoşuldun. 5 kartını seç, sonra Hücum ilə masanı aç.</p>
             ) : null}
-            {alreadyIn && mySide ? (
-              <BattleLoadoutPicker
-                battleId={liveView.battle.id}
+            {alreadyIn && lobbyId && userId && !loadoutReady && arenaMatch ? (
+              <ArenaLoadoutPicker
+                matchId={lobbyId}
                 playerId={userId}
-                side={mySide}
-                battleStatus={liveView.battle.status}
-                players={players}
+                submitLabel="Hücum"
+                onLocked={() => setTableOpen(true)}
               />
+            ) : null}
+            {alreadyIn && !arenaMatch ? <p className={styles.battleJoinHint}>Masa hazırlanır… 5 kart seçimi açılacaq.</p> : null}
+            {tableReady ? (
+              <button type="button" className={styles.battleAttackBtn} onClick={() => setTableOpen(true)}>
+                Hücum
+              </button>
             ) : null}
             {alreadyIn ? (
               <BattleEnergyPanel

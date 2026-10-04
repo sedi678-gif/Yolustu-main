@@ -3,19 +3,25 @@
 import { useMemo, useState } from 'react';
 import { ARENA_CARD_CATALOG, ARENA_LOADOUT_SIZE } from './match/catalog';
 import { lockArenaLoadout } from './match/matchService';
+import styles from '../table/gameTable.module.css';
 
 export default function ArenaLoadoutPicker({
   matchId,
   playerId,
+  submitLabel = 'Hücum',
+  onLocked,
 }: {
   matchId: string;
   playerId: string;
+  submitLabel?: string;
+  onLocked?: () => void;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const ready = selected.length === ARENA_LOADOUT_SIZE && !busy;
 
   function toggle(id: string) {
     setError(null);
@@ -27,11 +33,12 @@ export default function ArenaLoadoutPicker({
   }
 
   async function confirm() {
-    if (selected.length !== ARENA_LOADOUT_SIZE || busy) return;
+    if (!ready) return;
     setBusy(true);
     setError(null);
     try {
       await lockArenaLoadout({ matchId, playerId, cardIds: selected });
+      onLocked?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Kartlar saxlanılmadı');
     } finally {
@@ -40,11 +47,11 @@ export default function ArenaLoadoutPicker({
   }
 
   return (
-    <section className="mx-2 rounded-xl border border-cyan-400/25 bg-slate-950/90 p-2" aria-label="5 kart seçimi">
-      <p className="px-1 text-[11px] font-black uppercase tracking-wide text-cyan-100">
+    <section className={styles.loadout} aria-label="5 kart seçimi">
+      <p className={styles.loadoutTitle}>
         13 kartdan {ARENA_LOADOUT_SIZE} seç ({selected.length}/{ARENA_LOADOUT_SIZE})
       </p>
-      <div className="mt-2 grid grid-cols-4 gap-1">
+      <div className={styles.loadoutGrid}>
         {ARENA_CARD_CATALOG.map((card) => {
           const on = selectedSet.has(card.id);
           return (
@@ -52,33 +59,24 @@ export default function ArenaLoadoutPicker({
               key={card.id}
               type="button"
               onClick={() => toggle(card.id)}
-              className={`min-h-[72px] overflow-hidden rounded-lg border text-left ${
-                on ? 'border-cyan-300 ring-2 ring-cyan-400/70' : 'border-white/15'
-              }`}
+              className={`${styles.loadoutCard} ${on ? styles.loadoutCardOn : ''}`}
             >
-              <div className="h-10 bg-slate-800">
+              <div className={styles.loadoutArt}>
                 {card.image ? (
-                  <img src={card.image} alt="" className="h-full w-full object-cover" draggable={false} />
+                  <img src={card.image} alt="" draggable={false} />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-sm">{card.emoji}</div>
+                  <span>{card.emoji}</span>
                 )}
               </div>
-              <div className="px-1 py-1">
-                <p className="truncate text-[8px] font-extrabold text-white">{card.title}</p>
-                <p className="text-[8px] font-bold text-amber-200">⚡ {card.cost}</p>
-              </div>
+              <span className={styles.loadoutName}>{card.title}</span>
+              <span className={styles.loadoutCost}>⚡ {card.cost}</span>
             </button>
           );
         })}
       </div>
-      {error ? <p className="mt-1 px-1 text-[10px] font-bold text-rose-300">{error}</p> : null}
-      <button
-        type="button"
-        disabled={selected.length !== ARENA_LOADOUT_SIZE || busy}
-        onClick={() => void confirm()}
-        className="mt-2 w-full rounded-lg border border-cyan-300/40 bg-cyan-500/20 py-2 text-[11px] font-black text-cyan-50 disabled:opacity-40"
-      >
-        {busy ? 'Yazılır…' : '5 kartı təsdiqlə'}
+      {error ? <p className={styles.loadoutError}>{error}</p> : null}
+      <button type="button" disabled={!ready} onClick={() => void confirm()} className={styles.primaryBtn}>
+        {busy ? 'Yazılır…' : submitLabel}
       </button>
     </section>
   );
