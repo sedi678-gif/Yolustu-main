@@ -1,4 +1,4 @@
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { requireFirebaseAuth } from '@/app/lib/firebaseAuth';
 import { timestampToMs } from '@/app/lib/battleEventLog/battleEventLog';
@@ -97,10 +97,21 @@ export async function syncServerClock(): Promise<number> {
   if (syncing) return syncing;
   syncing = (async () => {
     const user = await requireFirebaseAuth();
-    await setDoc(clockRef(user.uid), {
+    const ref = clockRef(user.uid);
+    await setDoc(ref, {
       t: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const snap = await getDoc(ref);
+      const ms = timestampToMs(snap.data()?.t);
+      if (ms > 0) {
+        applyServerSample(ms);
+        emitClock();
+        return serverNowMs();
+      }
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }
     return serverNowMs();
   })().finally(() => {
     syncing = null;

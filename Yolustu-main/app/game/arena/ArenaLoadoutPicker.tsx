@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ARENA_CARD_CATALOG, ARENA_LOADOUT_SIZE } from './match/catalog';
 import { lockArenaLoadout } from './match/matchService';
+import { listenServerClock } from '@/app/lib/battlePlay/battleServerClock';
 import styles from '../table/gameTable.module.css';
 
 export default function ArenaLoadoutPicker({
@@ -22,6 +23,8 @@ export default function ArenaLoadoutPicker({
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const ready = selected.length === ARENA_LOADOUT_SIZE && !busy;
+
+  useEffect(() => listenServerClock(() => {}), []);
 
   function toggle(id: string) {
     setError(null);

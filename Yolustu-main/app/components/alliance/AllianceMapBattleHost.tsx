@@ -27,6 +27,7 @@ import {
   clearLiveBattleHint,
 } from '@/app/lib/battleReconnect';
 import { finishBattle, officialFinishReason } from '@/app/lib/battleFinish';
+import { listenServerClock } from '@/app/lib/battlePlay/battleServerClock';
 import { GameTable } from '@/app/game/table';
 import { createArenaMatch, listenArenaMatch, type ArenaMatchState } from '@/app/game/arena/match';
 import ArenaLoadoutPicker from '@/app/game/arena/ArenaLoadoutPicker';
@@ -105,6 +106,8 @@ export default function AllianceMapBattleHost({
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => listenServerClock(() => {}), []);
 
   useEffect(() => {
     if (!userId) return;

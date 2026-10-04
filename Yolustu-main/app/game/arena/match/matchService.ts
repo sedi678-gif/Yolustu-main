@@ -325,8 +325,12 @@ function matchWrite(match: ArenaMatchState): Record<string, unknown> {
 }
 
 async function requireServerNow(): Promise<number> {
-  await syncServerClock().catch(() => {});
-  const now = serverNowMs();
+  let now = serverNowMs();
+  if (now <= 0) now = await syncServerClock();
+  if (now <= 0) {
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    now = await syncServerClock();
+  }
   if (now <= 0) throw new Error('Server saatı yoxdur');
   return now;
 }
