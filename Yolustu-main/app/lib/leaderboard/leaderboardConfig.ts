@@ -86,6 +86,13 @@ export function bakuMidnightUtcMs(y: number, m: number, d: number): number {
   return Date.UTC(y, m - 1, d) - LEADERBOARD_TZ_OFFSET_MS;
 }
 
+/** Mövcud həftə açarından əvvəlki rəsmi həftə — yeni period sistemi deyil. */
+export function previousOfficialWeekKey(weekKey: string): string {
+  if (!isPeriodKey(weekKey)) throw new Error('Period açarı yanlışdır');
+  const [y, m, d] = weekKey.split('-').map(Number);
+  return officialWeekKey(bakuMidnightUtcMs(y, m, d) - 1);
+}
+
 export function officialPeriod(serverMs: number): LeaderboardPeriod {
   const dayKey = officialDayKey(serverMs);
   const weekKey = officialWeekKey(serverMs);

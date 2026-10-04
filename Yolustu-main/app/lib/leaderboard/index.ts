@@ -26,6 +26,7 @@ export {
   officialPeriod,
   officialPeriodFromClock,
   officialWeekKey,
+  previousOfficialWeekKey,
   rankLeaderboardRows,
   upsertLeaderboardRow,
 } from './leaderboardConfig';
@@ -39,11 +40,31 @@ export {
   leaderboardStateRef,
   listenLeaderboardBoard,
   listenLeaderboardState,
-  requireLeaderboardPeriod,
-  rollLeaderboardIfNeeded,
   viewLeaderboardBoard,
   weeklyBoardRef,
   weeklyEntryRef,
 } from './leaderboardService';
+import {
+  requireLeaderboardPeriod as requireLeaderboardPeriodWork,
+  rollLeaderboardIfNeeded as rollLeaderboardIfNeededWork,
+} from './leaderboardService';
+import { previousOfficialWeekKey as previousWeekFromKey } from './leaderboardConfig';
+import { settleWeeklyRankingRewards } from '@/app/game/arena/match/reward/settlement';
 
 export type { BattleLeaderboardAward } from './leaderboardService';
+
+async function settleClosedWeeklyPeriod(weekKey: string): Promise<void> {
+  await settleWeeklyRankingRewards({ periodId: previousWeekFromKey(weekKey) }).catch(() => {});
+}
+
+export async function requireLeaderboardPeriod() {
+  const period = await requireLeaderboardPeriodWork();
+  await settleClosedWeeklyPeriod(period.weekKey);
+  return period;
+}
+
+export async function rollLeaderboardIfNeeded() {
+  const period = await rollLeaderboardIfNeededWork();
+  await settleClosedWeeklyPeriod(period.weekKey);
+  return period;
+}

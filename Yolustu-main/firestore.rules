@@ -15,7 +15,8 @@ service cloud.firestore {
         path[0] == 'leaderboard_awards' ||
         path[0] == 'alliances' ||
         path[0] == 'arena_matches' ||
-        path[0] == 'arena_rewards'
+        path[0] == 'arena_rewards' ||
+        path[0] == 'arena_reward_settlements'
       );
     }
 
@@ -2377,23 +2378,43 @@ service cloud.firestore {
         );
       allow create: if request.auth != null
         && request.resource.data.rewardId == rewardId
-        && request.resource.data.sourceType == 'ARENA_MATCH'
-        && request.resource.data.rewardType == 'BATTLE_COMPLETION'
         && request.resource.data.currency == 'AZN'
         && request.resource.data.countryCode == 'AZ'
-        && request.resource.data.amount == null
-        && request.resource.data.rank == null
         && request.resource.data.walletCredited == false
         && request.resource.data.status in ['APPROVED', 'REJECTED']
         && request.resource.data.recipientType in ['USER', 'ALLIANCE']
         && request.resource.data.sourceId is string
         && request.resource.data.matchId is string
         && request.resource.data.periodId is string
-        && exists(/databases/$(database)/documents/arena_matches/$(request.resource.data.matchId))
-        && get(/databases/$(database)/documents/arena_matches/$(request.resource.data.matchId)).data.status == 'closed'
-        && get(/databases/$(database)/documents/arena_matches/$(request.resource.data.matchId)).data.result != null
-        && get(/databases/$(database)/documents/arena_matches/$(request.resource.data.matchId)).data.result.status == 'COMPLETED'
-        && get(/databases/$(database)/documents/arena_matches/$(request.resource.data.matchId)).data.result.resultId == request.resource.data.sourceId;
+        && (
+          (
+            request.resource.data.sourceType == 'ARENA_MATCH'
+            && request.resource.data.rewardType == 'BATTLE_COMPLETION'
+            && request.resource.data.amount == null
+            && request.resource.data.rank == null
+            && exists(/databases/$(database)/documents/arena_matches/$(request.resource.data.matchId))
+            && get(/databases/$(database)/documents/arena_matches/$(request.resource.data.matchId)).data.status == 'closed'
+            && get(/databases/$(database)/documents/arena_matches/$(request.resource.data.matchId)).data.result != null
+            && get(/databases/$(database)/documents/arena_matches/$(request.resource.data.matchId)).data.result.status == 'COMPLETED'
+            && get(/databases/$(database)/documents/arena_matches/$(request.resource.data.matchId)).data.result.resultId == request.resource.data.sourceId
+          )
+          || (
+            request.resource.data.sourceType == 'WEEKLY_RANKING'
+            && request.resource.data.rewardType == 'WEEKLY_RANKING'
+            && request.resource.data.matchId == ''
+            && request.resource.data.sourceId == request.resource.data.periodId
+            && request.resource.data.recipientType == 'ALLIANCE'
+            && request.resource.data.rank is int
+            && request.resource.data.rank >= 1
+            && request.resource.data.amount is int
+            && request.resource.data.amount >= 0
+            && exists(/databases/$(database)/documents/leaderboard_weekly/$(request.resource.data.periodId))
+            && get(/databases/$(database)/documents/leaderboard_weekly/$(request.resource.data.periodId)).data.status == 'closed'
+            && exists(/databases/$(database)/documents/leaderboard_resets/$(('weekly_' + request.resource.data.periodId)))
+            && get(/databases/$(database)/documents/leaderboard_resets/$(('weekly_' + request.resource.data.periodId))).data.status == 'done'
+            && get(/databases/$(database)/documents/leaderboard_resets/$(('weekly_' + request.resource.data.periodId))).data.kind == 'weekly'
+          )
+        );
       allow update, delete: if false;
 
       match /reward_events/{eventId} {
@@ -2410,7 +2431,38 @@ service cloud.firestore {
             'REWARD_CREATED',
             'REWARD_SECURITY_CHECKED',
             'REWARD_APPROVED',
-            'REWARD_REJECTED'
+            'REWARD_REJECTED',
+            'REWARD_ALLOCATION_CREATED'
+          ]
+          && request.resource.data.keys().hasOnly([
+            'type', 'rewardId', 'matchId', 'sourceId', 'periodId', 'status', 'timestamp'
+          ]);
+        allow update, delete: if false;
+      }
+    }
+
+    match /arena_reward_settlements/{settlementId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.settlementId == settlementId
+        && request.resource.data.status == 'completed'
+        && request.resource.data.countryCode == 'AZ'
+        && request.resource.data.walletCredited == false
+        && request.resource.data.sourceType == 'WEEKLY_RANKING'
+        && request.resource.data.periodId is string
+        && exists(/databases/$(database)/documents/leaderboard_weekly/$(request.resource.data.periodId))
+        && get(/databases/$(database)/documents/leaderboard_weekly/$(request.resource.data.periodId)).data.status == 'closed'
+        && exists(/databases/$(database)/documents/leaderboard_resets/$(('weekly_' + request.resource.data.periodId)))
+        && get(/databases/$(database)/documents/leaderboard_resets/$(('weekly_' + request.resource.data.periodId))).data.status == 'done';
+      allow update, delete: if false;
+
+      match /reward_events/{eventId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && request.resource.data.rewardId == settlementId
+          && request.resource.data.type in [
+            'REWARD_ALLOCATION_STARTED',
+            'REWARD_ALLOCATION_COMPLETED'
           ]
           && request.resource.data.keys().hasOnly([
             'type', 'rewardId', 'matchId', 'sourceId', 'periodId', 'status', 'timestamp'

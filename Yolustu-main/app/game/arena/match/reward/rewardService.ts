@@ -9,6 +9,8 @@ import type {
   ArenaRewardRecipientType,
   ArenaRewardSecurityStatus,
   ArenaRewardStatus,
+  ArenaRewardSourceType,
+  ArenaRewardType,
 } from './types';
 import { toArenaRewardPublic } from './eligibility';
 
@@ -31,13 +33,17 @@ export function parseArenaReward(raw: Record<string, unknown> | undefined, fallb
   const recipientType = asString(raw.recipientType);
   if (recipientType !== 'USER' && recipientType !== 'ALLIANCE') return null;
   const securityStatus = asString(raw.securityStatus) === 'BLOCKED' ? 'BLOCKED' : 'CLEAR';
+  const sourceType = asString(raw.sourceType) || 'ARENA_MATCH';
+  const rewardType = asString(raw.rewardType) || 'BATTLE_COMPLETION';
+  if (sourceType !== 'ARENA_MATCH' && sourceType !== 'WEEKLY_RANKING') return null;
+  if (rewardType !== 'BATTLE_COMPLETION' && rewardType !== 'WEEKLY_RANKING') return null;
   return {
     rewardId: asString(raw.rewardId) || fallbackId,
     periodId: asString(raw.periodId),
-    sourceType: 'ARENA_MATCH',
+    sourceType: sourceType as ArenaRewardSourceType,
     sourceId: asString(raw.sourceId),
     matchId: asString(raw.matchId),
-    rewardType: 'BATTLE_COMPLETION',
+    rewardType: rewardType as ArenaRewardType,
     recipientType: recipientType as ArenaRewardRecipientType,
     recipientId: asString(raw.recipientId),
     countryCode: asString(raw.countryCode),

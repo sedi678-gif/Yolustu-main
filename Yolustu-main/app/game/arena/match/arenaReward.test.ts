@@ -64,7 +64,7 @@ describe('arena stage 9 reward engine', () => {
     assert.equal(record.rank, null);
     assert.equal(record.currency, 'AZN');
     assert.equal(record.status, 'APPROVED');
-    assert.equal(ARENA_REWARD_ALLOCATION, null);
+    assert.deepEqual(ARENA_REWARD_ALLOCATION.entries, []);
     const publicView = toArenaRewardPublic(record);
     assert.equal('securityStatus' in publicView, false);
   });
