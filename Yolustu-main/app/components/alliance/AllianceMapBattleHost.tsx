@@ -105,6 +105,7 @@ export default function AllianceMapBattleHost({
   const attackLock = useRef(false);
   const autoJoinRef = useRef<string | null>(null);
   const seatedRef = useRef<string | null>(null);
+  const openedTableFor = useRef<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -259,17 +260,21 @@ export default function AllianceMapBattleHost({
       });
       rememberLiveBattleHint(userId, battle.id);
       setLobbyId(battle.id);
-      await createArenaMatch({
-        matchId: battle.id,
-        createdBy: userId,
-        gameMode: '5v5',
-        homeAllianceId: activeAlliance.id,
-        awayAllianceId: resolvedIdentified.id,
-        homePlayerIds: [userId, null, null, null, null],
-        awayPlayerIds: [null, null, null, null, null],
-        displayNames: { [userId]: playerName(players, userId) },
-      });
       setTableOpen(true);
+      try {
+        await createArenaMatch({
+          matchId: battle.id,
+          createdBy: userId,
+          gameMode: '5v5',
+          homeAllianceId: activeAlliance.id,
+          awayAllianceId: resolvedIdentified.id,
+          homePlayerIds: [userId, null, null, null, null],
+          awayPlayerIds: [null, null, null, null, null],
+          displayNames: { [userId]: playerName(players, userId) },
+        });
+      } catch (arenaErr) {
+        setError(arenaErr instanceof Error ? arenaErr.message : 'Arena match yazılmadı');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hücum başlamadı');
     } finally {
@@ -313,6 +318,17 @@ export default function AllianceMapBattleHost({
     autoJoinRef.current = liveView.battle.id;
     void onJoin();
   }, [activeAlliance?.id, busy, liveView, onJoin, userId]);
+
+  useEffect(() => {
+    if (!view || !userId) return;
+    const inBattle = [...(view.battle.attackerPlayerIds ?? []), ...(view.battle.defenderPlayerIds ?? [])].includes(
+      userId
+    );
+    if (!inBattle) return;
+    if (openedTableFor.current === view.battle.id) return;
+    openedTableFor.current = view.battle.id;
+    setTableOpen(true);
+  }, [userId, view]);
 
   return (
     <>
@@ -403,6 +419,11 @@ export default function AllianceMapBattleHost({
             {liveView.canJoin && !alreadyIn ? (
               <button type="button" className={styles.battleAttackBtn} disabled={busy} onClick={() => void onJoin()}>
                 {busy ? 'Qoşulur…' : 'Döyüşə qoşul'}
+              </button>
+            ) : null}
+            {alreadyIn ? (
+              <button type="button" className={styles.battleAttackBtn} onClick={() => setTableOpen(true)}>
+                Döyüş masasını aç
               </button>
             ) : null}
             {alreadyIn && liveView.phase === 'joining' ? (

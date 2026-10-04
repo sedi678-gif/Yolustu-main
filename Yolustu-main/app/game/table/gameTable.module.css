@@ -1,27 +1,27 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 280;
+  z-index: 30000;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
+  padding: 0;
+  background: rgba(0, 0, 0, 0.92);
 }
 
 .panel {
   position: relative;
   display: flex;
   width: min(100%, 430px);
-  max-height: min(100dvh, 920px);
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 100dvh;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0;
+  border: none;
   background: #070b14;
   color: #fff;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
 }
 
 .close {
@@ -44,7 +44,8 @@
 .body {
   display: flex;
   min-height: 0;
-  flex: 1;
+  flex: 1 1 auto;
+  height: 100%;
   flex-direction: column;
   gap: 0.75rem;
   overflow: auto;

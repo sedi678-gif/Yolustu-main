@@ -24,7 +24,7 @@ import {
 } from './match';
 import { matchToArenaView } from './match/matchView';
 import { createPlaceholderArenaView } from './placeholderView';
-import { EMPTY_ARENA_VIEW, type ArenaViewModel } from './types';
+import { type ArenaViewModel } from './types';
 import styles from '../table/gameTable.module.css';
 
 interface ArenaScreenProps {
@@ -110,7 +110,7 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
     });
   }, [match, playerId, presence, serverNow]);
 
-  const ui = view ?? liveView ?? (matchId ? EMPTY_ARENA_VIEW : createPlaceholderArenaView());
+  const ui = view ?? liveView ?? createPlaceholderArenaView();
   const needsLoadout = Boolean(match && playerId && match.phase === 'loadout' && !match.loadouts[playerId]);
   const waitingLoadout = Boolean(match && playerId && match.phase === 'loadout' && match.loadouts[playerId]);
 
