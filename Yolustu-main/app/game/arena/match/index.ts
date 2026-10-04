@@ -22,6 +22,7 @@ export type {
   ArenaPlayerLoadout,
 } from './types';
 export {
+  filledParticipantIds,
   filledTurnQueue,
   firstFilledSeat,
   nextFilledSeat,
@@ -89,3 +90,26 @@ export {
   officialReactionChatText,
   ARENA_REACTION_DURATION_MS,
 } from './reaction';
+export {
+  ARENA_HISTORY_PAGE_SIZE,
+  arenaViewerOutcome,
+  arenaOpponentLabel,
+  toArenaHistoryEntry,
+  isArenaHistoryParticipant,
+  publicTimelineFromAudit,
+  publicTimelineFromReaction,
+  mergePublicTimeline,
+  publicCardSummary,
+  listArenaBattleHistory,
+  getArenaMatchDetails,
+} from './history';
+export type {
+  ArenaHistoryOutcome,
+  ArenaHistoryCursor,
+  ArenaPublicTimelineKind,
+  ArenaPublicTimelineEvent,
+  ArenaHistoryEntry,
+  ArenaHistoryPage,
+  ArenaCardSummaryItem,
+  ArenaMatchDetails,
+} from './history';

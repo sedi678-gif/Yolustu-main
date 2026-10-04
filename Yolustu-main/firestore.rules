@@ -1997,6 +1997,7 @@ service cloud.firestore {
         && d.lastActionTurnSeq == -1
         && d.phase == 'loadout'
         && d.result == null
+        && d.participantIds is list
         && d.homePlayerIds is list
         && d.awayPlayerIds is list
         && d.homePlayerIds.size() == 5

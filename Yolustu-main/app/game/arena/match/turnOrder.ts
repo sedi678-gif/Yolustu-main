@@ -18,6 +18,20 @@ function padSlots(ids: Array<string | null> | undefined): Array<string | null> {
   });
 }
 
+export function filledParticipantIds(
+  homePlayerIds: Array<string | null> | undefined,
+  awayPlayerIds: Array<string | null> | undefined
+): string[] {
+  const seen: Record<string, true> = {};
+  const ids: string[] = [];
+  [...padSlots(homePlayerIds), ...padSlots(awayPlayerIds)].forEach((id) => {
+    if (!id || seen[id]) return;
+    seen[id] = true;
+    ids.push(id);
+  });
+  return ids;
+}
+
 export function filledTurnQueue(
   homePlayerIds: Array<string | null> | undefined,
   awayPlayerIds: Array<string | null> | undefined
@@ -136,6 +150,7 @@ export function createMatchSnapshot(input: {
     createdBy: input.createdBy,
     homePlayerIds,
     awayPlayerIds,
+    participantIds: filledParticipantIds(homePlayerIds, awayPlayerIds),
     players,
     displayNames: input.displayNames ?? {},
     phase: 'combat',

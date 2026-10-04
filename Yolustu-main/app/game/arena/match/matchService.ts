@@ -22,7 +22,7 @@ import {
 import { BATTLE_RESULT_COLLECTION, BATTLE_RESULT_DOC_ID } from '@/app/lib/battleFinish/battleFinishConfig';
 import { assertArenaActionAllowed, assertArenaTimeoutAllowed, assertStartEnergy, rejectClientEnergyWrite } from './policy';
 import { applyArenaMatchCompletion, officialArenaFinishReason } from './completion';
-import { advanceMatchTurn, createMatchSnapshot } from './turnOrder';
+import { advanceMatchTurn, createMatchSnapshot, filledParticipantIds } from './turnOrder';
 import { applyArenaCardPlay, applyLockedLoadout, assertArenaLoadoutLockAllowed } from './loadout';
 import { emptyArenaEffects } from './effects/types';
 import { opponentPlayerId, serverActiveUsers } from './effects/engine';
@@ -228,6 +228,9 @@ export function matchFromData(matchId: string, raw: Record<string, unknown> | un
     createdBy: asString(raw.createdBy),
     homePlayerIds: padIds(raw.homePlayerIds),
     awayPlayerIds: padIds(raw.awayPlayerIds),
+    participantIds: Array.isArray(raw.participantIds)
+      ? [...new Set(raw.participantIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))]
+      : filledParticipantIds(padIds(raw.homePlayerIds), padIds(raw.awayPlayerIds)),
     players,
     displayNames,
     currentTurn: asString(raw.currentTurn),
@@ -278,6 +281,7 @@ function matchWrite(match: ArenaMatchState): Record<string, unknown> {
     createdBy: match.createdBy,
     homePlayerIds: match.homePlayerIds,
     awayPlayerIds: match.awayPlayerIds,
+    participantIds: match.participantIds,
     players: match.players,
     displayNames: match.displayNames,
     currentTurn: match.currentTurn,
@@ -319,7 +323,11 @@ function resultDocRef(matchId: string) {
   return doc(db, ARENA_MATCH_COLLECTION, matchId, BATTLE_RESULT_COLLECTION, BATTLE_RESULT_DOC_ID);
 }
 
-function battleCompletedPayload(result: ArenaMatchResult, timestamp: number): Record<string, unknown> {
+function battleCompletedPayload(
+  result: ArenaMatchResult,
+  timestamp: number,
+  participantIds: string[]
+): Record<string, unknown> {
   return {
     type: 'BATTLE_COMPLETED',
     eventType: 'BATTLE_COMPLETED',
@@ -336,6 +344,7 @@ function battleCompletedPayload(result: ArenaMatchResult, timestamp: number): Re
     finalDamage: result.finalDamage,
     completedAt: result.completedAt,
     timestamp,
+    participantIds,
   };
 }
 
@@ -369,7 +378,7 @@ export async function completeArenaMatch(input: { matchId: string }): Promise<Ar
           updatedAt: closed.updatedAt,
         });
         if (!resultSnap.exists()) {
-          tx.set(resultRef, battleCompletedPayload(result, now));
+          tx.set(resultRef, battleCompletedPayload(result, now, match.participantIds));
         }
         if (!auditSnap.exists()) {
           tx.set(auditRef, {
@@ -434,7 +443,7 @@ export async function createArenaMatch(input: {
   homeAllianceId?: string;
   awayAllianceId?: string;
 }): Promise<ArenaMatchState> {
-  await requireFirebaseAuth();
+  const user = await requireFirebaseAuth();
   const createdBy = sanitizePlayerId(input.createdBy);
   const now = await requireServerNow();
   const ref = input.matchId
@@ -457,7 +466,9 @@ export async function createArenaMatch(input: {
         homeAllianceId: input.homeAllianceId,
         awayAllianceId: input.awayAllianceId,
       });
-      const match = { ...created, phase: 'loadout' as const, loadouts: {}, usedActionIds: {} };
+      const participantIds = [...created.participantIds];
+      if (user.uid && !participantIds.includes(user.uid)) participantIds.push(user.uid);
+      const match = { ...created, participantIds, phase: 'loadout' as const, loadouts: {}, usedActionIds: {} };
       assertStartEnergy(match.players);
       tx.set(ref, matchWrite(match));
       return match;

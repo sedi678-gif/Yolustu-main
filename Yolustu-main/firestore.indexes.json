@@ -67,6 +67,16 @@
       "fields": [
         { "fieldPath": "userId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "arena_matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participantIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "result.completedAt", "order": "DESCENDING" },
+        { "fieldPath": "matchId", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

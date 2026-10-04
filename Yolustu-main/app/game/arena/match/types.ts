@@ -61,6 +61,7 @@ export type ArenaMatchState = {
   createdBy: string;
   homePlayerIds: Array<string | null>;
   awayPlayerIds: Array<string | null>;
+  participantIds: string[];
   players: Record<string, ArenaPlayerState>;
   displayNames: Record<string, string>;
   currentTurn: string;
