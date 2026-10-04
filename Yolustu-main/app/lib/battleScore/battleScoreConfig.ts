@@ -105,8 +105,8 @@ export function applyOfficialBattleScores(input: {
   const stolen = takeOfficialScore(oppBefore, input.effect.steal, BATTLE_STEAL_MAX);
   const ownAfter = addOfficialScore(
     ownBefore,
-    input.effect.allianceDelta + stolen.taken,
-    BATTLE_ALLIANCE_DELTA_MAX + BATTLE_STEAL_MAX
+    input.effect.allianceDelta + stolen.taken + input.effect.damage,
+    BATTLE_ALLIANCE_DELTA_MAX + BATTLE_STEAL_MAX + BATTLE_DAMAGE_MAX
   );
 
   const attackerScore = input.side === 'attacker' ? ownAfter : stolen.next;

@@ -1,3 +1,5 @@
+import { officialXpDamage, type CardVariant } from '@/app/lib/battleEffects/infoDamage';
+
 export const ARENA_DAMAGE_HEAVY_MAX = 500;
 export const ARENA_DAMAGE_TSUNAMI_MAX = 200;
 export const ARENA_DAMAGE_STRATEGIC_MAX = 100;
@@ -52,12 +54,12 @@ export function officialArenaDamage(input: {
   multiplier?: number;
 }): number {
   const users = officialActiveUsers(input.activeUsers);
-  const band = arenaDamageBand(input.cardId, input.mode ?? null);
-  const mult = input.multiplier === 2 ? 2 : 1;
-  if (band === 'none') return 0;
-  if (band === 'strategic') return clampInt(users * 2 * mult, ARENA_DAMAGE_STRATEGIC_MAX);
-  if (band === 'tsunami') return clampInt(users * 4 * mult, ARENA_DAMAGE_TSUNAMI_MAX);
-  return clampInt(users * 10 * mult, ARENA_DAMAGE_HEAVY_MAX);
+  return officialXpDamage(
+    input.cardId,
+    users,
+    (input.mode ?? null) as CardVariant | null,
+    input.multiplier === 2 ? 2 : 1
+  );
 }
 
 export const ARENA_CLICK_CARD_IDS = new Set(['qul', 'usyan', 'felaket', 'qutb']);

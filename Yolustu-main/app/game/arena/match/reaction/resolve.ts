@@ -8,6 +8,28 @@ function reject(message = 'REJECT'): never {
   throw new Error(message);
 }
 
+function grantScore(
+  match: ArenaMatchState,
+  toSide: ArenaSide,
+  amount: number,
+  serverNow: number
+): ArenaMatchState {
+  if (amount <= 0) return match;
+  const added = addOfficialScore(match.sideScores[toSide], amount, ARENA_TRANSFER_MAX);
+  if (added > BATTLE_SCORE_MAX) reject('REJECT');
+  return {
+    ...match,
+    sideScores: {
+      ...match.sideScores,
+      [toSide]: added,
+    },
+    scoreHistory: [
+      ...match.scoreHistory,
+      { at: serverNow, side: toSide, score: amount },
+    ].slice(-120),
+  };
+}
+
 function transferScore(
   match: ArenaMatchState,
   fromSide: ArenaSide,
@@ -57,7 +79,7 @@ export function applyArenaReactionOutcome(
       };
       return next;
     }
-    next = transferScore(next, pending.defenderSide, pending.attackerSide, pending.damage, serverNow);
+    next = grantScore(next, pending.attackerSide, pending.damage, serverNow);
     next = {
       ...next,
       effects: { ...next.effects, lastSummary: 'Müdafiə klikləri uğursuz', clickEvent: null },

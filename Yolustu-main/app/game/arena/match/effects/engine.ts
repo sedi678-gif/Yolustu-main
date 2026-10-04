@@ -53,6 +53,28 @@ function effectsOf(match: ArenaMatchState): ArenaEffectState {
   return match.effects ?? emptyArenaEffects();
 }
 
+function grantScore(
+  match: ArenaMatchState,
+  toSide: ArenaSide,
+  amount: number,
+  serverNow: number
+): ArenaMatchState {
+  if (amount <= 0) return match;
+  const added = addOfficialScore(match.sideScores[toSide], amount, ARENA_TRANSFER_MAX);
+  if (added > BATTLE_SCORE_MAX) reject('REJECT');
+  return {
+    ...match,
+    sideScores: {
+      ...match.sideScores,
+      [toSide]: added,
+    },
+    scoreHistory: [
+      ...match.scoreHistory,
+      { at: serverNow, side: toSide, score: amount },
+    ].slice(-120),
+  };
+}
+
 function transferScore(
   match: ArenaMatchState,
   fromSide: ArenaSide,
@@ -295,7 +317,7 @@ export function resolveArenaCardEffect(input: {
       },
     };
     summary = next.effects.lastSummary;
-    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+    next = grantScore(next, side, totalDamage, serverNow);
   } else if (cardId === 'guzgu') {
     const last = prior.lastPlay;
     const canReflect = canReflectAttack(last, playerId);
@@ -312,7 +334,7 @@ export function resolveArenaCardEffect(input: {
       };
       summary = 'Güzgü hücumu əks etdirdi';
     }
-    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+    next = grantScore(next, side, totalDamage, serverNow);
   } else if (cardId === 'tikanli') {
     const countered = prior.countered;
     if (
@@ -345,7 +367,7 @@ export function resolveArenaCardEffect(input: {
       next = swapped.match;
       replaced = swapped.replaced;
     }
-    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+    next = grantScore(next, side, totalDamage, serverNow);
     summary = replaced ? `Sehrbaz ${replaced.from} → ${replaced.to}` : 'Sehrbaz';
   } else if (resolvedCard === 'casus' || cardId === 'casus') {
     if (opponentId) {
@@ -353,7 +375,7 @@ export function resolveArenaCardEffect(input: {
       next = spy.match;
       revealedCardIds = spy.ids;
     }
-    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+    next = grantScore(next, side, totalDamage, serverNow);
     summary = `Casus ${revealedCardIds.length} kart göstərdi`;
   } else if (cardId === 'qul' || resolvedCard === 'qul') {
     const defSide = opposite(side);
@@ -386,7 +408,7 @@ export function resolveArenaCardEffect(input: {
     peak = { ...slave.peak, score: boosted };
     summary = 'Üsyan 2X interval tətbiq etdi';
   } else {
-    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+    next = grantScore(next, side, totalDamage, serverNow);
     summary =
       cardId === 'duman'
         ? 'Duman gizlətdi'

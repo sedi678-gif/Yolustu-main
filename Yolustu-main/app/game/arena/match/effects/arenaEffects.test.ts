@@ -66,6 +66,13 @@ describe('arena damage formula', () => {
       assert.equal(officialArenaDamage({ cardId: 'sehrbaz', activeUsers: users }), strategic);
       assert.equal(officialArenaDamage({ cardId: '2x', activeUsers: users }), 0);
       assert.equal(officialArenaDamage({ cardId: 'qul', activeUsers: users }), 0);
+      assert.equal(officialArenaDamage({ cardId: 'tikanli', activeUsers: users }), 0);
+      assert.equal(officialArenaDamage({ cardId: 'usyan', activeUsers: users }), 0);
+      assert.equal(officialArenaDamage({ cardId: 'qaya', activeUsers: users }), strategic);
+      assert.equal(officialArenaDamage({ cardId: 'casus', activeUsers: users }), strategic);
+      assert.equal(officialArenaDamage({ cardId: 'duman', activeUsers: users }), strategic);
+      assert.equal(officialArenaDamage({ cardId: 'joker', activeUsers: users }), strategic);
+      assert.equal(officialArenaDamage({ cardId: 'guzgu', activeUsers: users }), strategic);
     });
   }
 });
@@ -75,6 +82,7 @@ describe('arena card mechanics', () => {
     const match = setup(['A'], ['B']);
     const next = play(match, 'A', 'sehrbaz', { users: 10 });
     assert.equal(next.effects.lastPlay?.damage, 20);
+    assert.equal(next.sideScores.home, 20);
     assert.ok(next.effects.lastSummary.includes('Sehrbaz'));
   });
 
