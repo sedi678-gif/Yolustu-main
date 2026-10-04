@@ -102,5 +102,11 @@ export function clientCannotWriteMatchFields(): readonly string[] {
     'status',
     'lastActionId',
     'lastActionTurnSeq',
+    'winner',
+    'loser',
+    'final score',
+    'final damage',
+    'completedAt',
+    'result',
   ];
 }

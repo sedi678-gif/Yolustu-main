@@ -1996,6 +1996,7 @@ service cloud.firestore {
         && d.turnSeq == 0
         && d.lastActionTurnSeq == -1
         && d.phase == 'loadout'
+        && d.result == null
         && d.homePlayerIds is list
         && d.awayPlayerIds is list
         && d.homePlayerIds.size() == 5
@@ -2025,6 +2026,7 @@ service cloud.firestore {
         && after.createdBy == before.createdBy
         && after.matchId == before.matchId
         && after.status == 'active'
+        && before.status == 'active'
         && after.phase == 'combat'
         && before.phase == 'combat'
         && after.loadouts == before.loadouts
@@ -2109,6 +2111,7 @@ service cloud.firestore {
       return request.auth != null
         && before.phase == 'combat'
         && after.phase == 'combat'
+        && before.status == 'active'
         && after.status == 'active'
         && after.energyStart == 30
         && after.energyMax == 30
@@ -2174,6 +2177,8 @@ service cloud.firestore {
         && after.turnSeq == before.turnSeq
         && after.players == before.players
         && after.loadouts == before.loadouts
+        && after.status == 'active'
+        && before.status == 'active'
         && after.currentTurn == before.currentTurn
         && request.time.toMillis() < before.reaction.expiresAt
         && after.diff(before).affectedKeys().hasOnly([
@@ -2196,6 +2201,8 @@ service cloud.firestore {
         && after.turnIndex == before.turnIndex
         && after.players == before.players
         && after.loadouts == before.loadouts
+        && after.status == 'active'
+        && before.status == 'active'
         && request.time.toMillis() >= before.reaction.expiresAt
         && after.diff(before).affectedKeys().hasOnly([
           'reaction',
@@ -2204,6 +2211,66 @@ service cloud.firestore {
           'sideScores',
           'scoreHistory'
         ]);
+    }
+
+    function isValidArenaComplete() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let home = before.sideScores.home;
+      let away = before.sideScores.away;
+      let hi = home > away ? home : away;
+      let lo = home < away ? home : away;
+      return request.auth != null
+        && before.status == 'active'
+        && after.status == 'closed'
+        && after.phase == before.phase
+        && after.players == before.players
+        && after.loadouts == before.loadouts
+        && after.homePlayerIds == before.homePlayerIds
+        && after.awayPlayerIds == before.awayPlayerIds
+        && after.sideScores == before.sideScores
+        && after.scoreHistory == before.scoreHistory
+        && after.turnIndex == before.turnIndex
+        && after.turnSeq == before.turnSeq
+        && after.currentTurn == before.currentTurn
+        && after.reaction == before.reaction
+        && after.effects == before.effects
+        && after.usedActionIds == before.usedActionIds
+        && after.energyStart == before.energyStart
+        && after.energyMax == before.energyMax
+        && after.result != null
+        && after.result.status == 'COMPLETED'
+        && after.result.matchId == before.matchId
+        && after.result.resultId == before.matchId + '_final'
+        && after.result.gameMode == before.gameMode
+        && after.result.winnerScore == hi
+        && after.result.loserScore == lo
+        && after.result.finalDamage == home + away
+        && after.result.completedAt is int
+        && after.result.completedAt > 0
+        && (
+          (
+            before.gameMode == '5v5'
+            && after.result.winnerPlayerId == null
+            && after.result.loserPlayerId == null
+            && (
+              (home > away && after.result.winnerAllianceId == (before.homeAllianceId == '' ? null : before.homeAllianceId) && after.result.loserAllianceId == (before.awayAllianceId == '' ? null : before.awayAllianceId))
+              || (away > home && after.result.winnerAllianceId == (before.awayAllianceId == '' ? null : before.awayAllianceId) && after.result.loserAllianceId == (before.homeAllianceId == '' ? null : before.homeAllianceId))
+              || (home == away && after.result.winnerAllianceId == null && after.result.loserAllianceId == null)
+            )
+          )
+          || (
+            before.gameMode == '1v1'
+            && after.result.winnerAllianceId == null
+            && after.result.loserAllianceId == null
+            && (
+              (home > away && after.result.winnerPlayerId in before.homePlayerIds && after.result.loserPlayerId in before.awayPlayerIds)
+              || (away > home && after.result.winnerPlayerId in before.awayPlayerIds && after.result.loserPlayerId in before.homePlayerIds)
+              || (home == away && after.result.winnerPlayerId == null && after.result.loserPlayerId == null)
+            )
+          )
+        )
+        && after.diff(before).affectedKeys().hasOnly(['status', 'result', 'updatedAt']);
     }
 
     match /arena_matches/{matchId} {
@@ -2216,8 +2283,47 @@ service cloud.firestore {
         || isValidArenaCardPlay()
         || isValidArenaClickShare()
         || isValidArenaReactionClick()
-        || isValidArenaReactionExpire();
+        || isValidArenaReactionExpire()
+        || isValidArenaComplete();
       allow delete: if false;
+
+      match /result/{resultId} {
+        allow read: if request.auth != null
+          && (
+            request.auth.uid in get(/databases/$(database)/documents/arena_matches/$(matchId)).data.homePlayerIds
+            || request.auth.uid in get(/databases/$(database)/documents/arena_matches/$(matchId)).data.awayPlayerIds
+            || request.auth.uid == get(/databases/$(database)/documents/arena_matches/$(matchId)).data.createdBy
+          );
+        allow create: if request.auth != null
+          && resultId == 'final'
+          && request.resource.data.type == 'BATTLE_COMPLETED'
+          && request.resource.data.eventType == 'BATTLE_COMPLETED'
+          && request.resource.data.status == 'COMPLETED'
+          && request.resource.data.matchId == matchId
+          && request.resource.data.resultId == matchId + '_final'
+          && request.resource.data.gameMode == get(/databases/$(database)/documents/arena_matches/$(matchId)).data.gameMode
+          && request.resource.data.winnerScore == (
+            get(/databases/$(database)/documents/arena_matches/$(matchId)).data.sideScores.home
+            > get(/databases/$(database)/documents/arena_matches/$(matchId)).data.sideScores.away
+              ? get(/databases/$(database)/documents/arena_matches/$(matchId)).data.sideScores.home
+              : get(/databases/$(database)/documents/arena_matches/$(matchId)).data.sideScores.away
+          )
+          && request.resource.data.loserScore == (
+            get(/databases/$(database)/documents/arena_matches/$(matchId)).data.sideScores.home
+            < get(/databases/$(database)/documents/arena_matches/$(matchId)).data.sideScores.away
+              ? get(/databases/$(database)/documents/arena_matches/$(matchId)).data.sideScores.home
+              : get(/databases/$(database)/documents/arena_matches/$(matchId)).data.sideScores.away
+          )
+          && request.resource.data.finalDamage == get(/databases/$(database)/documents/arena_matches/$(matchId)).data.sideScores.home
+            + get(/databases/$(database)/documents/arena_matches/$(matchId)).data.sideScores.away
+          && request.resource.data.completedAt is int
+          && request.resource.data.keys().hasAll([
+            'type', 'eventType', 'status', 'resultId', 'matchId', 'gameMode',
+            'winnerAllianceId', 'loserAllianceId', 'winnerPlayerId', 'loserPlayerId',
+            'winnerScore', 'loserScore', 'finalDamage', 'completedAt', 'timestamp'
+          ]);
+        allow update, delete: if false;
+      }
 
       match /audit/{actionId} {
         allow read: if request.auth != null;

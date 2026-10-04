@@ -1,6 +1,7 @@
 import { officialClickTarget } from '@/app/lib/battleClick/battleClickConfig';
 import { isArenaClickCard } from '../effects/damage';
 import { peakTenMinuteWindow } from '../effects/scoreHistory';
+import { assertArenaMatchActive } from '../policy';
 import type { ArenaMatchState, ArenaSide } from '../types';
 import {
   ARENA_REACTION_DURATION_MS,
@@ -38,6 +39,7 @@ export function createArenaReaction(input: {
   pending: ArenaReactionPending;
 }): ArenaReactionState {
   const { match, playerId, cardId, serverNow } = input;
+  assertArenaMatchActive(match);
   if (match.gameMode === '1v1') reject('REJECT');
   if (!isArenaClickCard(cardId)) reject('REJECT');
   const side = match.players[playerId]?.side;
@@ -85,6 +87,7 @@ export function assertArenaClickAllowed(input: {
   extra?: Record<string, unknown>;
 }): 'ok' | 'duplicate' {
   const { match, playerId, reactionId, actionId, serverNow } = input;
+  assertArenaMatchActive(match);
   const reaction = match.reaction;
   if (!reaction || !reaction.active) reject('REJECT');
   if (reaction.reactionId !== reactionId) reject('REJECT');
@@ -131,6 +134,7 @@ export function applyArenaClick(input: {
 }
 
 export function assertArenaReactionExpireAllowed(match: ArenaMatchState, serverNow: number): void {
+  assertArenaMatchActive(match);
   const reaction = match.reaction;
   if (!reaction || reaction.status !== 'ACTIVE') reject('REJECT');
   if (serverNow < reaction.expiresAt) reject('REJECT');
@@ -154,6 +158,7 @@ export function expireArenaReactionState(match: ArenaMatchState, serverNow: numb
 }
 
 export function forwardArenaReactionChat(match: ArenaMatchState, playerId: string, serverNow: number): ArenaMatchState {
+  assertArenaMatchActive(match);
   const reaction = match.reaction;
   if (!reaction || !reaction.active) reject('REJECT');
   if (match.players[playerId]?.role !== 'CLICKER') reject('REJECT');

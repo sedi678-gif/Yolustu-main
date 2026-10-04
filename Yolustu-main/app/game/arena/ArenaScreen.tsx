@@ -8,7 +8,9 @@ import PlayerRow from './PlayerRow';
 import ArenaClickerPanel from './ArenaClickerPanel';
 import ArenaReactionPanel from './ArenaReactionPanel';
 import ArenaLoadoutPicker from './ArenaLoadoutPicker';
+import ArenaResultPanel from './ArenaResultPanel';
 import {
+  completeArenaMatch,
   expireArenaReaction,
   heartbeatArenaPresence,
   listenArenaMatch,
@@ -22,6 +24,7 @@ import {
   type ArenaPresenceState,
 } from './match';
 import { matchToArenaView } from './match/matchView';
+import { officialArenaFinishReason } from './match/completion';
 import { arenaCardMeta, isArenaCardId } from './match/catalog';
 import { EMPTY_ARENA_VIEW, type ArenaViewModel } from './types';
 import styles from '../table/gameTable.module.css';
@@ -69,7 +72,15 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   }, [matchId, playerId, view]);
 
   useEffect(() => {
+    if (view || !match || !matchId) return;
+    if (match.status !== 'active') return;
+    if (!officialArenaFinishReason(match)) return;
+    void completeArenaMatch({ matchId }).catch(() => {});
+  }, [match, matchId, view]);
+
+  useEffect(() => {
     if (view || !match || !matchId || serverNow <= 0) return;
+    if (match.status !== 'active') return;
     if (match.phase !== 'combat') return;
     if (remainingTurnSeconds(match.turnExpiresAt, serverNow) > 0) return;
     if (timeoutLock.current) return;
@@ -85,6 +96,7 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
 
   useEffect(() => {
     if (view || !match || !matchId || serverNow <= 0) return;
+    if (match.status !== 'active') return;
     const reaction = match.reaction;
     if (!reaction || reaction.status !== 'ACTIVE') return;
     if (remainingTurnSeconds(reaction.expiresAt, serverNow) > 0) return;
@@ -121,7 +133,7 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   const lastMeta = last && isArenaCardId(last.cardId) ? arenaCardMeta(last.cardId) : null;
 
   async function onPlayCard(cardId: string, mode?: 'earthquake' | 'tsunami' | 'fire' | 'ice') {
-    if (!matchId || !playerId || match?.phase !== 'combat') return;
+    if (!matchId || !playerId || match?.phase !== 'combat' || match.status !== 'active') return;
     if ((cardId === 'felaket' || cardId === 'qutb') && !mode) {
       setPendingModeCard(cardId);
       return;
@@ -141,7 +153,7 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   }
 
   async function onReactionClick() {
-    if (!matchId || !playerId || !ui.clickEvent.reactionId) return;
+    if (!matchId || !playerId || !ui.clickEvent.reactionId || match?.status !== 'active') return;
     try {
       await submitArenaReactionClick({
         matchId,
@@ -157,8 +169,12 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   const energyMax = ui.energy.max || (ui.gameMode === '1v1' ? 35 : 30);
   const energyCurrent = Math.max(0, Math.min(energyMax, ui.energy.current ?? 0));
   const energyPct = energyMax > 0 ? Math.round((energyCurrent / energyMax) * 100) : 0;
+  const matchClosed = match?.status === 'closed' && Boolean(match.result);
   const handPlay =
-    match?.phase === 'combat' && playerId === match.currentTurn && match.players[playerId]?.role !== 'CLICKER'
+    !matchClosed &&
+    match?.phase === 'combat' &&
+    playerId === match.currentTurn &&
+    match.players[playerId]?.role !== 'CLICKER'
       ? onPlayCard
       : undefined;
 
@@ -192,6 +208,16 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
             {ui.doubleActive ? <p className={styles.effect}>2X aktivdir</p> : null}
             {loading ? <p className={styles.waiting}>Masa yüklənir…</p> : null}
             {waitingLoadout ? <p className={styles.waiting}>Kartların lock olundu. Rəqib gözlənilir.</p> : null}
+            {matchClosed && match?.result && playerId ? (
+              <ArenaResultPanel
+                result={match.result}
+                viewerPlayerId={playerId}
+                homeAllianceId={match.homeAllianceId}
+                awayAllianceId={match.awayAllianceId}
+                viewerSide={match.players[playerId]?.side ?? null}
+                opponentLabel={ui.awayAllianceName || 'Rəqib'}
+              />
+            ) : null}
             <div className={styles.energyWrap}>
               <p className={styles.energyLabel}>{`⚡ ${energyCurrent}/${energyMax}`}</p>
               <div className={styles.energyTrack}>

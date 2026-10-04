@@ -148,6 +148,7 @@ export function createMatchSnapshot(input: {
     scoreHistory: [],
     effects: emptyArenaEffects(),
     reaction: null,
+    result: null,
     currentTurn: first.playerId,
     turnSide: first.side,
     turnSlotIndex: first.slotIndex,

@@ -38,7 +38,7 @@ function handFromMatch(match: ArenaMatchState, viewerPlayerId: string): ArenaHan
   return loadout.cards.map((card) => {
     const meta = isArenaCardId(card.cardId) ? arenaCardMeta(card.cardId) : null;
     const cost = officialArenaCardCost(card.cardId);
-    const disabled = card.remaining <= 0 || energy < cost;
+    const disabled = match.status !== 'active' || card.remaining <= 0 || energy < cost;
     return {
       id: card.cardId,
       title: meta?.title ?? card.cardId,
@@ -89,7 +89,7 @@ export function matchToArenaView(input: {
     ...base,
     homeAllianceName: 'Sən',
     awayAllianceName: 'Rəqib',
-    matchState: { statusLabel: loadoutPhase ? 'Kart seçimi' : match.status === 'active' ? 'Arena' : 'Bağlı' },
+    matchState: { statusLabel: loadoutPhase ? 'Kart seçimi' : match.status === 'active' ? 'Arena' : 'Nəticə' },
     timer: { label: loadoutPhase || serverNow <= 0 ? '--' : String(seconds) },
     energy: { label: `⚡ ${energy}/${energyCap}`, current: energy, max: energyCap },
     gameMode: mode,

@@ -12,6 +12,8 @@ export type {
   ArenaSide,
   ArenaMatchStatus,
   ArenaMatchPhase,
+  ArenaResultStatus,
+  ArenaMatchResult,
   ArenaPlayerState,
   ArenaTurnSeat,
   ArenaMatchState,
@@ -62,8 +64,16 @@ export {
   shareArenaClickEvent,
   submitArenaReactionClick,
   expireArenaReaction,
+  completeArenaMatch,
   matchFromData,
 } from './matchService';
+export {
+  officialArenaFinishReason,
+  officialArenaLeader,
+  officialArenaFinalDamage,
+  buildArenaMatchResult,
+  applyArenaMatchCompletion,
+} from './completion';
 export { matchToArenaView } from './matchView';
 export { officialArenaDamage, resolveArenaCardEffect } from './effects';
 export type { ArenaInteractionEventType } from './effects';

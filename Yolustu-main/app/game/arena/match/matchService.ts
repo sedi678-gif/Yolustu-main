@@ -19,7 +19,9 @@ import {
   ARENA_SLOT_COUNT,
   ARENA_TURN_DURATION_MS,
 } from './config';
+import { BATTLE_RESULT_COLLECTION, BATTLE_RESULT_DOC_ID } from '@/app/lib/battleFinish/battleFinishConfig';
 import { assertArenaActionAllowed, assertArenaTimeoutAllowed, assertStartEnergy, rejectClientEnergyWrite } from './policy';
+import { applyArenaMatchCompletion, officialArenaFinishReason } from './completion';
 import { advanceMatchTurn, createMatchSnapshot } from './turnOrder';
 import { applyArenaCardPlay, applyLockedLoadout, assertArenaLoadoutLockAllowed } from './loadout';
 import { emptyArenaEffects } from './effects/types';
@@ -37,7 +39,9 @@ import type {
   ArenaMatchState,
   ArenaPlayerLoadout,
   ArenaPlayerState,
+  ArenaMatchResult,
   ArenaPresenceState,
+  ArenaResultStatus,
   ArenaSide,
   ArenaTurnRole,
 } from './types';
@@ -122,6 +126,27 @@ function parseReaction(raw: unknown): ArenaReactionState | null {
     },
     chatForwarded: data.chatForwarded === true,
     chatText: asString(data.chatText),
+  };
+}
+
+function parseResult(raw: unknown, matchId: string): ArenaMatchResult | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+  const status = asString(data.status);
+  if (status !== 'COMPLETED' && status !== 'CANCELLED' && status !== 'EXPIRED') return null;
+  return {
+    status: status as ArenaResultStatus,
+    resultId: asString(data.resultId) || `${matchId}_final`,
+    matchId: asString(data.matchId) || matchId,
+    gameMode: data.gameMode === '5v5' ? '5v5' : '1v1',
+    winnerAllianceId: asString(data.winnerAllianceId) || null,
+    loserAllianceId: asString(data.loserAllianceId) || null,
+    winnerPlayerId: asString(data.winnerPlayerId) || null,
+    loserPlayerId: asString(data.loserPlayerId) || null,
+    winnerScore: asInt(data.winnerScore),
+    loserScore: asInt(data.loserScore),
+    finalDamage: asInt(data.finalDamage),
+    completedAt: asInt(data.completedAt),
   };
 }
 
@@ -221,6 +246,7 @@ export function matchFromData(matchId: string, raw: Record<string, unknown> | un
     homeAllianceId: asString(raw.homeAllianceId),
     awayAllianceId: asString(raw.awayAllianceId),
     reaction: parseReaction(raw.reaction),
+    result: parseResult(raw.result, matchId),
     sideScores: {
       home: asInt((raw.sideScores as Record<string, unknown> | undefined)?.home),
       away: asInt((raw.sideScores as Record<string, unknown> | undefined)?.away),
@@ -270,6 +296,7 @@ function matchWrite(match: ArenaMatchState): Record<string, unknown> {
     homeAllianceId: match.homeAllianceId,
     awayAllianceId: match.awayAllianceId,
     reaction: match.reaction,
+    result: match.result,
     sideScores: match.sideScores,
     scoreHistory: match.scoreHistory,
     effects: match.effects,
@@ -286,6 +313,115 @@ async function requireServerNow(): Promise<number> {
   const now = serverNowMs();
   if (now <= 0) throw new Error('Server saatı yoxdur');
   return now;
+}
+
+function resultDocRef(matchId: string) {
+  return doc(db, ARENA_MATCH_COLLECTION, matchId, BATTLE_RESULT_COLLECTION, BATTLE_RESULT_DOC_ID);
+}
+
+function battleCompletedPayload(result: ArenaMatchResult, timestamp: number): Record<string, unknown> {
+  return {
+    type: 'BATTLE_COMPLETED',
+    eventType: 'BATTLE_COMPLETED',
+    status: result.status,
+    resultId: result.resultId,
+    matchId: result.matchId,
+    gameMode: result.gameMode,
+    winnerAllianceId: result.winnerAllianceId,
+    loserAllianceId: result.loserAllianceId,
+    winnerPlayerId: result.winnerPlayerId,
+    loserPlayerId: result.loserPlayerId,
+    winnerScore: result.winnerScore,
+    loserScore: result.loserScore,
+    finalDamage: result.finalDamage,
+    completedAt: result.completedAt,
+    timestamp,
+  };
+}
+
+export async function completeArenaMatch(input: { matchId: string }): Promise<ArenaMatchState> {
+  await requireFirebaseAuth();
+  const matchId = sanitizeBattleId(input.matchId);
+  const now = await requireServerNow();
+  const lockKey = `arena-complete:${matchId}`;
+  return replayBattleRequest(lockKey, async () =>
+    withTimeout(
+      runTransaction(db, async (tx) => {
+        const ref = matchRef(matchId);
+        const resultRef = resultDocRef(matchId);
+        const auditRef = doc(db, ARENA_MATCH_COLLECTION, matchId, 'audit', `${matchId}_final`);
+        const eventRef = doc(db, ARENA_MATCH_COLLECTION, matchId, 'reaction_events', `${matchId}_BATTLE_COMPLETED`);
+        const snap = await tx.get(ref);
+        const resultSnap = await tx.get(resultRef);
+        const auditSnap = await tx.get(auditRef);
+        const eventSnap = await tx.get(eventRef);
+        if (!snap.exists()) throw new Error('Match tapılmadı');
+        const match = matchFromData(snap.id, snap.data() as Record<string, unknown>);
+        if (match.status === 'closed' && match.result) {
+          return match;
+        }
+        const closed = applyArenaMatchCompletion(match, now);
+        const result = closed.result;
+        if (!result) throw new Error('REJECT');
+        tx.update(ref, {
+          status: closed.status,
+          result,
+          updatedAt: closed.updatedAt,
+        });
+        if (!resultSnap.exists()) {
+          tx.set(resultRef, battleCompletedPayload(result, now));
+        }
+        if (!auditSnap.exists()) {
+          tx.set(auditRef, {
+            matchId,
+            playerId: match.createdBy,
+            cardId: '',
+            timestamp: now,
+            energyBefore: 0,
+            energyAfter: 0,
+            usesBefore: 0,
+            usesAfter: 0,
+            effectType: 'BATTLE_COMPLETED',
+            damage: result.finalDamage,
+            actionId: result.resultId,
+            result: 'BATTLE_COMPLETED',
+          });
+        }
+        if (!eventSnap.exists()) {
+          tx.set(eventRef, {
+            type: 'BATTLE_COMPLETED',
+            matchId,
+            reactionId: '',
+            playerId: match.createdBy,
+            timestamp: now,
+            cardId: '',
+            currentClicks: 0,
+            requiredClicks: 0,
+            actionId: result.resultId,
+            resultId: result.resultId,
+            gameMode: result.gameMode,
+            winnerAllianceId: result.winnerAllianceId,
+            loserAllianceId: result.loserAllianceId,
+            winnerPlayerId: result.winnerPlayerId,
+            loserPlayerId: result.loserPlayerId,
+            winnerScore: result.winnerScore,
+            loserScore: result.loserScore,
+            finalDamage: result.finalDamage,
+            completedAt: result.completedAt,
+          });
+        }
+        return closed;
+      }),
+      TX_MS,
+      'Arena nəticə yazılmadı'
+    )
+  );
+}
+
+async function maybeFinalizeArenaMatch(match: ArenaMatchState): Promise<ArenaMatchState> {
+  if (match.status === 'closed' && match.result) return match;
+  if (!officialArenaFinishReason(match)) return match;
+  return completeArenaMatch({ matchId: match.matchId });
 }
 
 export async function createArenaMatch(input: {
@@ -411,7 +547,7 @@ export async function submitArenaTurnAction(input: {
       }),
       TX_MS,
       'Arena action vaxtı bitdi'
-    )
+    ).then(maybeFinalizeArenaMatch)
   );
 }
 
@@ -433,7 +569,7 @@ export async function timeoutArenaTurn(input: { matchId: string }): Promise<Aren
       }),
       TX_MS,
       'Arena timeout vaxtı bitdi'
-    )
+    ).then(maybeFinalizeArenaMatch)
   );
 }
 
@@ -537,7 +673,7 @@ export async function playArenaCard(input: {
       }),
       TX_MS,
       'Kart oynanılmadı'
-    )
+    ).then(maybeFinalizeArenaMatch)
   );
 }
 
@@ -590,7 +726,7 @@ export async function submitArenaReactionClick(input: {
       }),
       TX_MS,
       'Klik yazılmadı'
-    )
+    ).then(maybeFinalizeArenaMatch)
   );
 }
 
@@ -625,7 +761,7 @@ export async function expireArenaReaction(input: { matchId: string }): Promise<A
       }),
       TX_MS,
       'Reaction timeout yazılmadı'
-    )
+    ).then(maybeFinalizeArenaMatch)
   );
 }
 
