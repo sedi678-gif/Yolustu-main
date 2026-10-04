@@ -3,8 +3,8 @@ import type { ArenaViewModel } from './types';
 
 export function createPlaceholderArenaView(): ArenaViewModel {
   return {
-    homeAllianceName: 'Öz ittifaqı',
-    awayAllianceName: 'Rəqib ittifaqı',
+    homeAllianceName: 'Sən',
+    awayAllianceName: 'Rəqib',
     matchState: { statusLabel: 'Arena' },
     timer: { label: '--:--' },
     energy: { label: '⚡ 30/30', current: 30, max: 30 },
@@ -38,6 +38,6 @@ export function createPlaceholderArenaView(): ArenaViewModel {
     },
     activeCard: null,
     currentTurn: null,
-    clickEvent: { visible: true, cardTitle: 'Klik kartı' },
+    clickEvent: { visible: false, cardTitle: 'Klik kartı' },
   };
 }

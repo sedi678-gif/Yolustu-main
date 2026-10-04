@@ -66,8 +66,8 @@ export interface ArenaViewModel {
 }
 
 export const EMPTY_ARENA_VIEW: ArenaViewModel = {
-  homeAllianceName: 'Öz ittifaqı',
-  awayAllianceName: 'Rəqib ittifaqı',
+    homeAllianceName: 'Sən',
+    awayAllianceName: 'Rəqib',
   matchState: { statusLabel: 'Arena' },
   timer: { label: '--:--' },
   energy: { label: '-- / --', current: 0, max: 30 },

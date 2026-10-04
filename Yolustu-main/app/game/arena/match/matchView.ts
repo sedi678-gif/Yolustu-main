@@ -87,6 +87,8 @@ export function matchToArenaView(input: {
             : '';
   return {
     ...base,
+    homeAllianceName: 'Sən',
+    awayAllianceName: 'Rəqib',
     matchState: { statusLabel: loadoutPhase ? 'Kart seçimi' : match.status === 'active' ? 'Arena' : 'Bağlı' },
     timer: { label: loadoutPhase || serverNow <= 0 ? '--' : String(seconds) },
     energy: { label: `⚡ ${energy}/${energyCap}`, current: energy, max: energyCap },

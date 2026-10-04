@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { listenServerClock } from '@/app/lib/battlePlay/battleServerClock';
 import ArenaHeader from './ArenaHeader';
-import ClickCardNotification from './ClickCardNotification';
 import HandCards from './HandCards';
 import PlayerRow from './PlayerRow';
 import ArenaClickerPanel from './ArenaClickerPanel';
@@ -23,8 +22,8 @@ import {
   type ArenaPresenceState,
 } from './match';
 import { matchToArenaView } from './match/matchView';
-import { createPlaceholderArenaView } from './placeholderView';
-import { type ArenaViewModel } from './types';
+import { arenaCardMeta, isArenaCardId } from './match/catalog';
+import { EMPTY_ARENA_VIEW, type ArenaViewModel } from './types';
 import styles from '../table/gameTable.module.css';
 
 interface ArenaScreenProps {
@@ -110,9 +109,16 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
     });
   }, [match, playerId, presence, serverNow]);
 
-  const ui = view ?? liveView ?? createPlaceholderArenaView();
+  const ui = view ?? liveView ?? EMPTY_ARENA_VIEW;
   const needsLoadout = Boolean(match && playerId && match.phase === 'loadout' && !match.loadouts[playerId]);
   const waitingLoadout = Boolean(match && playerId && match.phase === 'loadout' && match.loadouts[playerId]);
+  const loading = Boolean(matchId && !match && !view);
+  const reactionActive = Boolean(match?.reaction?.status === 'ACTIVE' && ui.clickEvent.visible);
+  const isClicker = Boolean(playerId && match?.players[playerId]?.role === 'CLICKER');
+
+  const last = match?.effects?.lastPlay;
+  const hideLast = Boolean(last?.hidden && last.playerId !== playerId);
+  const lastMeta = last && isArenaCardId(last.cardId) ? arenaCardMeta(last.cardId) : null;
 
   async function onPlayCard(cardId: string, mode?: 'earthquake' | 'tsunami' | 'fire' | 'ice') {
     if (!matchId || !playerId || match?.phase !== 'combat') return;
@@ -159,80 +165,92 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   return (
     <div className={styles.body}>
       <ArenaHeader view={ui} onClose={onClose} />
-      <PlayerRow
-        label="Rəqib ittifaqı"
-        players={ui.players.away}
-        currentPlayerId={ui.currentTurn?.playerId}
-        gameMode={ui.gameMode}
-      />
-      <div className={styles.table}>
-        <HandCards cards={ui.cards.hand} onPlay={handPlay} />
-        <p className={styles.vs}>VS</p>
-        <div className={styles.energyWrap}>
-          <p className={styles.energyLabel}>{`⚡ ${energyCurrent}/${energyMax}`}</p>
-          <div className={styles.energyTrack}>
-            <div className={styles.energyFill} style={{ width: `${energyPct}%` }} />
+      <div className={styles.board}>
+        <PlayerRow
+          label="Rəqib"
+          players={ui.players.away}
+          currentPlayerId={ui.currentTurn?.playerId}
+          gameMode={ui.gameMode}
+        />
+        <div className={styles.table}>
+          <div className={styles.tableInner}>
+            {last ? (
+              <div className={styles.played} aria-label="Oynanmış kart">
+                {hideLast || !lastMeta?.image ? (
+                  <div className="flex h-full w-full items-center justify-center text-[10px] font-black text-amber-100">
+                    {hideLast ? 'Gizli' : lastMeta?.emoji ?? '🃏'}
+                  </div>
+                ) : (
+                  <img src={lastMeta.image} alt="" />
+                )}
+              </div>
+            ) : (
+              <p className={styles.vs}>VS</p>
+            )}
+            {ui.currentTurn?.label ? <p className={styles.turn}>{ui.currentTurn.label}</p> : null}
+            {ui.effectLabel && !hideLast ? <p className={styles.effect}>{ui.effectLabel}</p> : null}
+            {ui.doubleActive ? <p className={styles.effect}>2X aktivdir</p> : null}
+            {loading ? <p className={styles.waiting}>Masa yüklənir…</p> : null}
+            {waitingLoadout ? <p className={styles.waiting}>Kartların lock olundu. Rəqib gözlənilir.</p> : null}
+            <div className={styles.energyWrap}>
+              <p className={styles.energyLabel}>{`⚡ ${energyCurrent}/${energyMax}`}</p>
+              <div className={styles.energyTrack}>
+                <div className={styles.energyFill} style={{ width: `${energyPct}%` }} />
+              </div>
+            </div>
           </div>
         </div>
-        {ui.currentTurn?.label ? (
-          <p className="px-2 text-center text-[10px] font-bold text-cyan-100/80">{ui.currentTurn.label}</p>
-        ) : null}
-        {ui.effectLabel ? (
-          <p className="px-2 text-center text-[10px] font-semibold text-amber-100/90">{ui.effectLabel}</p>
-        ) : null}
-        {ui.doubleActive ? <p className="text-center text-[10px] font-bold text-cyan-200">2X aktivdir</p> : null}
+        <PlayerRow
+          label="Öz tərəf"
+          players={ui.players.home}
+          currentPlayerId={ui.currentTurn?.playerId}
+          gameMode={ui.gameMode}
+        />
       </div>
-      <PlayerRow
-        label="Öz ittifaqı"
-        players={ui.players.home}
-        currentPlayerId={ui.currentTurn?.playerId}
-        gameMode={ui.gameMode}
-      />
-      <ClickCardNotification visible={ui.clickEvent.visible} cardTitle={ui.clickEvent.cardTitle} />
-      {needsLoadout && matchId && playerId ? <ArenaLoadoutPicker matchId={matchId} playerId={playerId} /> : null}
-      {waitingLoadout ? (
-        <p className="px-3 text-center text-[11px] font-bold text-cyan-100/80">Kartların lock olundu. Döyüş gözlənilir.</p>
-      ) : null}
-      {ui.clickEvent.visible && matchId && playerId ? (
-        <ArenaReactionPanel
-          cardTitle={ui.clickEvent.cardTitle}
-          modeLabel={ui.clickEvent.modeLabel ?? ''}
-          remainingSeconds={ui.clickEvent.remainingSeconds ?? 0}
-          currentClicks={ui.clickEvent.currentClicks ?? 0}
-          requiredClicks={ui.clickEvent.requiredClicks ?? 0}
-          canClick={Boolean(ui.clickEvent.canClick)}
-          onClick={() => void onReactionClick()}
-        />
-      ) : null}
-      {ui.clickEvent.visible && matchId && playerId && match?.players[playerId]?.role === 'CLICKER' ? (
-        <ArenaClickerPanel
-          matchId={matchId}
-          playerId={playerId}
-          cardTitle={ui.clickEvent.cardTitle}
-          shareable={Boolean(ui.clickEvent.shareable)}
-          chatText={ui.clickEvent.chatText}
-        />
-      ) : null}
-      {pendingModeCard === 'felaket' ? (
-        <div className="mx-2 flex gap-2">
-          <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('felaket', 'earthquake')}>
-            Zəlzələ
-          </button>
-          <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('felaket', 'tsunami')}>
-            Tsunami
-          </button>
-        </div>
-      ) : null}
-      {pendingModeCard === 'qutb' ? (
-        <div className="mx-2 flex gap-2">
-          <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('qutb', 'fire')}>
-            Yanğın
-          </button>
-          <button type="button" className="flex-1 rounded-md border border-white/20 py-1 text-[11px]" onClick={() => void onPlayCard('qutb', 'ice')}>
-            Buz
-          </button>
-        </div>
-      ) : null}
+      <div className={styles.dock}>
+        {needsLoadout && matchId && playerId ? <ArenaLoadoutPicker matchId={matchId} playerId={playerId} /> : null}
+        {reactionActive && matchId && playerId ? (
+          <ArenaReactionPanel
+            cardTitle={ui.clickEvent.cardTitle}
+            modeLabel={ui.clickEvent.modeLabel ?? ''}
+            remainingSeconds={ui.clickEvent.remainingSeconds ?? 0}
+            currentClicks={ui.clickEvent.currentClicks ?? 0}
+            requiredClicks={ui.clickEvent.requiredClicks ?? 0}
+            canClick={Boolean(ui.clickEvent.canClick)}
+            onClick={() => void onReactionClick()}
+          />
+        ) : null}
+        {reactionActive && matchId && playerId && isClicker ? (
+          <ArenaClickerPanel
+            matchId={matchId}
+            playerId={playerId}
+            cardTitle={ui.clickEvent.cardTitle}
+            shareable={Boolean(ui.clickEvent.shareable)}
+            chatText={ui.clickEvent.chatText}
+          />
+        ) : null}
+        {pendingModeCard === 'felaket' ? (
+          <div className={styles.actions}>
+            <button type="button" className={styles.actionBtn} onClick={() => void onPlayCard('felaket', 'earthquake')}>
+              Zəlzələ
+            </button>
+            <button type="button" className={styles.actionBtn} onClick={() => void onPlayCard('felaket', 'tsunami')}>
+              Tsunami
+            </button>
+          </div>
+        ) : null}
+        {pendingModeCard === 'qutb' ? (
+          <div className={styles.actions}>
+            <button type="button" className={styles.actionBtn} onClick={() => void onPlayCard('qutb', 'fire')}>
+              Yanğın
+            </button>
+            <button type="button" className={styles.actionBtn} onClick={() => void onPlayCard('qutb', 'ice')}>
+              Buz
+            </button>
+          </div>
+        ) : null}
+        <HandCards cards={ui.cards.hand} onPlay={handPlay} />
+      </div>
     </div>
   );
 }

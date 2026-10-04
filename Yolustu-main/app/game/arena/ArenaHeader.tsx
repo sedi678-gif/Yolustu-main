@@ -1,6 +1,7 @@
 "use client";
 
 import type { ArenaViewModel } from './types';
+import styles from '../table/gameTable.module.css';
 
 interface ArenaHeaderProps {
   view: ArenaViewModel;
@@ -9,20 +10,19 @@ interface ArenaHeaderProps {
 
 export default function ArenaHeader({ view, onClose }: ArenaHeaderProps) {
   return (
-    <header className="flex shrink-0 items-center justify-between gap-2 pr-12">
-      <p className="min-w-0 truncate text-[11px] font-bold text-white">
-        <span className="text-rose-200">{view.awayAllianceName}</span>
-        <span className="px-1 text-amber-200">VS</span>
-        <span className="text-cyan-200">{view.homeAllianceName}</span>
-      </p>
-      <div className="flex shrink-0 items-center gap-1">
-        <div className="rounded-md border border-white/15 bg-black/35 px-2 py-1 text-[11px] font-black tabular-nums text-amber-100">
-          {view.timer.label}
-        </div>
-      </div>
-      <button type="button" onClick={onClose} className="sr-only">
-        Bağla
+    <header className={styles.header}>
+      <button type="button" onClick={onClose} className={styles.close} aria-label="Bağla">
+        ✕
       </button>
+      <div className={styles.vsLine}>
+        <span className={styles.awayName}>{view.awayAllianceName}</span>
+        <span className={styles.vsChip}>VS</span>
+        <span className={styles.homeName}>{view.homeAllianceName}</span>
+      </div>
+      <div className={styles.meta}>
+        <div className={styles.chip}>{view.timer.label}</div>
+        <div className={styles.chip}>{view.energy.label}</div>
+      </div>
     </header>
   );
 }
