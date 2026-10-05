@@ -79,6 +79,7 @@ export async function getUserProfile(userId: string): Promise<AppUserProfile | n
     equippedCosmetics: data.equippedCosmetics,
     frozen: Boolean(data.frozen),
     banned: Boolean(data.banned),
+    likesReceived: Math.max(0, Math.floor(Number(data.likesReceived) || 0)),
   };
 }
 

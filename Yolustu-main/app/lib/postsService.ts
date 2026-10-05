@@ -11,6 +11,7 @@ import {
   getDoc,
   setDoc,
   increment,
+  runTransaction,
   Unsubscribe,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -343,6 +344,65 @@ export function listenUserPosts(
   );
 }
 
+export function likesReceivedStorageKey(userId: string): string {
+  return `profile_likes_received_${userId}`;
+}
+
+export function readCachedLikesReceived(userId: string): number {
+  if (typeof window === 'undefined' || !userId) return 0;
+  try {
+    const n = Number(localStorage.getItem(likesReceivedStorageKey(userId)));
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function writeCachedLikesReceived(userId: string, likes: number): void {
+  if (typeof window === 'undefined' || !userId) return;
+  const n = Math.max(0, Math.floor(Number(likes) || 0));
+  try {
+    localStorage.setItem(likesReceivedStorageKey(userId), String(n));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function listenUserLikesReceived(
+  userId: string,
+  callback: (likes: number) => void
+): Unsubscribe {
+  if (!userId) {
+    callback(0);
+    return () => {};
+  }
+
+  return onSnapshot(
+    doc(db, 'users', userId),
+    (snap) => {
+      const likes = Number(snap.data()?.likesReceived) || 0;
+      callback(likes > 0 ? Math.floor(likes) : 0);
+    },
+    () => callback(readCachedLikesReceived(userId))
+  );
+}
+
+/** Mövcud post bəyənmələrini profil cəminə yazır (azaltmır). */
+export async function ensureMinLikesReceived(userId: string, min: number): Promise<void> {
+  const floor = Math.floor(Number(min) || 0);
+  if (!userId || floor <= 0) return;
+  await ensureFirebaseAuth();
+  await runTransaction(db, async (tx) => {
+    const ref = doc(db, 'users', userId);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const current = Number(snap.data()?.likesReceived) || 0;
+    if (floor > current) {
+      tx.update(ref, { likesReceived: floor });
+    }
+  });
+}
+
 export async function toggleLikePost(
   postId: string,
   userId: string
@@ -353,20 +413,32 @@ export async function toggleLikePost(
 
   await ensureFirebaseAuth();
 
-  const likeRef = doc(db, 'post_likes', `${postId}_${userId}`);
-  const likeSnap = await getDoc(likeRef);
-  if (likeSnap.exists()) {
-    const postSnap = await getDoc(doc(db, 'posts', postId));
+  return runTransaction(db, async (tx) => {
+    const likeRef = doc(db, 'post_likes', `${postId}_${userId}`);
+    const postRef = doc(db, 'posts', postId);
+    const likeSnap = await tx.get(likeRef);
+    const postSnap = await tx.get(postRef);
     const likes = Number(postSnap.data()?.likes) || 0;
-    return { liked: true, likes, alreadyLiked: true };
-  }
 
-  await setDoc(likeRef, { postId, userId, createdAt: Date.now() });
-  const postRef = doc(db, 'posts', postId);
-  await updateDoc(postRef, { likes: increment(1) });
-  const postSnap = await getDoc(postRef);
-  const likes = Number(postSnap.data()?.likes) || 1;
-  return { liked: true, likes, alreadyLiked: false };
+    if (likeSnap.exists()) {
+      return { liked: true, likes, alreadyLiked: true };
+    }
+    if (!postSnap.exists()) {
+      throw new Error('Paylaşım tapılmadı.');
+    }
+
+    const authorId = String(postSnap.data()?.userId || '');
+    const authorRef = authorId ? doc(db, 'users', authorId) : null;
+    const authorSnap = authorRef ? await tx.get(authorRef) : null;
+
+    tx.set(likeRef, { postId, userId, createdAt: Date.now() });
+    tx.update(postRef, { likes: increment(1) });
+    if (authorRef && authorSnap?.exists()) {
+      tx.update(authorRef, { likesReceived: increment(1) });
+    }
+
+    return { liked: true, likes: likes + 1, alreadyLiked: false };
+  });
 }
 
 export function listenUserLikedPostIds(

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppBottomNav from '@/app/components/AppBottomNav';
-import { listenUserPosts } from '@/app/lib/postsService';
+import { listenUserPosts, listenUserLikesReceived, readCachedLikesReceived, writeCachedLikesReceived, ensureMinLikesReceived } from '@/app/lib/postsService';
 import {
   getUserProfile,
   followUser,
@@ -45,6 +45,7 @@ export default function OtherUserProfile({ targetUserId, myId }: OtherUserProfil
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [followers, setFollowers] = useState(0);
   const [following, setFollowing] = useState(0);
+  const [likesReceived, setLikesReceived] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState('');
@@ -70,6 +71,11 @@ export default function OtherUserProfile({ targetUserId, myId }: OtherUserProfil
           frozen: u.frozen,
           banned: u.banned,
         });
+        const initialLikes = Math.max(
+          Number(u.likesReceived) || 0,
+          readCachedLikesReceived(targetUserId)
+        );
+        setLikesReceived(initialLikes);
       }
       setLoading(false);
     })();
@@ -78,6 +84,27 @@ export default function OtherUserProfile({ targetUserId, myId }: OtherUserProfil
   useEffect(() => {
     return listenUserPosts(targetUserId, setPosts);
   }, [targetUserId]);
+
+  useEffect(() => {
+    const cached = readCachedLikesReceived(targetUserId);
+    if (cached > 0) {
+      setLikesReceived((prev) => Math.max(prev, cached));
+    }
+    return listenUserLikesReceived(targetUserId, (likes) => {
+      writeCachedLikesReceived(targetUserId, likes);
+      setLikesReceived((prev) => Math.max(prev, likes));
+    });
+  }, [targetUserId]);
+
+  useEffect(() => {
+    const live = posts.reduce((sum, post) => sum + (Number(post.likes) || 0), 0);
+    if (live <= 0) return;
+    setLikesReceived((prev) => Math.max(prev, live));
+    if (live > readCachedLikesReceived(targetUserId)) {
+      writeCachedLikesReceived(targetUserId, live);
+      void ensureMinLikesReceived(targetUserId, live);
+    }
+  }, [posts, targetUserId]);
 
   useEffect(() => {
     return listenFollowCounts(targetUserId, (f1, f2) => {
@@ -168,6 +195,7 @@ export default function OtherUserProfile({ targetUserId, myId }: OtherUserProfil
           <button type="button" className={styles.statChipBtn} onClick={() => setFollowListMode('following')}>
             İzlənən: <strong>{following}</strong>
           </button>
+          <span>Bəyənmə: <strong>{likesReceived}</strong></span>
           <span>Paylaşım: <strong>{posts.length}</strong></span>
         </div>
 

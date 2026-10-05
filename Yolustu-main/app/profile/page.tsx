@@ -7,7 +7,19 @@ import { useUser } from '@/context/UserContext';
 import { useSettings } from '@/context/SettingsContext';
 import { ensurePlayerProfile, reconcilePlayerIdentity } from '@/app/components/alliance/allianceService';
 import { notifyUserIdChanged } from '@/app/lib/userId';
-import { createPost, listenUserPosts, toggleLikePost, listenUserLikedPostIds, addPostComment, listenPostComments, preparePostMediaFile } from '@/app/lib/postsService';
+import {
+  createPost,
+  listenUserPosts,
+  toggleLikePost,
+  listenUserLikedPostIds,
+  listenUserLikesReceived,
+  ensureMinLikesReceived,
+  readCachedLikesReceived,
+  writeCachedLikesReceived,
+  addPostComment,
+  listenPostComments,
+  preparePostMediaFile,
+} from '@/app/lib/postsService';
 import { ensureFirebaseAuth } from '@/app/lib/firebaseAuth';
 import { PostComment, SocialPost } from '@/app/lib/socialTypes';
 import { listenFollowCounts, reportContent } from '@/app/lib/socialService';
@@ -363,6 +375,18 @@ function ProfilePageContent() {
 
   useEffect(() => {
     if (!currentUser.id || !isRegistered) return;
+    const cached = readCachedLikesReceived(currentUser.id);
+    if (cached > 0) {
+      setStats((prev) => ({ ...prev, likes: Math.max(prev.likes, cached) }));
+    }
+    return listenUserLikesReceived(currentUser.id, (likes) => {
+      writeCachedLikesReceived(currentUser.id, likes);
+      setStats((prev) => ({ ...prev, likes: Math.max(prev.likes, likes) }));
+    });
+  }, [currentUser.id, isRegistered]);
+
+  useEffect(() => {
+    if (!currentUser.id || !isRegistered) return;
     return listenUserProfileMedia(
       currentUser.id,
       (media) => {
@@ -491,6 +515,7 @@ function ProfilePageContent() {
         bio: 'Yeni başlanğıc 🚀',
         allianceName: savedAlliance,
         createdAt: Date.now(),
+        likesReceived: 0,
       };
 
       await setDoc(doc(db, "users", generatedId), newUser);
@@ -530,6 +555,7 @@ function ProfilePageContent() {
         bio: 'Yeni başlanğıc 🚀',
         allianceName: savedAlliance,
         createdAt: Date.now(),
+        likesReceived: 0,
       };
 
       localStorage.setItem('app_current_user_v6', JSON.stringify(newUser));
@@ -635,6 +661,18 @@ function ProfilePageContent() {
     );
   }, [currentUser.id, isRegistered]);
 
+  useEffect(() => {
+    if (!currentUser.id || !isRegistered) return;
+    const live = posts.reduce((sum, post) => sum + (Number(post.likes) || 0), 0);
+    if (live <= 0) return;
+    setStats((prev) => (live > prev.likes ? { ...prev, likes: live } : prev));
+    const stored = readCachedLikesReceived(currentUser.id);
+    if (live > stored) {
+      writeCachedLikesReceived(currentUser.id, live);
+      void ensureMinLikesReceived(currentUser.id, live);
+    }
+  }, [posts, currentUser.id, isRegistered]);
+
   const closePostViewer = () => setSelectedPostId(null);
 
   useEffect(() => {
@@ -673,6 +711,13 @@ function ProfilePageContent() {
           p.id === id ? { ...p, isLiked: true, likes: result.likes } : p
         )
       );
+      if (!result.alreadyLiked) {
+        setStats((prev) => {
+          const nextLikes = prev.likes + 1;
+          writeCachedLikesReceived(currentUser.id, nextLikes);
+          return { ...prev, likes: nextLikes };
+        });
+      }
     } catch (err) {
       console.error(err);
       alert('Bəyənmə qeydə alınmadı.');

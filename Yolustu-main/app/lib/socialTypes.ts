@@ -72,6 +72,7 @@ export interface AppUserProfile {
   };
   frozen?: boolean;
   banned?: boolean;
+  likesReceived?: number;
 }
 
 export interface UserReport {
