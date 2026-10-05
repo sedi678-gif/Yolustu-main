@@ -32,6 +32,8 @@ export interface AllianceData {
   fortressUpdatedAt?: number;
   fortressUpgradedAt?: number;
   fortressPurchasedAt?: number;
+  previousName?: string;
+  nameUpdatedAt?: number;
 }
 
 export type AllianceFlagPattern =

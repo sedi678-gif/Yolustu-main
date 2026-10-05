@@ -417,6 +417,50 @@ export async function updateAllianceFlag(
   return normalized;
 }
 
+export async function updateAllianceName(
+  allianceId: string,
+  nextName: string,
+  actorId: string,
+  options: LeaderCheckOptions = {}
+): Promise<string> {
+  const name = nextName.trim().replace(/\s+/g, ' ');
+  if (name.length < 2) throw new Error('İttifaq adı ən azı 2 simvol olmalıdır');
+  if (name.length > 32) throw new Error('İttifaq adı 32 simvoldan uzun ola bilməz');
+
+  const allianceRef = doc(db, 'alliances', allianceId);
+  const snap = await withTimeout(getDoc(allianceRef), 4_000, 'İttifaq oxunmadı.');
+  if (!snap.exists()) throw new Error('İttifaq tapılmadı');
+  const data = { id: snap.id, ...snap.data() } as AllianceData;
+  if (!isAllianceLeader(data, actorId, options)) {
+    throw new Error('Yalnız lider ittifaq adını dəyişə bilər');
+  }
+
+  const previousName = data.name?.trim() || '';
+  if (previousName === name) return name;
+
+  await withTimeout(
+    updateDoc(allianceRef, {
+      name,
+      previousName,
+      nameUpdatedAt: Date.now(),
+    }),
+    6_000,
+    'Ad saxlanması vaxtı bitdi.'
+  );
+
+  const members = [...new Set([...(data.members ?? []), data.leaderId].filter(Boolean))];
+  await Promise.all(
+    members.map((memberId) =>
+      updateDoc(doc(db, 'players', memberId), {
+        allianceName: name,
+        updatedAt: Date.now(),
+      }).catch(() => undefined)
+    )
+  );
+
+  return name;
+}
+
 export async function addPlayerScore(userId: string, amount: number): Promise<number> {
   const ref = doc(db, 'players', userId);
   return runTransaction(db, async (tx) => {

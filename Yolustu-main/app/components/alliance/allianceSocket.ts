@@ -21,6 +21,7 @@ export function emitAllianceHubEvent(
     | 'alliance_joined'
     | 'alliance_left'
     | 'alliance_flag_updated'
+    | 'alliance_renamed'
     | 'chat_message'
     | 'cards_updated'
     | 'fortress_updated'

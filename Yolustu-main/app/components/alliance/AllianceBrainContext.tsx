@@ -28,6 +28,7 @@ import {
   ensurePlayerProfile,
   resetBattleCards,
   updateAllianceFlag,
+  updateAllianceName,
 } from './allianceService';
 import { getAllianceSocket, emitAllianceHubEvent } from './allianceSocket';
 import {
@@ -91,6 +92,7 @@ interface AllianceBrainContextValue {
   handleLeaveAlliance: () => Promise<void>;
   handleSendMessage: (text: string, channel: ChatChannel) => Promise<void>;
   handleUpdateAllianceFlag: (flag: AllianceFlagConfig) => Promise<void>;
+  handleRenameAlliance: (name: string) => Promise<void>;
   handleUpgradeFortress: () => Promise<void>;
   attackTargetId: string | null;
   setAttackTargetId: (id: string | null) => void;
@@ -637,6 +639,30 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     [activeAlliance, userId, userName, firebaseUid, myProfile?.isLeader]
   );
 
+  const handleRenameAlliance = useCallback(
+    async (name: string) => {
+      if (!activeAlliance) throw new Error('İttifaq seçilməyib');
+      const saved = await updateAllianceName(activeAlliance.id, name, userId, {
+        firebaseUid,
+        isLeaderProfile: myProfile?.isLeader,
+        displayName: userName,
+      });
+      setActiveAlliance({
+        ...activeAlliance,
+        name: saved,
+        previousName: activeAlliance.name,
+        nameUpdatedAt: Date.now(),
+      });
+      localStorage.setItem('app_user_alliance_name', saved);
+      emitAllianceHubEvent('alliance_renamed', {
+        allianceId: activeAlliance.id,
+        userId,
+        name: saved,
+      });
+    },
+    [activeAlliance, userId, userName, firebaseUid, myProfile?.isLeader]
+  );
+
   const notifyAllianceInfoViewed = useCallback(
     (alliance: Pick<AllianceData, 'id' | 'name' | 'members' | 'leaderId'>) => {
       void persistAllianceInfoView({
@@ -700,6 +726,7 @@ export function AllianceBrainProvider({ userId, userName, firebaseUid = null, ch
     handleLeaveAlliance,
     handleSendMessage,
     handleUpdateAllianceFlag,
+    handleRenameAlliance,
     handleUpgradeFortress,
     attackTargetId,
     setAttackTargetId,
