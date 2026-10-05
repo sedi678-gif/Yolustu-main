@@ -24,7 +24,7 @@ import {
 import { BATTLE_RESULT_COLLECTION, BATTLE_RESULT_DOC_ID } from '@/app/lib/battleFinish/battleFinishConfig';
 import { assertArenaActionAllowed, assertArenaTimeoutAllowed, assertStartEnergy, rejectClientEnergyWrite } from './policy';
 import { applyArenaMatchCompletion, officialArenaFinishReason } from './completion';
-import { advanceMatchTurn, createMatchSnapshot, filledParticipantIds } from './turnOrder';
+import { advanceMatchTurn, applyArenaSeat, createMatchSnapshot, filledParticipantIds } from './turnOrder';
 import { applyArenaCardPlay, applyLockedLoadout, assertArenaLoadoutLockAllowed, fillClickerUsyanLoadouts } from './loadout';
 import { emptyArenaEffects } from './effects/types';
 import { opponentPlayerId, serverActiveUsers } from './effects/engine';
@@ -61,8 +61,33 @@ import type {
 
 const TX_MS = 12_000;
 
-function matchRef(matchId: string) {
+export function matchRef(matchId: string) {
   return doc(db, ARENA_MATCH_COLLECTION, matchId);
+}
+
+export async function seatArenaCombatantInTx(
+  tx: Transaction,
+  matchId: string,
+  playerId: string,
+  side: 'home' | 'away',
+  displayName?: string
+): Promise<void> {
+  const ref = matchRef(matchId);
+  const snap = await tx.get(ref);
+  if (!snap.exists()) return;
+  const current = matchFromData(snap.id, snap.data() as Record<string, unknown>);
+  if (current.status === 'closed') return;
+  const next = fillClickerUsyanLoadouts(applyArenaSeat(current, playerId, side, displayName));
+  if (next === current) return;
+  tx.update(ref, {
+    homePlayerIds: next.homePlayerIds,
+    awayPlayerIds: next.awayPlayerIds,
+    participantIds: next.participantIds,
+    players: next.players,
+    displayNames: next.displayNames,
+    loadouts: next.loadouts,
+    updatedAt: Date.now(),
+  });
 }
 
 function presenceRef(matchId: string, playerId: string) {

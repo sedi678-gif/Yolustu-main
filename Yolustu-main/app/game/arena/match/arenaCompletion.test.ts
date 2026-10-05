@@ -81,6 +81,17 @@ describe('arena stage 7 match completion', () => {
     assert.equal(result.loserScore, 20);
   });
 
+  it('finishes as draw when both sides reach the score cap', () => {
+    const match = {
+      ...baseMatch(),
+      sideScores: { home: BATTLE_FINISH_SCORE_WIN, away: BATTLE_FINISH_SCORE_WIN },
+    };
+    assert.equal(officialArenaFinishReason(match), 'score_reached');
+    const result = buildArenaMatchResult(match, 5_100_000);
+    assert.equal(result.winnerAllianceId, null);
+    assert.equal(result.winnerScore, BATTLE_FINISH_SCORE_WIN);
+  });
+
   it('does not complete while a reaction is ACTIVE', () => {
     const match = baseMatch();
     const blocked = {

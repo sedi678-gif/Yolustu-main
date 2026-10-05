@@ -67,6 +67,7 @@ export function fillClickerUsyanLoadouts(match: ArenaMatchState): ArenaMatchStat
   let changed = false;
   for (const player of Object.values(match.players)) {
     if (player.role !== 'CLICKER') continue;
+    if (loadouts[player.playerId]) continue;
     loadouts[player.playerId] = clickerUsyanLoadout(player.playerId, match.matchId);
     changed = true;
   }

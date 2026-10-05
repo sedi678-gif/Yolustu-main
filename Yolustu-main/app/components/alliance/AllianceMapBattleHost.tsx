@@ -139,10 +139,14 @@ export default function AllianceMapBattleHost({
       setView(null);
       return;
     }
-    return listenMyJoiningBattle(selectedAllianceId, (id) => {
-      setLobbyId(id);
-    });
-  }, [selectedAllianceId]);
+    return listenMyJoiningBattle(
+      selectedAllianceId,
+      (id) => {
+        setLobbyId(id);
+      },
+      { playerId: userId, allianceId: activeAlliance?.id ?? '' }
+    );
+  }, [selectedAllianceId, userId, activeAlliance?.id]);
 
   useEffect(() => {
     if (!lobbyId) {
@@ -175,7 +179,7 @@ export default function AllianceMapBattleHost({
       userId
     );
     if (!inBattle) return;
-    if (view.battle.status === 'joining' || view.battle.status === 'locked') {
+    if (view.battle.status === 'locked') {
       const attackers = view.battle.attackerPlayerIds ?? [];
       const open = () => {
         void activateAllianceBattle(view.battle.id, userId).catch(() => {});

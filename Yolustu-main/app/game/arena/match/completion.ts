@@ -10,7 +10,7 @@ export function officialArenaFinishReason(match: ArenaMatchState): 'score_reache
   if (match.reaction?.status === 'ACTIVE') return null;
   const home = match.sideScores.home;
   const away = match.sideScores.away;
-  if (home !== away && (home >= BATTLE_FINISH_SCORE_WIN || away >= BATTLE_FINISH_SCORE_WIN)) {
+  if (home >= BATTLE_FINISH_SCORE_WIN || away >= BATTLE_FINISH_SCORE_WIN) {
     return 'score_reached';
   }
   if (match.turnIndex > BATTLE_FINISH_TURN_LIMIT) return 'turn_limit';

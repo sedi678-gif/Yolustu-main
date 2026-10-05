@@ -73,7 +73,7 @@ export function finishReasonFromScores(
 ): BattleFinishReason | null {
   const atk = readBoundedScore(attackerScore);
   const def = readBoundedScore(defenderScore);
-  if (atk !== def && (atk >= BATTLE_FINISH_SCORE_WIN || def >= BATTLE_FINISH_SCORE_WIN)) {
+  if (atk >= BATTLE_FINISH_SCORE_WIN || def >= BATTLE_FINISH_SCORE_WIN) {
     return 'score_reached';
   }
   if (turn > BATTLE_FINISH_TURN_LIMIT) return 'turn_limit';

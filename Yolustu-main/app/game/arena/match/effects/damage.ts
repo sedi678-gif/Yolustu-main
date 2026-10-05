@@ -68,3 +68,9 @@ export const ARENA_CLICK_CARD_IDS = new Set(['qul', 'usyan', 'felaket', 'qutb'])
 export function isArenaClickCard(cardId: string): boolean {
   return ARENA_CLICK_CARD_IDS.has(cardId);
 }
+
+/** Buz dərhal donur; klik pəncərəsi yalnız Od / Zəlzələ / Tsunami / Qul / Üsyan. */
+export function isArenaDefenseClickCard(cardId: string, mode: ArenaCardMode | null): boolean {
+  if (cardId === 'qutb' && mode === 'ice') return false;
+  return isArenaClickCard(cardId);
+}

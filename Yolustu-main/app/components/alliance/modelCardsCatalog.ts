@@ -119,7 +119,7 @@ export const MODEL_CARD_DEFS: ModelCardDef[] = [
     title: 'Tikanlı Məftil',
     emoji: '🪢',
     accent: '#ca8a04',
-    info: 'Tikanlı Məftil Kartı\nBu kart rəqibin sonuncu istifadə etdiyi kartı 3 dəfə ard-arda təkrar etməyə məcbur edir və bu müddətdə rəqibin qazandığı xalların 50%-ni sənin ittifaqının hesabına köçürür.',
+    info: 'Tikanlı Məftil Kartı\nBu kart rəqibin sonuncu istifadə etdiyi kartı 1 dəfə təkrar etməyə məcbur edir və bu müddətdə rəqibin qazandığı xalların 50%-ni sənin ittifaqının hesabına köçürür.',
   },
   {
     id: 'felaket',

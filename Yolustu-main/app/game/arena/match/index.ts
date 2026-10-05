@@ -27,6 +27,7 @@ export {
   firstFilledSeat,
   nextFilledSeat,
   remainingTurnSeconds,
+  applyArenaSeat,
   createMatchSnapshot,
   advanceMatchTurn,
   turnLabel,

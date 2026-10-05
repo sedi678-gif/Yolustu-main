@@ -150,8 +150,14 @@ export function applyArenaReactionOutcome(
       };
       return next;
     }
+    const victimSide =
+      pending.defenderSide === pending.attackerSide
+        ? pending.attackerSide === 'home'
+          ? 'away'
+          : 'home'
+        : pending.defenderSide;
     const boosted = Math.min(ARENA_TRANSFER_MAX, peak.score * 2);
-    next = transferScore(next, pending.defenderSide, pending.attackerSide, boosted, serverNow);
+    next = transferScore(next, victimSide, pending.attackerSide, boosted, serverNow);
     next = {
       ...next,
       effects: {

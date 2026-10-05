@@ -115,6 +115,34 @@ export function buildPlayerMap(
   return players;
 }
 
+export function applyArenaSeat(
+  match: ArenaMatchState,
+  playerId: string,
+  side: ArenaSide,
+  displayName?: string
+): ArenaMatchState {
+  const id = playerId.trim();
+  if (!id) return match;
+  if (match.players[id]) return match;
+  const slots = [...(side === 'home' ? match.homePlayerIds : match.awayPlayerIds)];
+  const empty = slots.findIndex((seat) => !seat);
+  if (empty < 0) return match;
+  slots[empty] = id;
+  const homePlayerIds = side === 'home' ? slots : match.homePlayerIds;
+  const awayPlayerIds = side === 'away' ? slots : match.awayPlayerIds;
+  const rebuilt = buildPlayerMap(homePlayerIds, awayPlayerIds);
+  return {
+    ...match,
+    homePlayerIds,
+    awayPlayerIds,
+    players: { ...match.players, [id]: rebuilt[id] },
+    participantIds: filledParticipantIds(homePlayerIds, awayPlayerIds),
+    displayNames: displayName?.trim()
+      ? { ...match.displayNames, [id]: displayName.trim().slice(0, 32) }
+      : match.displayNames,
+  };
+}
+
 export function energiesEqual(
   before: Record<string, ArenaPlayerState>,
   after: Record<string, ArenaPlayerState>
@@ -182,16 +210,8 @@ export function createMatchSnapshot(input: {
 export function advanceMatchTurn(match: ArenaMatchState, serverNow: number): ArenaMatchState {
   const seats = filledTurnQueue(match.homePlayerIds, match.awayPlayerIds);
   const next = nextFilledSeat(seats, currentSeatFromMatch(match));
-  const effects = match.effects
-    ? {
-        ...match.effects,
-        forcedReplay:
-          match.effects.forcedReplay?.playerId === match.currentTurn ? null : match.effects.forcedReplay,
-      }
-    : match.effects;
   return {
     ...match,
-    effects,
     currentTurn: next.playerId,
     turnSide: next.side,
     turnSlotIndex: next.slotIndex,

@@ -233,10 +233,30 @@ async function finishBattleWork(input: { battleId: string; playerId: string }): 
       const resultSnap = await tx.get(resultRef);
       const arenaSnap = await tx.get(doc(db, ARENA_MATCH_COLLECTION, battleId));
       if (!parentSnap.exists()) throw new Error('Battle tapılmadı');
-      const battle = battleFromData(parentSnap.id, parentSnap.data());
+      let battle = battleFromData(parentSnap.id, parentSnap.data());
 
       if (resultSnap.exists()) {
         return { ...viewBattleFinishResult(battleId, resultSnap.data() as Record<string, unknown>), duplicate: true };
+      }
+
+      if (arenaSnap.exists()) {
+        const arena = arenaSnap.data() as {
+          status?: string;
+          turnIndex?: number;
+          sideScores?: { home?: number; away?: number };
+        };
+        const home = Math.max(0, Math.trunc(Number(arena.sideScores?.home) || 0));
+        const away = Math.max(0, Math.trunc(Number(arena.sideScores?.away) || 0));
+        battle = {
+          ...battle,
+          attackerScore: home,
+          defenderScore: away,
+          turn: Math.max(0, Math.trunc(Number(arena.turnIndex) || 0)),
+          status:
+            arena.status === 'closed' && battle.status !== 'finished'
+              ? 'active'
+              : battle.status,
+        };
       }
       if (battle.status === 'finished') {
         const payload: Omit<BattleFinishResult, 'duplicate'> = {

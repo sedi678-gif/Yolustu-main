@@ -273,6 +273,23 @@ describe('arena reaction click system', () => {
     });
     assert.equal(match.reaction?.requiredClicks, 6);
     assert.equal(match.reaction?.cardId, 'usyan');
+    const homeAfterQul = match.sideScores.home;
+    const rx = match.reaction;
+    if (rx) {
+      for (let i = 0; i < rx.requiredClicks; i += 1) {
+        match = applyArenaClick({
+          match,
+          playerId: 'A0',
+          reactionId: rx.reactionId,
+          actionId: `usyan_click_${i}`,
+          serverNow: match.updatedAt + i + 1,
+        });
+      }
+    }
+    assert.equal(match.reaction?.status, 'SUCCESS');
+    if (homeAfterQul > 0) {
+      assert.ok(match.sideScores.home < homeAfterQul || match.sideScores.away > 0);
+    }
   });
 
   it('clicker növbəsiz üsyan oynayır', () => {
@@ -298,5 +315,19 @@ describe('arena reaction click system', () => {
     assert.equal(match.currentTurn, turn);
     assert.equal(match.reaction?.cardId, 'usyan');
     assert.equal(match.players.A2.role, 'CLICKER');
+  });
+
+  it('Buz 5v5-də dərhal donur, klik pəncərəsi açmır', () => {
+    const match = applyArenaCardPlay({
+      match: setup5v5(),
+      playerId: 'H0',
+      cardId: 'qutb',
+      actionId: 'ice5',
+      serverNow: 1_000_020,
+      activeUsers: 3,
+      mode: 'ice',
+    });
+    assert.equal(match.reaction, null);
+    assert.ok((match.effects.frozenUntil.away ?? 0) > 1_000_020);
   });
 });

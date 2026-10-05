@@ -3,6 +3,7 @@ export {
   officialActiveUsers,
   validateArenaCardMode,
   isArenaClickCard,
+  isArenaDefenseClickCard,
   ARENA_DAMAGE_HEAVY_MAX,
   ARENA_DAMAGE_TSUNAMI_MAX,
   ARENA_DAMAGE_STRATEGIC_MAX,

@@ -205,7 +205,7 @@ describe('arena card mechanics', () => {
       activeUsers: 10,
     });
     assert.equal(wired.match.effects.forcedReplay?.cardId, 'ogru');
-    assert.equal(wired.match.effects.forcedReplay?.remaining, 3);
+    assert.equal(wired.match.effects.forcedReplay?.remaining, 1);
   });
 
   it('Üsyan → Qul edən', () => {

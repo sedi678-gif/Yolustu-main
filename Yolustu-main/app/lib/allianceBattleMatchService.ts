@@ -27,6 +27,7 @@ import { BATTLE_SCORE_COLLECTION, initialBattleScoreDoc } from '@/app/lib/battle
 import { BATTLE_TURN_DURATION_MS, initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
 import { ARENA_MATCH_COLLECTION } from '@/app/game/arena/match/config';
+import { seatArenaCombatantInTx } from '@/app/game/arena/match/matchService';
 import { stampJoinFailedResult } from '@/app/lib/battleFinish/battleFinishService';
 import { readStoredDefenseLoadout } from '@/app/lib/battleDefense/battleDefenseConfig';
 import { stampDefenseSnapshot } from '@/app/lib/battleDefense/battleDefenseService';
@@ -432,6 +433,13 @@ export async function joinAllianceMapBattle(input: {
         tx.set(scoreRef, initialBattleScoreDoc(battleId, playerId));
       }
 
+      await seatArenaCombatantInTx(
+        tx,
+        battleId,
+        playerId,
+        side === 'attacker' ? 'home' : 'away'
+      );
+
       return {
         ...battle,
         eventSeq: seq,
@@ -676,7 +684,8 @@ export function listenAllianceMapBattle(
 
 export function listenMyJoiningBattle(
   allianceId: string,
-  onChange: (battleId: string | null) => void
+  onChange: (battleId: string | null) => void,
+  viewer?: { playerId?: string; allianceId?: string }
 ): Unsubscribe {
   return onSnapshot(cooldownRef(allianceId), async (snap) => {
     if (!snap.exists()) {
@@ -700,6 +709,16 @@ export function listenMyJoiningBattle(
     }
     const arenaSnap = await getDoc(doc(db, ARENA_MATCH_COLLECTION, battle.id));
     if (arenaSnap.exists() && (arenaSnap.data() as { status?: string }).status === 'closed') {
+      onChange(null);
+      return;
+    }
+    const viewerAlliance = viewer?.allianceId || '';
+    const viewerPlayer = viewer?.playerId || '';
+    const inBattle = [...(battle.attackerPlayerIds ?? []), ...(battle.defenderPlayerIds ?? [])].includes(viewerPlayer);
+    const fighting =
+      Boolean(viewerAlliance) &&
+      (viewerAlliance === battle.attackerAllianceId || viewerAlliance === battle.defenderAllianceId);
+    if (!inBattle && !fighting) {
       onChange(null);
       return;
     }
