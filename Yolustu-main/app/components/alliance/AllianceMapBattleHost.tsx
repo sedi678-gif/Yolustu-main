@@ -97,7 +97,6 @@ export default function AllianceMapBattleHost({
   const [error, setError] = useState<string | null>(null);
   const [tableOpen, setTableOpen] = useState(false);
   const [arenaMatch, setArenaMatch] = useState<ArenaMatchState | null>(null);
-  const [restored, setRestored] = useState(false);
   const attackLock = useRef(false);
   const autoJoinRef = useRef<string | null>(null);
   const seatedRef = useRef<string | null>(null);
@@ -112,13 +111,9 @@ export default function AllianceMapBattleHost({
   useEffect(() => {
     if (!userId) return;
     return listenBattleReconnect(userId, (snap) => {
-      if (!snap) {
-        setRestored(false);
-        return;
-      }
+      if (!snap) return;
       setLobbyId(snap.battle.id);
       setView(viewAllianceBattle(snap.battle, snap.serverNow || Date.now()));
-      setRestored(true);
     });
   }, [userId]);
 
@@ -401,9 +396,6 @@ export default function AllianceMapBattleHost({
               />
             </div>
             {error ? <p className={styles.battleJoinWarn}>{error}</p> : null}
-            {restored ? (
-              <p className={styles.battleReconnectNote}>Döyüş server state-dən bərpa olundu.</p>
-            ) : null}
             {liveView.canJoin && !alreadyIn ? (
               <button type="button" className={styles.battleAttackBtn} disabled={busy} onClick={() => void onJoin()}>
                 {busy ? 'Qoşulur…' : 'Döyüşə qoşul'}
@@ -420,7 +412,6 @@ export default function AllianceMapBattleHost({
                 onLocked={() => setTableOpen(true)}
               />
             ) : null}
-            {alreadyIn && !arenaMatch ? <p className={styles.battleJoinHint}>Masa hazırlanır… 5 kart seçimi açılacaq.</p> : null}
             {tableReady ? (
               <button type="button" className={styles.battleAttackBtn} onClick={() => setTableOpen(true)}>
                 Hücum
