@@ -1022,18 +1022,17 @@ function ProfilePageContent() {
               className={`${profileStyles.socialModeBtn} ${socialOn ? profileStyles.socialModeBtnOn : profileStyles.socialModeBtnOff}`}
               aria-pressed={socialOn}
               disabled={socialToggling || !userId}
-              aria-label={socialOn ? 'Sosial rejim açıldı' : 'Sosial rejim bağlandı'}
+              aria-label={socialOn ? 'Sosial rejim açıq' : 'Sosial rejim bağlı'}
               onClick={() => {
                 if (!userId || socialToggling) return;
                 const next = !socialOn;
                 setSocialOn(next);
                 setSocialToggling(true);
+                setSocialNotice(next ? 'XP rejimini söndürdünüz' : 'XP rejimini yandırdınız');
                 void setProPanelActive(userId, next)
-                  .then(() => {
-                    setSocialNotice(next ? 'Sosial rejim açıldı' : 'Sosial rejim bağlandı');
-                  })
                   .catch((err) => {
                     setSocialOn(!next);
+                    setSocialNotice(null);
                     alert(err instanceof Error ? err.message : 'Sosial rejim dəyişmədi');
                   })
                   .finally(() => setSocialToggling(false));
@@ -1045,11 +1044,12 @@ function ProfilePageContent() {
                 <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
               </svg>
-              <span>{socialOn ? 'Sosial rejim açıldı' : 'Sosial rejim bağlandı'}</span>
             </button>
-            <p className={`${profileStyles.socialModeHint} text-[11px]`}>
-              {socialOn ? 'Siz artıq XP rejimindən istifadə edirsiniz' : 'XP rejimini söndürdünüz'}
-            </p>
+            {socialNotice ? (
+              <p className={`${profileStyles.socialModeHint} text-[11px]`} role="status" aria-live="polite">
+                {socialNotice}
+              </p>
+            ) : null}
           </div>
         }
       >
@@ -1167,12 +1167,6 @@ function ProfilePageContent() {
       {isSuperAdmin(currentUser.id) && (
         <AdminPanel userId={currentUser.id} displayName={`${currentUser.name} ${currentUser.surname}`.trim()} />
       )}
-
-      {socialNotice ? (
-        <div className={profileStyles.profileNotice} role="status" aria-live="polite">
-          {socialNotice}
-        </div>
-      ) : null}
 
       <AppBottomNav activeTab="profile" />
 
