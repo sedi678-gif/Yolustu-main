@@ -51,6 +51,7 @@ export {
   assertArenaCardPlayAllowed,
   applyArenaCardPlay,
   applyLockedLoadout,
+  fillClickerUsyanLoadouts,
   makeArenaActionId,
 } from './loadout';
 export {

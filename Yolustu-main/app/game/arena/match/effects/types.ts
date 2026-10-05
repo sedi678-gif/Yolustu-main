@@ -48,10 +48,14 @@ export type ArenaSlaveState = {
 export type ArenaForcedReplay = {
   playerId: string;
   cardId: string;
+  remaining: number;
+  ownerSide: ArenaSide;
 };
 
 export type ArenaEffectState = {
   pendingDoubleFor: string | null;
+  pendingHideNext: boolean;
+  frozenUntil: { home: number; away: number };
   lastPlay: ArenaLastPlay | null;
   lastCounterOk: boolean;
   countered: { playerId: string; cardId: string } | null;
@@ -85,6 +89,8 @@ export type ArenaEffectResult = {
 export function emptyArenaEffects(): ArenaEffectState {
   return {
     pendingDoubleFor: null,
+    pendingHideNext: false,
+    frozenUntil: { home: 0, away: 0 },
     lastPlay: null,
     lastCounterOk: false,
     countered: null,

@@ -47,6 +47,32 @@ export function buildArenaLoadout(input: {
   };
 }
 
+export function clickerUsyanLoadout(playerId: string, matchId: string): ArenaPlayerLoadout {
+  return {
+    playerId,
+    matchId,
+    cards: [
+      {
+        cardId: 'usyan',
+        maxUses: ARENA_CARD_MAX_USES,
+        used: 0,
+        remaining: ARENA_CARD_MAX_USES,
+      },
+    ],
+  };
+}
+
+export function fillClickerUsyanLoadouts(match: ArenaMatchState): ArenaMatchState {
+  const loadouts = { ...match.loadouts };
+  let changed = false;
+  for (const player of Object.values(match.players)) {
+    if (player.role !== 'CLICKER') continue;
+    loadouts[player.playerId] = clickerUsyanLoadout(player.playerId, match.matchId);
+    changed = true;
+  }
+  return changed ? { ...match, loadouts } : match;
+}
+
 export function assertArenaLoadoutLockAllowed(input: {
   match: ArenaMatchState;
   playerId: string;
@@ -56,21 +82,26 @@ export function assertArenaLoadoutLockAllowed(input: {
   assertArenaMatchActive(match);
   if (match.phase !== 'loadout') reject('REJECT');
   if (!playerInMatch(match, playerId)) reject('REJECT');
+  if (match.players[playerId]?.role === 'CLICKER') reject('REJECT');
   if (match.loadouts[playerId]) reject('REJECT');
   return buildArenaLoadout({ playerId, matchId: match.matchId, cardIds: input.cardIds });
 }
 
 export function allSeatedLoadoutsReady(match: ArenaMatchState): boolean {
   const seats = filledTurnQueue(match.homePlayerIds, match.awayPlayerIds);
-  return seats.every((seat) => Boolean(match.loadouts[seat.playerId]));
+  return seats.every((seat) => {
+    if (match.players[seat.playerId]?.role === 'CLICKER') return true;
+    return Boolean(match.loadouts[seat.playerId]);
+  });
 }
 
 export function startArenaCombat(match: ArenaMatchState, serverNow: number): ArenaMatchState {
+  const filled = fillClickerUsyanLoadouts(match);
   return {
-    ...match,
+    ...filled,
     phase: 'combat',
     turnStartedAt: serverNow,
-    turnExpiresAt: serverNow + match.turnDuration,
+    turnExpiresAt: serverNow + filled.turnDuration,
     lastActionId: null,
     lastActionTurnSeq: -1,
     updatedAt: serverNow,
@@ -82,11 +113,11 @@ export function applyLockedLoadout(
   loadout: ArenaPlayerLoadout,
   serverNow: number
 ): ArenaMatchState {
-  const next: ArenaMatchState = {
+  const next = fillClickerUsyanLoadouts({
     ...match,
     loadouts: { ...match.loadouts, [loadout.playerId]: loadout },
     updatedAt: serverNow,
-  };
+  });
   if (allSeatedLoadoutsReady(next)) {
     return startArenaCombat(next, serverNow);
   }
@@ -111,13 +142,15 @@ export function assertArenaCardPlayAllowed(input: {
   if (!playerInMatch(match, playerId)) reject('REJECT');
   if (!actionId.trim()) reject('Action id yoxdur');
   if (match.usedActionIds[actionId]) return 'duplicate';
-  if (match.players[playerId]?.role === 'CLICKER') reject('REJECT');
-  if (match.currentTurn !== playerId) reject('REJECT');
-  if (serverNow >= match.turnExpiresAt) reject('REJECT');
-  if (match.lastActionTurnSeq === match.turnSeq) {
+  const isClicker = match.players[playerId]?.role === 'CLICKER';
+  if (isClicker && cardId !== 'usyan') reject('REJECT');
+  if (!isClicker && match.currentTurn !== playerId) reject('REJECT');
+  if (!isClicker && serverNow >= match.turnExpiresAt) reject('REJECT');
+  if (!isClicker && match.lastActionTurnSeq === match.turnSeq) {
     if (match.lastActionId === actionId) return 'duplicate';
     reject('REJECT');
   }
+  if (isClicker && match.lastActionId === actionId) return 'duplicate';
   const loadout = match.loadouts[playerId];
   if (!loadout) reject('REJECT');
   const forced = match.effects?.forcedReplay;
@@ -162,6 +195,8 @@ export function applyArenaCardPlay(input: {
     };
   });
 
+  const clickerUsyan = player.role === 'CLICKER' && cardId === 'usyan';
+  const offTurnClicker = clickerUsyan && match.currentTurn !== playerId;
   const spent: ArenaMatchState = {
     ...match,
     players: {
@@ -174,7 +209,7 @@ export function applyArenaCardPlay(input: {
     },
     usedActionIds: { ...match.usedActionIds, [actionId]: true },
     lastActionId: actionId,
-    lastActionTurnSeq: match.turnSeq,
+    lastActionTurnSeq: offTurnClicker ? match.lastActionTurnSeq : match.turnSeq,
     updatedAt: serverNow,
   };
 
@@ -188,6 +223,7 @@ export function applyArenaCardPlay(input: {
     mode: input.mode,
   });
 
+  if (offTurnClicker) return resolved.match;
   return advanceMatchTurn(resolved.match, serverNow);
 }
 

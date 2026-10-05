@@ -5,6 +5,15 @@ import {
 import { officialActiveUsers } from '../effects/damage';
 
 export const ARENA_REACTION_DURATION_MS = BATTLE_CHALLENGE_DURATION_MS;
+export const ARENA_TSUNAMI_DURATION_MS = 5_000;
+export const ARENA_EARTHQUAKE_DURATION_MS = 10_000;
+export const ARENA_ICE_FREEZE_MS = 10 * 60 * 1000;
+
+export function officialReactionDurationMs(cardId: string, mode: string | null): number {
+  if (cardId === 'felaket' && mode === 'tsunami') return ARENA_TSUNAMI_DURATION_MS;
+  if (cardId === 'felaket') return ARENA_EARTHQUAKE_DURATION_MS;
+  return ARENA_REACTION_DURATION_MS;
+}
 export const ARENA_REACTION_COLLECTION = 'reaction_events';
 
 export type ArenaSizeTier = 'SMALL' | 'MEDIUM' | 'LARGE';

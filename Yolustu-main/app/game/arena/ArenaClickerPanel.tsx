@@ -19,7 +19,7 @@ export default function ArenaClickerPanel({
   return (
     <section className={styles.overlayPanel}>
       <p className={styles.overlayTitle}>{cardTitle}</p>
-      <p className={styles.overlayText}>Kliker kart oynamır. Lazım olsa event-i ittifaq çatına göndər.</p>
+      <p className={styles.overlayText}>Əlinizdə həmişə Üsyan kartı var. Qul edənə qarşı oynayın.</p>
       {chatText ? <p className={styles.overlayText}>{chatText}</p> : null}
       <button
         type="button"

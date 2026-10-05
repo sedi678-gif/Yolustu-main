@@ -312,3 +312,85 @@ export function zegoEnableCamera(on: boolean) {
   }
   express.mutePublishStreamVideo?.(!on);
 }
+
+let tableZp: ZegoInstance | null = null;
+let tableRoomId: string | null = null;
+
+function arenaVoiceRoomId(matchId: string): string {
+  return `arena_${toZegoUserId(matchId)}`;
+}
+
+export async function joinArenaVoiceRoom(input: {
+  matchId: string;
+  playerId: string;
+  playerName: string;
+  container: HTMLElement;
+}): Promise<boolean> {
+  const configured = await ensureZegoConfig();
+  if (!configured) return false;
+  const mediaOk = await ensureMediaPermission('microphone');
+  if (!mediaOk) return false;
+
+  const roomId = arenaVoiceRoomId(input.matchId);
+  const zegoUserId = toZegoUserId(input.playerId);
+  if (!zegoUserId || zegoUserId === 'user_unknown') return false;
+
+  if (tableZp && tableRoomId === roomId) return true;
+  leaveArenaVoiceRoom();
+
+  try {
+    const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
+    const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
+      getZegoAppId(),
+      getZegoServerSecret(),
+      roomId,
+      zegoUserId,
+      toZegoUserName(input.playerName, input.playerId)
+    );
+    const zp = ZegoUIKitPrebuilt.create(kitToken);
+    zp.joinRoom({
+      container: input.container,
+      showPreJoinView: false,
+      turnOnMicrophoneWhenJoining: true,
+      turnOnCameraWhenJoining: false,
+      showMyCameraToggleButton: false,
+      showMyMicrophoneToggleButton: true,
+      showAudioVideoSettingsButton: false,
+      showTextChat: false,
+      showUserList: false,
+      showScreenSharingButton: false,
+      showLayoutButton: false,
+      showPinButton: false,
+      showRoomTimer: false,
+      showLeavingView: false,
+      maxUsers: 12,
+      scenario: {
+        mode: ZegoUIKitPrebuilt.GroupCall,
+        config: { role: ZegoUIKitPrebuilt.Host },
+      },
+    });
+    tableZp = zp;
+    tableRoomId = roomId;
+    return true;
+  } catch (err) {
+    console.error('[Zego] arena voice failed:', err);
+    tableZp = null;
+    tableRoomId = null;
+    return false;
+  }
+}
+
+export function leaveArenaVoiceRoom(): void {
+  try {
+    tableZp?.destroy();
+  } catch {
+    /* ignore */
+  }
+  tableZp = null;
+  tableRoomId = null;
+}
+
+export function setArenaVoiceMuted(muted: boolean): void {
+  const express = (tableZp as { express?: ZegoExpressLike } | null)?.express;
+  express?.muteMicrophone?.(muted);
+}

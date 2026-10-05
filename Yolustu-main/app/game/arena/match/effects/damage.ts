@@ -1,8 +1,9 @@
 import { officialXpDamage, type CardVariant } from '@/app/lib/battleEffects/infoDamage';
 
-export const ARENA_DAMAGE_HEAVY_MAX = 500;
-export const ARENA_DAMAGE_TSUNAMI_MAX = 200;
+export const ARENA_DAMAGE_HEAVY_MAX = 3500;
+export const ARENA_DAMAGE_TSUNAMI_MAX = 1500;
 export const ARENA_DAMAGE_STRATEGIC_MAX = 100;
+export const ARENA_DAMAGE_FIRE_MAX = 2500;
 
 export type ArenaDamageBand = 'none' | 'strategic' | 'tsunami' | 'heavy';
 

@@ -4,10 +4,10 @@ import { peakTenMinuteWindow } from '../effects/scoreHistory';
 import { assertArenaMatchActive } from '../policy';
 import type { ArenaMatchState, ArenaSide } from '../types';
 import {
-  ARENA_REACTION_DURATION_MS,
   getAllianceSizeTier,
   officialArenaRequiredClicks,
   officialReactionChatText,
+  officialReactionDurationMs,
   type ArenaReactionStatus,
 } from './config';
 import type { ArenaReactionPending, ArenaReactionState } from './types';
@@ -60,8 +60,8 @@ export function createArenaReaction(input: {
     cardId,
     mode: input.mode,
     startedAt: serverNow,
-    expiresAt: serverNow + ARENA_REACTION_DURATION_MS,
-    durationMs: ARENA_REACTION_DURATION_MS,
+    expiresAt: serverNow + officialReactionDurationMs(cardId, input.mode),
+    durationMs: officialReactionDurationMs(cardId, input.mode),
     requiredClicks,
     currentClicks: 0,
     status: 'ACTIVE',

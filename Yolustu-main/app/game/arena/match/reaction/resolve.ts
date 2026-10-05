@@ -1,8 +1,9 @@
 import { addOfficialScore, takeOfficialScore, BATTLE_SCORE_MAX } from '@/app/lib/battleScore/battleScoreConfig';
 import type { ArenaMatchState, ArenaSide } from '../types';
 import type { ArenaReactionState } from './types';
+import { ARENA_ICE_FREEZE_MS } from './config';
 
-const ARENA_TRANSFER_MAX = 500;
+const ARENA_TRANSFER_MAX = 3500;
 
 function reject(message = 'REJECT'): never {
   throw new Error(message);
@@ -15,6 +16,7 @@ function grantScore(
   serverNow: number
 ): ArenaMatchState {
   if (amount <= 0) return match;
+  if ((match.effects?.frozenUntil?.[toSide] ?? 0) > serverNow) return match;
   const added = addOfficialScore(match.sideScores[toSide], amount, ARENA_TRANSFER_MAX);
   if (added > BATTLE_SCORE_MAX) reject('REJECT');
   return {
@@ -80,9 +82,21 @@ export function applyArenaReactionOutcome(
       return next;
     }
     next = grantScore(next, pending.attackerSide, pending.damage, serverNow);
+    const freezeIce =
+      reaction.cardId === 'qutb' && reaction.mode === 'ice'
+        ? {
+            ...next.effects.frozenUntil,
+            [pending.defenderSide]: serverNow + ARENA_ICE_FREEZE_MS,
+          }
+        : next.effects.frozenUntil ?? { home: 0, away: 0 };
     next = {
       ...next,
-      effects: { ...next.effects, lastSummary: 'Müdafiə klikləri uğursuz', clickEvent: null },
+      effects: {
+        ...next.effects,
+        frozenUntil: freezeIce ?? { home: 0, away: 0 },
+        lastSummary: reaction.mode === 'ice' ? 'Buz — 10 dəq xal donur' : 'Müdafiə klikləri uğursuz',
+        clickEvent: null,
+      },
     };
     return next;
   }

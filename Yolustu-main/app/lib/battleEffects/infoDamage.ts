@@ -1,7 +1,7 @@
 import { allianceMemberCount } from '@/app/lib/battleClick/battleClickConfig';
 
-/** Rəsmi XP zərər tavanı — kart cədvəlindən, uydurma pool yoxdur. */
-export const INFO_DAMAGE_MAX = 500;
+/** info.json zərər tavanı — zəlzələ 70×üzv, maksimum 3500. */
+export const INFO_DAMAGE_MAX = 3500;
 
 export const CARD_VARIANTS = {
   qutb: ['fire', 'ice'],
@@ -29,12 +29,12 @@ export const CARD_XP_DAMAGE: Record<string, CardXpBand | Record<string, CardXpBa
   usyan: { perUser: 0, cap: 0 },
   ogru: { perUser: 10, cap: 500 },
   felaket: {
-    earthquake: { perUser: 10, cap: 500 },
-    tsunami: { perUser: 4, cap: 200 },
+    earthquake: { perUser: 70, cap: 3500 },
+    tsunami: { perUser: 30, cap: 1500 },
   },
   qutb: {
-    fire: { perUser: 10, cap: 500 },
-    ice: { perUser: 10, cap: 500 },
+    fire: { perUser: 50, cap: 2500 },
+    ice: { perUser: 0, cap: 0 },
   },
 };
 

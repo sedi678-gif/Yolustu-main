@@ -9,6 +9,7 @@ import ArenaClickerPanel from './ArenaClickerPanel';
 import ArenaReactionPanel from './ArenaReactionPanel';
 import ArenaLoadoutPicker from './ArenaLoadoutPicker';
 import ArenaResultPanel from './ArenaResultPanel';
+import ArenaTableVoice from './ArenaTableVoice';
 import {
   completeArenaMatch,
   expireArenaReaction,
@@ -122,8 +123,10 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   }, [match, playerId, presence, serverNow]);
 
   const ui = view ?? liveView ?? EMPTY_ARENA_VIEW;
-  const needsLoadout = Boolean(match && playerId && match.phase === 'loadout' && !match.loadouts[playerId]);
-  const waitingLoadout = Boolean(match && playerId && match.phase === 'loadout' && match.loadouts[playerId]);
+  const needsLoadout = Boolean(
+    match && playerId && match.phase === 'loadout' && !match.loadouts[playerId] && match.players[playerId]?.role !== 'CLICKER'
+  );
+  const waitingLoadout = Boolean(match && playerId && match.phase === 'loadout' && (match.loadouts[playerId] || match.players[playerId]?.role === 'CLICKER'));
   const loading = Boolean(matchId && !match && !view);
   const reactionActive = Boolean(match?.reaction?.status === 'ACTIVE' && ui.clickEvent.visible);
   const isClicker = Boolean(playerId && match?.players[playerId]?.role === 'CLICKER');
@@ -173,14 +176,21 @@ export default function ArenaScreen({ onClose, view, matchId, playerId }: ArenaS
   const handPlay =
     !matchClosed &&
     match?.phase === 'combat' &&
-    playerId === match.currentTurn &&
-    match.players[playerId]?.role !== 'CLICKER'
+    playerId &&
+    (playerId === match.currentTurn || match.players[playerId]?.role === 'CLICKER')
       ? onPlayCard
       : undefined;
 
   return (
     <div className={styles.body}>
       <ArenaHeader view={ui} onClose={onClose} />
+      {matchId && playerId && !view ? (
+        <ArenaTableVoice
+          matchId={matchId}
+          playerId={playerId}
+          playerName={match?.displayNames[playerId] || playerId}
+        />
+      ) : null}
       <div className={styles.board}>
         <PlayerRow
           label="Rəqib"

@@ -10,6 +10,7 @@ import {
 } from './damage';
 import { peakTenMinuteWindow } from './scoreHistory';
 import { emptyArenaEffects, type ArenaChainStep, type ArenaEffectResult, type ArenaEffectState } from './types';
+import { ARENA_ICE_FREEZE_MS } from '../reaction/config';
 import { createArenaReaction, defendingSideForCard, qulPendingPeak } from '../reaction/policy';
 import type { ArenaReactionPending } from '../reaction/types';
 import {
@@ -22,7 +23,7 @@ import {
   tikanliReplayAllowed,
 } from './interaction';
 
-const ARENA_TRANSFER_MAX = 500;
+const ARENA_TRANSFER_MAX = 3500;
 
 function reject(message = 'REJECT'): never {
   throw new Error(message);
@@ -60,6 +61,7 @@ function grantScore(
   serverNow: number
 ): ArenaMatchState {
   if (amount <= 0) return match;
+  if ((effectsOf(match).frozenUntil[toSide] ?? 0) > serverNow) return match;
   const added = addOfficialScore(match.sideScores[toSide], amount, ARENA_TRANSFER_MAX);
   if (added > BATTLE_SCORE_MAX) reject('REJECT');
   return {
@@ -196,13 +198,13 @@ export function resolveArenaCardEffect(input: {
   const replayed = prior.forcedReplay?.playerId === playerId && prior.forcedReplay.cardId === cardId;
   let next = match;
   let chain: ArenaChainStep = 'ATTACK';
-  const hiddenFromOpponent = cardId === 'duman';
+  const hiddenFromOpponent = prior.pendingHideNext;
   let replaced: ArenaEffectResult['replaced'] = null;
   let revealedCardIds: string[] = [];
   let peak = null as ArenaEffectResult['peak'];
   let slaveStatus: ArenaEffectResult['slaveStatus'] = null;
   let summary = '';
-  const deferClick = match.gameMode !== '1v1' && isArenaClickCard(cardId);
+  const deferClick = match.gameMode !== '1v1' && isArenaClickCard(cardId) && !hiddenFromOpponent;
 
   if (deferClick) {
     if (match.reaction?.status === 'ACTIVE') reject('REJECT');
@@ -355,12 +357,15 @@ export function resolveArenaCardEffect(input: {
       ...next,
       effects: {
         ...pushChain(prior, 'REPLAY', cardId, playerId),
-        forcedReplay: { playerId: target, cardId: forcedCard },
+        forcedReplay: { playerId: target, cardId: forcedCard, remaining: 3, ownerSide: side },
         lastCounterOk: false,
-        lastSummary: 'Tikanlı Məftil replay məcbur etdi',
+        lastSummary: 'Tikanlı Məftil 3 replay + 50% xal',
       },
     };
-    summary = 'Tikanlı Məftil replay məcbur etdi';
+    summary = 'Tikanlı Məftil 3 replay + 50% xal';
+  } else if (cardId === 'ogru' || resolvedCard === 'ogru') {
+    next = transferScore(next, opposite(side), side, totalDamage, serverNow);
+    summary = 'Oğru oğurladı';
   } else if (resolvedCard === 'sehrbaz' || cardId === 'sehrbaz') {
     if (opponentId) {
       const swapped = replaceOpponentCard(next, opponentId, actionId);
@@ -411,10 +416,8 @@ export function resolveArenaCardEffect(input: {
     next = grantScore(next, side, totalDamage, serverNow);
     summary =
       cardId === 'duman'
-        ? 'Duman gizlətdi'
-        : cardId === 'ogru'
-          ? 'Oğru'
-          : cardId === 'felaket'
+        ? 'Duman növbəti kartı gizlədir'
+        : cardId === 'felaket'
             ? mode === 'tsunami'
               ? 'Tsunami'
               : 'Zəlzələ'
@@ -425,17 +428,36 @@ export function resolveArenaCardEffect(input: {
               : cardId;
   }
 
+  if (replayed && prior.forcedReplay && prior.forcedReplay.ownerSide !== side && totalDamage > 0) {
+    next = transferScore(next, side, prior.forcedReplay.ownerSide, Math.floor(totalDamage * 0.5), serverNow);
+  }
+
+  if (cardId === 'qutb' && mode === 'ice' && !deferClick) {
+    next = {
+      ...next,
+      effects: {
+        ...effectsOf(next),
+        frozenUntil: {
+          ...effectsOf(next).frozenUntil,
+          [opposite(side)]: serverNow + ARENA_ICE_FREEZE_MS,
+        },
+        lastSummary: summary || 'Buz — 10 dəq xal donur',
+      },
+    };
+    summary = next.effects.lastSummary;
+  }
+
   const clickEvent =
-    isArenaClickCard(cardId) && match.gameMode !== '1v1'
-      ? {
-          cardId,
-          mode,
-          playerId,
-          createdAt: serverNow,
-          sharedToChat: false,
-        }
-      : match.gameMode === '1v1'
-        ? null
+    hiddenFromOpponent || match.gameMode === '1v1'
+      ? null
+      : isArenaClickCard(cardId)
+        ? {
+            cardId,
+            mode,
+            playerId,
+            createdAt: serverNow,
+            sharedToChat: false,
+          }
         : effectsOf(next).clickEvent;
 
   const lastPlay = {
@@ -460,13 +482,24 @@ export function resolveArenaCardEffect(input: {
     hidden: hiddenFromOpponent,
   });
 
+  const replayLeft = prior.forcedReplay;
+  const nextForced =
+    cardId === 'tikanli'
+      ? effectsOf(next).forcedReplay
+      : replayLeft && replayLeft.playerId === playerId && replayLeft.cardId === cardId
+        ? replayLeft.remaining > 1
+          ? { ...replayLeft, remaining: replayLeft.remaining - 1 }
+          : null
+        : replayLeft;
+
   const effects: ArenaEffectState = {
     ...effectsOf(next),
     pendingDoubleFor: cardId === '2x' ? playerId : prior.pendingDoubleFor === playerId ? null : prior.pendingDoubleFor,
+    pendingHideNext: cardId === 'duman',
     lastPlay,
     lastCounterOk: cardId === 'qaya' ? effectsOf(next).lastCounterOk : cardId === 'tikanli' ? false : prior.lastCounterOk,
     countered: cardId === 'qaya' ? effectsOf(next).countered : cardId === 'tikanli' ? null : prior.countered,
-    forcedReplay: cardId === 'tikanli' ? effectsOf(next).forcedReplay : prior.forcedReplay?.playerId === playerId ? null : prior.forcedReplay,
+    forcedReplay: nextForced,
     jokerMimic: mimicCardId,
     clickEvent,
     lastSummary: summary || effectsOf(next).lastSummary,

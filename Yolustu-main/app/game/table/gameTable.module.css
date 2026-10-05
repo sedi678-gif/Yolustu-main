@@ -655,3 +655,29 @@
     display: none;
   }
 }
+
+.voiceBar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.voiceHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.voiceBtn {
+  min-height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  background: rgba(8, 47, 73, 0.9);
+  color: #e0f2fe;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 0 12px;
+}

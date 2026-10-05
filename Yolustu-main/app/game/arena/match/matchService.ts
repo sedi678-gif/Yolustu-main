@@ -24,7 +24,7 @@ import { BATTLE_RESULT_COLLECTION, BATTLE_RESULT_DOC_ID } from '@/app/lib/battle
 import { assertArenaActionAllowed, assertArenaTimeoutAllowed, assertStartEnergy, rejectClientEnergyWrite } from './policy';
 import { applyArenaMatchCompletion, officialArenaFinishReason } from './completion';
 import { advanceMatchTurn, createMatchSnapshot, filledParticipantIds } from './turnOrder';
-import { applyArenaCardPlay, applyLockedLoadout, assertArenaLoadoutLockAllowed } from './loadout';
+import { applyArenaCardPlay, applyLockedLoadout, assertArenaLoadoutLockAllowed, fillClickerUsyanLoadouts } from './loadout';
 import { emptyArenaEffects } from './effects/types';
 import { opponentPlayerId, serverActiveUsers } from './effects/engine';
 import { publicAuditCardId } from './effects/interaction';
@@ -182,7 +182,8 @@ function parseLoadout(raw: unknown, playerId: string, matchId: string): ArenaPla
   const data = raw as Record<string, unknown>;
   const cardsRaw = Array.isArray(data.cards) ? data.cards : [];
   const cards = cardsRaw.map(parseLoadoutCard).filter((card): card is ArenaLoadoutCard => Boolean(card));
-  if (cards.length !== 5) return null;
+  const clickerUsyan = cards.length === 1 && cards[0]?.cardId === 'usyan';
+  if (!clickerUsyan && cards.length !== 5) return null;
   return {
     playerId: asString(data.playerId) || playerId,
     matchId: asString(data.matchId) || matchId,
@@ -555,7 +556,13 @@ export async function createArenaMatch(input: {
       });
       const participantIds = [...created.participantIds];
       if (user.uid && !participantIds.includes(user.uid)) participantIds.push(user.uid);
-      const match = { ...created, participantIds, phase: 'loadout' as const, loadouts: {}, usedActionIds: {} };
+      const match = fillClickerUsyanLoadouts({
+        ...created,
+        participantIds,
+        phase: 'loadout' as const,
+        loadouts: {},
+        usedActionIds: {},
+      });
       assertStartEnergy(match.players);
       tx.set(ref, matchWrite(match));
       return match;

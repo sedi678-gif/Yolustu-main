@@ -41,8 +41,8 @@ function setup5v5(): ArenaMatchState {
     phase: 'loadout',
     sideScores: { home: 0, away: 200 },
   };
-  for (const id of ['H0', 'H1', 'H2', 'H3']) match = lock(match, id, ATTACK);
-  for (const id of ['A0', 'A1', 'A2', 'A3']) match = lock(match, id, DEFEND);
+  for (const id of ['H0', 'H1', 'H3']) match = lock(match, id, ATTACK);
+  for (const id of ['A0', 'A1', 'A3']) match = lock(match, id, DEFEND);
   return match;
 }
 
@@ -215,6 +215,10 @@ describe('arena reaction click system', () => {
   it('clicker kart oynamır, chat text serverdədir', () => {
     const match = playFire(setup5v5(), 3);
     assert.equal(match.players.H2.role, 'CLICKER');
+    assert.deepEqual(
+      match.loadouts.H2.cards.map((card) => card.cardId),
+      ['usyan']
+    );
     assert.throws(() =>
       applyArenaCardPlay({
         match: { ...match, currentTurn: 'H2', turnSide: 'home', turnSlotIndex: 2 },
@@ -269,5 +273,30 @@ describe('arena reaction click system', () => {
     });
     assert.equal(match.reaction?.requiredClicks, 6);
     assert.equal(match.reaction?.cardId, 'usyan');
+  });
+
+  it('clicker növbəsiz üsyan oynayır', () => {
+    let match = setup5v5();
+    match = applyArenaCardPlay({
+      match,
+      playerId: 'H0',
+      cardId: 'qul',
+      actionId: 'qul_clicker',
+      serverNow: match.turnStartedAt + 20,
+      activeUsers: 3,
+    });
+    match = expireArenaReactionState(match, match.reaction!.expiresAt);
+    const turn = match.currentTurn;
+    match = applyArenaCardPlay({
+      match,
+      playerId: 'A2',
+      cardId: 'usyan',
+      actionId: 'clicker_usyan',
+      serverNow: match.turnStartedAt + 20,
+      activeUsers: 3,
+    });
+    assert.equal(match.currentTurn, turn);
+    assert.equal(match.reaction?.cardId, 'usyan');
+    assert.equal(match.players.A2.role, 'CLICKER');
   });
 });

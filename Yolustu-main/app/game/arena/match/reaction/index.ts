@@ -4,6 +4,7 @@ export {
   getAllianceSizeTier,
   officialArenaRequiredClicks,
   officialReactionChatText,
+  officialReactionDurationMs,
 } from './config';
 export type { ArenaSizeTier, ArenaReactionStatus } from './config';
 export type {

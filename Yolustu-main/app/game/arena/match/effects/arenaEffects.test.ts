@@ -49,19 +49,19 @@ function play(match: ArenaMatchState, playerId: string, cardId: string, extra?: 
 }
 
 describe('arena damage formula', () => {
-  for (const [users, heavy, tsunami, strategic] of [
-    [1, 10, 4, 2],
-    [5, 50, 20, 10],
-    [10, 100, 40, 20],
-    [25, 250, 100, 50],
-    [50, 500, 200, 100],
-    [100, 500, 200, 100],
+  for (const [users, ogru, quake, fire, tsunami, strategic] of [
+    [1, 10, 70, 50, 30, 2],
+    [5, 50, 350, 250, 150, 10],
+    [10, 100, 700, 500, 300, 20],
+    [25, 250, 1750, 1250, 750, 50],
+    [50, 500, 3500, 2500, 1500, 100],
+    [100, 500, 3500, 2500, 1500, 100],
   ] as const) {
     it(`${users} user damage caps`, () => {
-      assert.equal(officialArenaDamage({ cardId: 'ogru', activeUsers: users }), heavy);
-      assert.equal(officialArenaDamage({ cardId: 'felaket', mode: 'earthquake', activeUsers: users }), heavy);
-      assert.equal(officialArenaDamage({ cardId: 'qutb', mode: 'fire', activeUsers: users }), heavy);
-      assert.equal(officialArenaDamage({ cardId: 'qutb', mode: 'ice', activeUsers: users }), heavy);
+      assert.equal(officialArenaDamage({ cardId: 'ogru', activeUsers: users }), ogru);
+      assert.equal(officialArenaDamage({ cardId: 'felaket', mode: 'earthquake', activeUsers: users }), quake);
+      assert.equal(officialArenaDamage({ cardId: 'qutb', mode: 'fire', activeUsers: users }), fire);
+      assert.equal(officialArenaDamage({ cardId: 'qutb', mode: 'ice', activeUsers: users }), 0);
       assert.equal(officialArenaDamage({ cardId: 'felaket', mode: 'tsunami', activeUsers: users }), tsunami);
       assert.equal(officialArenaDamage({ cardId: 'sehrbaz', activeUsers: users }), strategic);
       assert.equal(officialArenaDamage({ cardId: '2x', activeUsers: users }), 0);
@@ -96,6 +96,16 @@ describe('arena card mechanics', () => {
     assert.equal(match.effects.lastPlay?.damage, 200);
   });
 
+  it('Duman növbəti kartı gizlədir', () => {
+    let match = setup(['A'], ['B']);
+    match = play(match, 'A', 'sehrbaz', { users: 10 });
+    match = play(match, 'B', 'duman', { users: 10 });
+    assert.equal(match.effects.pendingHideNext, true);
+    match = play(match, 'A', 'ogru', { users: 10 });
+    assert.equal(match.effects.lastPlay?.hidden, true);
+    assert.equal(match.effects.pendingHideNext, false);
+  });
+
   it('Daş Adam', () => {
     let match = setup(['A'], ['B']);
     match = play(match, 'A', 'ogru', { users: 10 });
@@ -128,7 +138,8 @@ describe('arena card mechanics', () => {
       serverNow: 1_000_100,
       activeUsers: 10,
     });
-    assert.equal(fog.result.hiddenFromOpponent, true);
+    assert.equal(fog.result.hiddenFromOpponent, false);
+    assert.equal(fog.match.effects.pendingHideNext, true);
     assert.equal(fog.result.damage, 20);
   });
 
@@ -194,7 +205,7 @@ describe('arena card mechanics', () => {
       activeUsers: 10,
     });
     assert.equal(wired.match.effects.forcedReplay?.cardId, 'ogru');
-    assert.equal(wired.match.effects.forcedReplay?.playerId, 'A');
+    assert.equal(wired.match.effects.forcedReplay?.remaining, 3);
   });
 
   it('Üsyan → Qul edən', () => {
@@ -239,7 +250,7 @@ describe('arena card mechanics', () => {
       activeUsers: 10,
       mode: 'earthquake',
     });
-    assert.equal(quake.result.damage, 100);
+    assert.equal(quake.result.damage, 700);
     assert.equal(quake.result.mode, 'earthquake');
     assert.equal(next.effects.lastPlay?.mode, 'fire');
   });
@@ -254,7 +265,7 @@ describe('arena card mechanics', () => {
       activeUsers: 25,
       mode: 'tsunami',
     });
-    assert.equal(wave.result.damage, 100);
+    assert.equal(wave.result.damage, 750);
     assert.equal(wave.result.mode, 'tsunami');
     assert.throws(() => validateArenaCardMode('felaket', 'fire'));
   });
@@ -269,7 +280,7 @@ describe('arena card mechanics', () => {
       activeUsers: 50,
       mode: 'fire',
     });
-    assert.equal(fire.result.damage, 500);
+    assert.equal(fire.result.damage, 2500);
   });
 
   it('Buz', () => {
@@ -282,7 +293,8 @@ describe('arena card mechanics', () => {
       activeUsers: 50,
       mode: 'ice',
     });
-    assert.equal(ice.result.damage, 500);
+    assert.equal(ice.result.damage, 0);
+    assert.ok((ice.match.effects.frozenUntil.away ?? 0) > 1_000_100);
   });
 });
 
