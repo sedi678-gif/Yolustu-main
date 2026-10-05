@@ -1,14 +1,4 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  startAfter,
-  where,
-} from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { requireFirebaseAuth } from '@/app/lib/firebaseAuth';
 import { sanitizeBattleId, sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
@@ -36,30 +26,30 @@ export async function listArenaBattleHistory(input: {
   const playerId = sanitizePlayerId(input.playerId);
   await requireFirebaseAuth();
   try {
-    const base = collection(db, ARENA_MATCH_COLLECTION);
-    const clauses = [
-      where('participantIds', 'array-contains', playerId),
-      where('status', '==', 'closed'),
-      orderBy('result.completedAt', 'desc'),
-      orderBy('matchId', 'desc'),
-    ];
-    const q = input.cursor
-      ? query(base, ...clauses, startAfter(input.cursor.completedAt, input.cursor.matchId), limit(ARENA_HISTORY_PAGE_SIZE))
-      : query(base, ...clauses, limit(ARENA_HISTORY_PAGE_SIZE));
-    const snap = await getDocs(q);
-    const entries = snap.docs
+    const snap = await getDocs(
+      query(collection(db, ARENA_MATCH_COLLECTION), where('participantIds', 'array-contains', playerId))
+    );
+    const sorted = snap.docs
       .map((row) => {
         const match = matchFromData(row.id, row.data() as Record<string, unknown>);
         if (match.status !== 'closed' || !match.result) return null;
         if (!isArenaHistoryParticipant(match, playerId)) return null;
         return toArenaHistoryEntry(match, playerId);
       })
-      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
-    const last = snap.docs[snap.docs.length - 1];
-    const lastMatch = last ? matchFromData(last.id, last.data() as Record<string, unknown>) : null;
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+      .sort((a, b) => b.completedAt - a.completedAt || b.matchId.localeCompare(a.matchId));
+    const cursor = input.cursor;
+    const start = cursor
+      ? Math.max(
+          0,
+          sorted.findIndex((entry) => entry.completedAt === cursor.completedAt && entry.matchId === cursor.matchId) + 1
+        )
+      : 0;
+    const entries = sorted.slice(start, start + ARENA_HISTORY_PAGE_SIZE);
+    const last = entries[entries.length - 1];
     const nextCursor =
-      snap.docs.length === ARENA_HISTORY_PAGE_SIZE && lastMatch?.result
-        ? { completedAt: lastMatch.result.completedAt, matchId: lastMatch.matchId }
+      start + entries.length < sorted.length && last
+        ? { completedAt: last.completedAt, matchId: last.matchId }
         : null;
     return { entries, nextCursor };
   } catch (error) {
@@ -95,26 +85,14 @@ export async function getArenaMatchDetails(input: {
     }
     const entry = toArenaHistoryEntry(match, playerId);
     if (!entry) throw new Error('Nəticə tapılmadı');
-    const auditSnap = await getDocs(
-      query(
-        collection(db, ARENA_MATCH_COLLECTION, matchId, 'audit'),
-        orderBy('timestamp', 'asc'),
-        limit(DETAILS_EVENT_LIMIT)
-      )
-    );
-    const reactionSnap = await getDocs(
-      query(
-        collection(db, ARENA_MATCH_COLLECTION, matchId, 'reaction_events'),
-        orderBy('timestamp', 'asc'),
-        limit(DETAILS_EVENT_LIMIT)
-      )
-    );
+    const auditSnap = await getDocs(collection(db, ARENA_MATCH_COLLECTION, matchId, 'audit'));
+    const reactionSnap = await getDocs(collection(db, ARENA_MATCH_COLLECTION, matchId, 'reaction_events'));
     const timeline = mergePublicTimeline(
       publicTimelineFromAudit(auditSnap.docs.map((row) => ({ id: row.id, data: row.data() as Record<string, unknown> }))),
       publicTimelineFromReaction(
         reactionSnap.docs.map((row) => ({ id: row.id, data: row.data() as Record<string, unknown> }))
       )
-    );
+    ).slice(0, DETAILS_EVENT_LIMIT);
     return {
       kind: 'completed',
       matchId: match.matchId,
