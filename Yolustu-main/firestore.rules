@@ -453,7 +453,7 @@ service cloud.firestore {
         );
     }
 
-    function isValidBattleFinish() {
+    function isValidBattleFinish(battleId) {
       let before = resource.data;
       let after = request.resource.data;
       let scoreWin = before.attackerScore != before.defenderScore
@@ -470,6 +470,12 @@ service cloud.firestore {
         && (
           (after.finishReason == 'score_reached' && scoreWin)
           || (after.finishReason == 'turn_limit' && before.turn > 8 && !scoreWin)
+          || (
+            after.finishReason == 'turn_limit'
+            && !scoreWin
+            && exists(/databases/$(database)/documents/arena_matches/$(battleId))
+            && get(/databases/$(database)/documents/arena_matches/$(battleId)).data.status == 'closed'
+          )
         )
         && after.winnerAllianceId == (
           before.attackerScore > before.defenderScore
@@ -1562,7 +1568,7 @@ service cloud.firestore {
       allow update: if isValidLegacySeqBump() || isValidMapBattleJoin() || isValidMapBattleLock()
         || isValidOfflineDefenseSeat() || isValidDefenseUidBind()
         || isValidBattleActivate() || isValidCardPlaySeqBump(battleId) || isValidTurnTimeout()
-        || isValidBattleFinish();
+        || isValidBattleFinish(battleId);
       allow delete: if false;
 
       match /events/{eventId} {

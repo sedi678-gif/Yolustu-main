@@ -34,6 +34,7 @@ import {
   type BattleFinishReason,
 } from './battleFinishConfig';
 import { applyBattleLeaderboardAwards, requireLeaderboardPeriod } from '@/app/lib/leaderboard';
+import { ARENA_MATCH_COLLECTION } from '@/app/game/arena/match/config';
 import {
   LEADERBOARD_AWARDS_COLLECTION,
   LEADERBOARD_WEEKLY_SCORE_BASE,
@@ -230,6 +231,7 @@ async function finishBattleWork(input: { battleId: string; playerId: string }): 
       const resultRef = battleResultRef(battleId);
       const parentSnap = await tx.get(parentRef);
       const resultSnap = await tx.get(resultRef);
+      const arenaSnap = await tx.get(doc(db, ARENA_MATCH_COLLECTION, battleId));
       if (!parentSnap.exists()) throw new Error('Battle tapılmadı');
       const battle = battleFromData(parentSnap.id, parentSnap.data());
 
@@ -272,7 +274,11 @@ async function finishBattleWork(input: { battleId: string; playerId: string }): 
         throw new Error('Bu döyüşdə deyilsən');
       }
 
-      const reason = officialFinishReason(battle);
+      const reason =
+        officialFinishReason(battle) ??
+        (arenaSnap.exists() && (arenaSnap.data() as { status?: string }).status === 'closed'
+          ? ('turn_limit' as const)
+          : null);
       if (!reason) throw new Error('Battle hələ bitməyib');
 
       const win = officialFinishWinner(battle);

@@ -11,6 +11,7 @@ import { db } from '@/firebase';
 import { requireFirebaseAuth, withTimeout } from '@/app/lib/firebaseAuth';
 import { sanitizeBattleId, sanitizePlayerId } from '@/app/lib/battleEventLog/sanitizeBattleEventMeta';
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
+import { finishBattle } from '@/app/lib/battleFinish';
 import { serverNowMs, syncServerClock } from '@/app/lib/battlePlay/battleServerClock';
 import {
   ARENA_ENERGY_MAX,
@@ -443,6 +444,9 @@ export async function completeArenaMatch(input: { matchId: string }): Promise<Ar
     )
   );
   await persistArenaMatchRewards(closed);
+  if (closed.gameMode === '5v5') {
+    await finishBattle({ battleId: matchId, playerId: closed.createdBy }).catch(() => {});
+  }
   return closed;
 }
 

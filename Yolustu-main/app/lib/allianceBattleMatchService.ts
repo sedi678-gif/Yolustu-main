@@ -26,6 +26,7 @@ import { BATTLE_ENERGY_COLLECTION, initialBattleEnergyDoc } from '@/app/lib/batt
 import { BATTLE_SCORE_COLLECTION, initialBattleScoreDoc } from '@/app/lib/battleScore/battleScoreConfig';
 import { BATTLE_TURN_DURATION_MS, initialTurnState } from '@/app/lib/battlePlay/battlePlayConfig';
 import { replayBattleRequest } from '@/app/lib/battleReconnect/replayBattleRequest';
+import { ARENA_MATCH_COLLECTION } from '@/app/game/arena/match/config';
 import { stampJoinFailedResult } from '@/app/lib/battleFinish/battleFinishService';
 import { readStoredDefenseLoadout } from '@/app/lib/battleDefense/battleDefenseConfig';
 import { stampDefenseSnapshot } from '@/app/lib/battleDefense/battleDefenseService';
@@ -225,8 +226,17 @@ export async function startAllianceMapBattle(input: {
           const liveSnap = await tx.get(battleRef(existingCd.lastBattleId));
           if (liveSnap.exists()) {
             const live = battleFromData(liveSnap.id, liveSnap.data());
-            if (live.status === 'joining' && live.attackerAllianceId === attackerAllianceId) {
+            const arenaSnap = await tx.get(doc(db, ARENA_MATCH_COLLECTION, live.id));
+            const arenaClosed =
+              arenaSnap.exists() && (arenaSnap.data() as { status?: string }).status === 'closed';
+            if (!arenaClosed && live.status === 'joining' && live.attackerAllianceId === attackerAllianceId) {
               return live;
+            }
+            if (
+              !arenaClosed &&
+              (live.status === 'joining' || live.status === 'locked' || live.status === 'active')
+            ) {
+              throw new Error('Bu ittifaqda aktiv döyüş var');
             }
           }
         }
@@ -684,10 +694,15 @@ export function listenMyJoiningBattle(
       return;
     }
     const battle = battleFromData(battleSnap.id, battleSnap.data());
-    onChange(
-      battle.status === 'joining' || battle.status === 'locked' || battle.status === 'active'
-        ? battle.id
-        : null
-    );
+    if (battle.status !== 'joining' && battle.status !== 'locked' && battle.status !== 'active') {
+      onChange(null);
+      return;
+    }
+    const arenaSnap = await getDoc(doc(db, ARENA_MATCH_COLLECTION, battle.id));
+    if (arenaSnap.exists() && (arenaSnap.data() as { status?: string }).status === 'closed') {
+      onChange(null);
+      return;
+    }
+    onChange(battle.id);
   });
 }

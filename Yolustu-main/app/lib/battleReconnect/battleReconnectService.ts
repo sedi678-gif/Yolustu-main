@@ -19,6 +19,7 @@ import { serverNowMs, syncServerClock } from '@/app/lib/battlePlay/battleServerC
 import { BATTLE_LOADOUT_COLLECTION } from '@/app/lib/battleLoadout/battleLoadoutConfig';
 import { BATTLE_CHALLENGE_COLLECTION } from '@/app/lib/battleClick/battleClickConfig';
 import { viewBattleChallenge, type BattleChallenge } from '@/app/lib/battleClick/battleClickService';
+import { ARENA_MATCH_COLLECTION } from '@/app/game/arena/match/config';
 import { replayBattleRequest } from './replayBattleRequest';
 
 const LIVE_STATUS: BattleStatus[] = ['joining', 'locked', 'active'];
@@ -135,6 +136,12 @@ async function restoreBattleSessionWork(input: {
   await syncServerClock().catch(() => {});
   const battle = await readBattle(battleId);
   if (!battle || !isLiveStatus(battle.status) || !(battle.participantIds ?? []).includes(playerId)) {
+    clearLiveBattleHint(playerId);
+    return null;
+  }
+
+  const arenaSnap = await getDoc(doc(db, ARENA_MATCH_COLLECTION, battle.id));
+  if (arenaSnap.exists() && (arenaSnap.data() as { status?: string }).status === 'closed') {
     clearLiveBattleHint(playerId);
     return null;
   }

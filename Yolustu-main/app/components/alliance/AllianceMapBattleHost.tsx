@@ -166,6 +166,18 @@ export default function AllianceMapBattleHost({
   }, [lobbyId]);
 
   useEffect(() => {
+    if (!userId || !view || !arenaMatch) return;
+    if (arenaMatch.status !== 'closed') return;
+    if (view.battle.status !== 'finished') {
+      void finishBattle({ battleId: view.battle.id, playerId: userId }).catch(() => {});
+    }
+    if (tableOpen) return;
+    clearLiveBattleHint(userId);
+    setLobbyId(null);
+    setView(null);
+  }, [arenaMatch, view, userId, tableOpen]);
+
+  useEffect(() => {
     if (!lobbyId) return;
     return listenAllianceMapBattle(lobbyId, setView);
   }, [lobbyId]);
@@ -292,7 +304,6 @@ export default function AllianceMapBattleHost({
 
   const localAlliance = resolvedIdentified || alliances.find((item) => item.id === selectedAllianceId) || null;
   const showInfo = Boolean(selectedAllianceId) && !lobbyId;
-  const showLobby = Boolean(lobbyId && liveView);
 
   useEffect(() => {
     if (!liveView || !userId || !activeAlliance?.id || busy) return;
@@ -311,7 +322,13 @@ export default function AllianceMapBattleHost({
   }, [activeAlliance?.id, busy, liveView, onJoin, userId]);
 
   const loadoutReady = Boolean(userId && arenaMatch?.loadouts[userId]);
-  const tableReady = Boolean(alreadyIn && (loadoutReady || arenaMatch?.phase === 'combat' || arenaMatch?.status === 'closed'));
+  const matchClosed = arenaMatch?.status === 'closed';
+  const tableReady = Boolean(
+    alreadyIn && !matchClosed && (loadoutReady || arenaMatch?.phase === 'combat')
+  );
+  const showLobby = Boolean(
+    lobbyId && liveView && liveView.phase !== 'finished' && !matchClosed && !tableOpen
+  );
 
   return (
     <>
@@ -424,7 +441,14 @@ export default function AllianceMapBattleHost({
       </AllianceMapSheet>
       <GameTable
         open={tableOpen}
-        onClose={() => setTableOpen(false)}
+        onClose={() => {
+          setTableOpen(false);
+          if (arenaMatch?.status === 'closed') {
+            if (userId) clearLiveBattleHint(userId);
+            setLobbyId(null);
+            setView(null);
+          }
+        }}
         matchId={lobbyId}
         playerId={userId}
       />
