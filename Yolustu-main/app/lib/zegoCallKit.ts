@@ -10,7 +10,7 @@ import {
   showIncomingCallNotification,
 } from '@/app/lib/callNotifications';
 import { ensureMediaPermission } from '@/app/lib/mediaPermissions';
-import { toZegoUserId, toZegoUserName } from '@/app/lib/zegoUserId';
+import { toZegoRoomId, toZegoUserId, toZegoUserName } from '@/app/lib/zegoUserId';
 import type { CallType } from '@/app/lib/callService';
 import { getCallUiState, setCallUiState } from '@/app/lib/callUiBridge';
 
@@ -27,8 +27,54 @@ const optionsRef: { current: ZegoCallKitOptions } = { current: {} };
 
 let zpInstance: ZegoInstance | null = null;
 let activeUserId: string | null = null;
+let activeUserName: string | null = null;
 let initPromise: Promise<ZegoInstance | null> | null = null;
 let lastInitError: string | null = null;
+let tableVoiceActive = false;
+
+/** Test kit token — Zego default 7200s; 24 saat yenilənmiş müddət. */
+const TEST_TOKEN_TTL_SEC = 24 * 60 * 60;
+
+function generateTestKitToken(
+  ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPrebuilt'],
+  roomID: string,
+  userID: string,
+  userName: string
+): string {
+  const appID = Number(getZegoAppId());
+  const serverSecret = String(getZegoServerSecret() ?? '').trim();
+  const rid = String(roomID ?? '');
+  const uid = String(userID ?? '');
+  if (!Number.isFinite(appID) || appID <= 0) {
+    throw new Error('Zego appID etibarsızdır.');
+  }
+  if (!serverSecret) {
+    throw new Error('Zego serverSecret yüklənməyib.');
+  }
+  if (!rid) {
+    throw new Error('Zego roomID boşdur.');
+  }
+  if (!uid) {
+    throw new Error('Zego userID boşdur.');
+  }
+  return ZegoUIKitPrebuilt.generateKitTokenForTest(
+    appID,
+    serverSecret,
+    rid,
+    uid,
+    String(userName || uid),
+    TEST_TOKEN_TTL_SEC
+  );
+}
+
+function destroyPrebuilt(instance: ZegoInstance | null): void {
+  if (!instance) return;
+  try {
+    instance.destroy();
+  } catch {
+    /* ignore */
+  }
+}
 
 function toCallType(
   ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPrebuilt'],
@@ -145,8 +191,9 @@ export async function initZegoCallKit(
 ): Promise<ZegoInstance | null> {
   optionsRef.current = { ...optionsRef.current, ...options };
 
-  const zegoUserId = toZegoUserId(userId);
-  if (!zegoUserId || zegoUserId === 'user_unknown') {
+  const zegoUserId = String(toZegoUserId(userId));
+  const zegoName = String(toZegoUserName(userName, userId));
+  if (!zegoUserId) {
     lastInitError = 'Etibarlı istifadəçi ID-si yoxdur.';
     return null;
   }
@@ -157,7 +204,14 @@ export async function initZegoCallKit(
     return null;
   }
 
+  if (tableVoiceActive) {
+    activeUserId = zegoUserId;
+    activeUserName = zegoName;
+    return zpInstance;
+  }
+
   if (zpInstance && activeUserId === zegoUserId) {
+    activeUserName = zegoName;
     return zpInstance;
   }
 
@@ -175,16 +229,18 @@ export async function initZegoCallKit(
         import('zego-zim-web'),
       ]);
 
+      if (tableVoiceActive) {
+        activeUserId = zegoUserId;
+        activeUserName = zegoName;
+        return zpInstance;
+      }
+
       await requestCallNotificationPermission();
 
-      const appID = getZegoAppId();
-      const serverSecret = getZegoServerSecret();
-      const zegoName = toZegoUserName(userName, userId);
-
-      const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-        appID,
-        serverSecret,
-        null as unknown as string,
+      const inviteRoomId = toZegoRoomId(zegoUserId, 'sig_');
+      const kitToken = generateTestKitToken(
+        ZegoUIKitPrebuilt,
+        inviteRoomId,
         zegoUserId,
         zegoName
       );
@@ -195,12 +251,12 @@ export async function initZegoCallKit(
 
       zpInstance = zp;
       activeUserId = zegoUserId;
+      activeUserName = zegoName;
       return zp;
     } catch (err) {
       lastInitError = err instanceof Error ? err.message : 'Zego init xətası';
       console.error('[Zego] init failed:', err);
       zpInstance = null;
-      activeUserId = null;
       return null;
     }
   })().finally(() => {
@@ -263,13 +319,10 @@ export function isZegoCallKitReady(): boolean {
 
 export function destroyZegoCallKit(): void {
   const hadInstance = zpInstance !== null;
-  try {
-    zpInstance?.destroy();
-  } catch {
-    /* ignore */
-  }
+  destroyPrebuilt(zpInstance);
   zpInstance = null;
   activeUserId = null;
+  activeUserName = null;
   initPromise = null;
   if (hadInstance) setCallUiState(null);
 }
@@ -317,7 +370,15 @@ let tableZp: ZegoInstance | null = null;
 let tableRoomId: string | null = null;
 
 function arenaVoiceRoomId(matchId: string): string {
-  return `arena_${toZegoUserId(matchId)}`;
+  return toZegoRoomId(String(matchId ?? ''), 'arena_');
+}
+
+function restoreCallKitAfterTable(): void {
+  tableVoiceActive = false;
+  const uid = activeUserId;
+  const name = activeUserName;
+  if (!uid) return;
+  void initZegoCallKit(uid, name ?? uid, optionsRef.current);
 }
 
 export async function joinArenaVoiceRoom(input: {
@@ -331,21 +392,38 @@ export async function joinArenaVoiceRoom(input: {
   const mediaOk = await ensureMediaPermission('microphone');
   if (!mediaOk) return false;
 
-  const roomId = arenaVoiceRoomId(input.matchId);
-  const zegoUserId = toZegoUserId(input.playerId);
-  if (!zegoUserId || zegoUserId === 'user_unknown') return false;
+  const roomId = String(arenaVoiceRoomId(input.matchId));
+  const zegoUserId = String(toZegoUserId(input.playerId));
+  const zegoName = String(toZegoUserName(input.playerName, input.playerId));
+  if (!roomId || !zegoUserId) return false;
 
   if (tableZp && tableRoomId === roomId) return true;
-  leaveArenaVoiceRoom();
+
+  if (!activeUserId) {
+    activeUserId = zegoUserId;
+    activeUserName = zegoName;
+  }
+
+  tableVoiceActive = true;
+  if (initPromise) {
+    try {
+      await initPromise;
+    } catch {
+      /* ignore */
+    }
+  }
+  leaveArenaVoiceRoom({ restoreCallKit: false });
+  destroyPrebuilt(zpInstance);
+  zpInstance = null;
+  initPromise = null;
 
   try {
     const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
-    const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-      getZegoAppId(),
-      getZegoServerSecret(),
+    const kitToken = generateTestKitToken(
+      ZegoUIKitPrebuilt,
       roomId,
       zegoUserId,
-      toZegoUserName(input.playerName, input.playerId)
+      zegoName
     );
     const zp = ZegoUIKitPrebuilt.create(kitToken);
     zp.joinRoom({
@@ -376,18 +454,17 @@ export async function joinArenaVoiceRoom(input: {
     console.error('[Zego] arena voice failed:', err);
     tableZp = null;
     tableRoomId = null;
+    restoreCallKitAfterTable();
     return false;
   }
 }
 
-export function leaveArenaVoiceRoom(): void {
-  try {
-    tableZp?.destroy();
-  } catch {
-    /* ignore */
-  }
+export function leaveArenaVoiceRoom(opts?: { restoreCallKit?: boolean }): void {
+  const restore = opts?.restoreCallKit !== false;
+  destroyPrebuilt(tableZp);
   tableZp = null;
   tableRoomId = null;
+  if (restore) restoreCallKitAfterTable();
 }
 
 export function setArenaVoiceMuted(muted: boolean): void {

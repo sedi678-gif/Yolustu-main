@@ -208,7 +208,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       const calleeId = normalizeUserId(params.calleeId);
       const calleeZegoId = toZegoUserId(calleeId);
-      if (!calleeId || calleeId === myId || calleeZegoId === 'user_unknown') {
+      if (!calleeId || calleeId === myId || !calleeZegoId || calleeZegoId === 'user_unknown') {
         setCallError('Zəng ediləcək istifadəçi tapılmadı.');
         return;
       }

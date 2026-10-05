@@ -8,7 +8,16 @@ export interface ZegoRuntimeConfig {
   serverSecret: string;
 }
 
-const CACHE_KEY = 'yolustu_zego_config_v2';
+const CACHE_KEY = 'yolustu_zego_config_v3';
+
+/** AppSign (adətən 64 hex) token üçün ServerSecret deyil — 1002011/1002033. */
+function pickServerSecret(appSign: string, serverSecret?: string): string {
+  const sign = (appSign ?? '').trim();
+  const secret = (serverSecret ?? '').trim();
+  if (secret && secret !== sign) return secret;
+  if (secret && secret.length === 32) return secret;
+  return '';
+}
 
 let resolved: ZegoRuntimeConfig | null = null;
 let loadPromise: Promise<boolean> | null = null;
@@ -16,7 +25,7 @@ let lastLoadError: string | null = null;
 
 function applyConfig(appId: number, appSign: string, serverSecret?: string): boolean {
   const sign = (appSign ?? '').trim();
-  const secret = (serverSecret ?? sign).trim();
+  const secret = pickServerSecret(sign, serverSecret);
   if (!Number.isFinite(appId) || appId <= 0 || !secret) return false;
   resolved = { appId, appSign: sign, serverSecret: secret };
   if (typeof window !== 'undefined') {
@@ -39,9 +48,7 @@ function readFromProcessEnv(): boolean {
     process.env.ZEGO_APP_SIGN ??
     '';
   const secret =
-    process.env.ZEGO_SERVER_SECRET ??
-    process.env.NEXT_PUBLIC_ZEGO_SERVER_SECRET ??
-    sign;
+    process.env.ZEGO_SERVER_SECRET ?? process.env.NEXT_PUBLIC_ZEGO_SERVER_SECRET ?? '';
   const id = Number(rawId);
   return applyConfig(id, sign, secret);
 }
@@ -65,7 +72,7 @@ async function fetchJsonConfig(url: string): Promise<boolean> {
     const data = (await res.json()) as Partial<ZegoRuntimeConfig>;
     const id = Number(data.appId);
     const sign = (data.appSign ?? '').trim();
-    const secret = (data.serverSecret ?? sign).trim();
+    const secret = (data.serverSecret ?? '').trim();
     return applyConfig(id, sign, secret);
   } catch {
     return false;
@@ -103,7 +110,7 @@ async function loadFromFirestore(): Promise<boolean> {
     };
     const id = Number(data.appId);
     const sign = (data.appSign ?? '').trim();
-    const secret = (data.serverSecret ?? sign).trim();
+    const secret = (data.serverSecret ?? '').trim();
     return applyConfig(id, sign, secret);
   } catch (err) {
     lastLoadError = err instanceof Error ? err.message : 'Firestore xətası';

@@ -35,10 +35,14 @@ function pick(env, ...keys) {
 const env = parseEnvFile(join(root, '.env.local'));
 const appId = Number(pick(env, 'NEXT_PUBLIC_ZEGO_APP_ID', 'ZEGO_APP_ID'));
 const appSign = pick(env, 'NEXT_PUBLIC_ZEGO_APP_SIGN', 'ZEGO_APP_SIGN');
-const serverSecret = pick(env, 'ZEGO_SERVER_SECRET', 'NEXT_PUBLIC_ZEGO_SERVER_SECRET') || appSign;
+const serverSecret = pick(env, 'ZEGO_SERVER_SECRET', 'NEXT_PUBLIC_ZEGO_SERVER_SECRET');
 
 if (!appId || !appSign) {
   console.error('NEXT_PUBLIC_ZEGO_APP_ID və NEXT_PUBLIC_ZEGO_APP_SIGN .env.local-də tapılmadı.');
+  process.exit(1);
+}
+if (!serverSecret || serverSecret === appSign) {
+  console.error('ZEGO_SERVER_SECRET .env.local-də yoxdur (AppSign token üçün istifadə olunmur).');
   process.exit(1);
 }
 

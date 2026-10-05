@@ -16,11 +16,7 @@ const nextConfig: NextConfig = {
     ZEGO_APP_SIGN:
       process.env.ZEGO_APP_SIGN ?? process.env.NEXT_PUBLIC_ZEGO_APP_SIGN ?? '',
     ZEGO_SERVER_SECRET:
-      process.env.ZEGO_SERVER_SECRET ??
-      process.env.NEXT_PUBLIC_ZEGO_SERVER_SECRET ??
-      process.env.ZEGO_APP_SIGN ??
-      process.env.NEXT_PUBLIC_ZEGO_APP_SIGN ??
-      '',
+      process.env.ZEGO_SERVER_SECRET ?? process.env.NEXT_PUBLIC_ZEGO_SERVER_SECRET ?? '',
   },
 };
 
