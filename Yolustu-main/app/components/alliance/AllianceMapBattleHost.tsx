@@ -22,7 +22,6 @@ import {
   type AllianceBattleView,
 } from '@/app/lib/allianceBattleMatchService';
 import {
-  listenBattleReconnect,
   rememberLiveBattleHint,
   clearLiveBattleHint,
 } from '@/app/lib/battleReconnect';
@@ -109,15 +108,6 @@ export default function AllianceMapBattleHost({
   useEffect(() => listenServerClock(() => {}), []);
 
   useEffect(() => {
-    if (!userId) return;
-    return listenBattleReconnect(userId, (snap) => {
-      if (!snap) return;
-      setLobbyId(snap.battle.id);
-      setView(viewAllianceBattle(snap.battle, snap.serverNow || Date.now()));
-    });
-  }, [userId]);
-
-  useEffect(() => {
     if (!selectedAllianceId) return;
     let cancelled = false;
     void identifyAlliance(selectedAllianceId)
@@ -144,16 +134,13 @@ export default function AllianceMapBattleHost({
   }, [selectedAllianceId]);
 
   useEffect(() => {
-    if (!activeAlliance?.id) return;
-    return listenMyJoiningBattle(activeAlliance.id, (id) => {
-      if (id) setLobbyId(id);
-    });
-  }, [activeAlliance?.id]);
-
-  useEffect(() => {
-    if (!selectedAllianceId) return;
+    if (!selectedAllianceId) {
+      setLobbyId(null);
+      setView(null);
+      return;
+    }
     return listenMyJoiningBattle(selectedAllianceId, (id) => {
-      if (id) setLobbyId(id);
+      setLobbyId(id);
     });
   }, [selectedAllianceId]);
 
