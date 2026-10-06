@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useUser } from '@/context/UserContext';
 import AppBottomNav from '@/app/components/AppBottomNav';
 import AppLink from '@/app/components/AppLink';
@@ -8,27 +8,71 @@ import {
   USER_PLAN_LABELS,
   VIP_PRO_PRICE_AZN,
   canAccessAllFeatures,
-  canEarnXp,
   canViewAnalytics,
   normalizeUserPlanState,
   purchaseVipProPlan,
   setProPanelActive,
   shouldShowAds,
 } from '@/app/lib/userPlan';
+import ChannelDashboard from './ChannelDashboard';
+import { useChannelStudio } from './useChannelStudio';
+import styles from './studioDashboard.module.css';
+
+type StudioTab = 'dashboard' | 'content' | 'analytics' | 'earn';
+
+const NAV: { id: StudioTab; label: string; icon: ReactNode }[] = [
+  {
+    id: 'dashboard',
+    label: 'Panel',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'content',
+    label: 'Kontent',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        <path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'analytics',
+    label: 'Analitika',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        <path d="M3 17h3v4H3v-4zm5-6h3v10H8V11zm5-5h3v15h-3V6zm5 8h3v7h-3v-7z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'earn',
+    label: 'Qazanc',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1.75.76 1.36 2.32 1.36 1.64 0 2.24-.7 2.24-1.45 0-.87-.6-1.33-2.24-1.77-2.4-.64-3.97-1.61-3.97-3.65 0-1.77 1.39-3 3.11-3.39V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39h-1.96c-.1-.81-.67-1.36-2.09-1.36-1.41 0-2.09.61-2.09 1.41 0 .73.57 1.14 2.2 1.58 2.55.67 4.01 1.64 4.01 3.8 0 1.8-1.28 3.05-3.31 3.41z" />
+      </svg>
+    ),
+  },
+];
 
 export default function PlanDashboard() {
   const { userId, manat, playerProfile } = useUser();
+  const data = useChannelStudio(userId);
   const plan = useMemo(
     () => normalizeUserPlanState(playerProfile as unknown as Record<string, unknown> | null),
     [playerProfile]
   );
+  const [tab, setTab] = useState<StudioTab>('dashboard');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const showAds = shouldShowAds(plan);
   const analyticsOpen = canViewAnalytics(plan);
   const allToolsOpen = canAccessAllFeatures(plan);
-  const xpOn = canEarnXp(plan);
+  const showAds = shouldShowAds(plan);
 
   const run = async (fn: () => Promise<unknown>) => {
     if (!userId || busy) return;
@@ -44,118 +88,118 @@ export default function PlanDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-28 text-slate-100">
-      <header className="border-b border-white/10 px-4 py-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Pano</p>
-        <h1 className="mt-1 text-2xl font-black">Professional Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Paket: <span className="font-bold text-white">{USER_PLAN_LABELS[plan.userPlan]}</span>
-          {' · '}
-          {xpOn ? 'XP açıqdır' : 'Sosial rejim — oyun/izləmə XP-si sönülüdür'}
-        </p>
-      </header>
-
-      <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-5">
-        {showAds ? (
-          <section className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-amber-200">Reklam</p>
-            <p className="mt-1 text-sm text-amber-50">
-              VIP Professional (30 AZN, bir dəfə) alanda bütün reklamlar həmişəlik sönür.
-            </p>
-          </section>
-        ) : (
-          <section className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-100">
-            VIP Pass aktivdir — reklam yoxdur.
-          </section>
-        )}
-
-        {error ? <p className="rounded-xl bg-rose-500/15 px-3 py-2 text-sm text-rose-200">{error}</p> : null}
-
-        <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
-          <h2 className="text-lg font-bold">İzləmələr</h2>
-          <p className="mt-1 text-sm text-slate-400">Hər kəsə açıqdır. Öz izləyici və izləmə statistikası.</p>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-slate-800 p-3">
-              <p className="text-xs text-slate-400">İzləyicilər</p>
-              <p className="text-2xl font-black">—</p>
-            </div>
-            <div className="rounded-xl bg-slate-800 p-3">
-              <p className="text-xs text-slate-400">İzləmələr</p>
-              <p className="text-2xl font-black">—</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4">
-          <h2 className="text-lg font-bold">Dərin Analitika</h2>
-          <p className="mt-1 text-sm text-slate-400">Yalnız Adi Professional və VIP Professional.</p>
-          {analyticsOpen ? (
-            <div className="mt-3 space-y-2 text-sm">
-              <p>Oyun və izləmə trendi, günlük aktivlik, paketinə uyğun hesabat.</p>
-              <p className="text-cyan-300">Analitika açıqdır.</p>
-            </div>
-          ) : (
-            <div className="mt-3">
-              <div className="pointer-events-none select-none blur-sm">
-                <p className="text-sm">Gizli qrafiklər · retention · conversion</p>
-                <div className="mt-2 h-16 rounded-xl bg-gradient-to-r from-cyan-700 to-indigo-700" />
-              </div>
-              <p className="mt-3 text-sm font-semibold text-amber-200">Kilitlidir — Professional Pano açın.</p>
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
-          <h2 className="text-lg font-bold">Bütün Sayt Alətləri</h2>
-          <p className="mt-1 text-sm text-slate-400">Yalnız VIP Professional.</p>
-          {allToolsOpen ? (
-            <p className="mt-3 text-sm text-emerald-200">Bütün alətlər açıqdır.</p>
-          ) : (
+    <div className={styles.studio}>
+      <div className={styles.layout}>
+        <nav className={styles.rail} aria-label="Studio">
+          {NAV.map((item) => (
             <button
+              key={item.id}
               type="button"
-              disabled={busy}
-              onClick={() => void run(() => purchaseVipProPlan(userId))}
-              className="mt-3 w-full rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-60"
+              className={`${styles.railBtn} ${tab === item.id ? styles.railBtnActive : ''}`}
+              onClick={() => setTab(item.id)}
             >
-              {busy ? 'Gözləyin…' : `${VIP_PRO_PRICE_AZN} AZN — VIP Professional al`}
+              {item.icon}
+              {item.label}
             </button>
-          )}
-          <p className="mt-2 text-xs text-slate-500">Balans: {manat.toLocaleString('az-AZ')} ₼</p>
-        </section>
-
-        <section className="grid gap-3 sm:grid-cols-3">
-          <article className={`rounded-2xl border p-4 ${plan.userPlan === 'FREE' ? 'border-cyan-400 bg-cyan-400/10' : 'border-white/10 bg-slate-900/80'}`}>
-            <h3 className="font-black">Adi Pano</h3>
-            <p className="mt-1 text-xs text-slate-400">Pulsuz · reklam var · əsas funksiyalar</p>
-            <p className="mt-3 text-lg font-black">0 AZN</p>
-          </article>
-          <article className={`rounded-2xl border p-4 ${plan.userPlan === 'PRO' ? 'border-cyan-400 bg-cyan-400/10' : 'border-white/10 bg-slate-900/80'}`}>
-            <h3 className="font-black">Adi Professional</h3>
-            <p className="mt-1 text-xs text-slate-400">Pulsuz · öz analitikan · reklam var · XP sönür</p>
-            <p className="mt-3 text-lg font-black">0 AZN</p>
-          </article>
-          <article className={`rounded-2xl border p-4 ${plan.userPlan === 'VIP_PRO' ? 'border-amber-400 bg-amber-400/10' : 'border-white/10 bg-slate-900/80'}`}>
-            <h3 className="font-black">VIP Professional</h3>
-            <p className="mt-1 text-xs text-slate-400">Birdəfəlik · bütün alətlər · həmişəlik VIP Pass</p>
-            <p className="mt-3 text-lg font-black">{VIP_PRO_PRICE_AZN} AZN</p>
-          </article>
-        </section>
-
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void run(() => setProPanelActive(userId, !plan.proPanelActive))}
-            className="flex-1 rounded-xl border border-white/15 bg-slate-800 px-4 py-3 text-sm font-bold"
-          >
-            {plan.proPanelActive ? 'Sosial rejimi bağla (XP açılacaq)' : 'Sosial rejimi aç (XP sönəcək)'}
-          </button>
-          <AppLink href="/settings" className="flex-1 rounded-xl border border-white/15 px-4 py-3 text-center text-sm font-bold">
-            Ayarlara qayıt
+          ))}
+          <AppLink href="/profile" className={styles.railBtn}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+            </svg>
+            Kanal
           </AppLink>
-        </div>
-      </main>
+          <AppLink href="/settings" className={styles.railBtn}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.8a.5.5 0 0 0-.49.42l-.36 2.54c-.59.22-1.14.53-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.81 8.48a.5.5 0 0 0 .12.64L4.96 10.7c-.04.31-.06.63-.06.94s.02.63.06.94L2.93 14.16a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.43.34.69.22l2.39-.96c.49.41 1.04.72 1.63.94l.36 2.54c.05.24.25.42.49.42h3.8c.24 0 .44-.18.49-.42l.36-2.54c.59-.22 1.14-.53 1.63-.94l2.39.96c.26.12.55.02.69-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z" />
+            </svg>
+            Ayarlar
+          </AppLink>
+        </nav>
 
+        <main className={styles.main}>
+          <header className={styles.topbar}>
+            <div className={styles.brand}>
+              {data.avatar ? (
+                <img className={styles.avatar} src={data.avatar} alt="" />
+              ) : (
+                <div className={styles.brandMark}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+              )}
+              <div className={styles.brandText}>
+                <p className={styles.brandKicker}>Yolüstü Studio</p>
+                <h1 className={styles.brandTitle}>{data.name || 'Kanal paneli'}</h1>
+              </div>
+            </div>
+            <AppLink href="/profile" className={styles.createBtn}>
+              + Yarat
+            </AppLink>
+          </header>
+
+          <div className={styles.tabs} role="tablist">
+            {NAV.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === item.id}
+                className={`${styles.tab} ${tab === item.id ? styles.tabActive : ''}`}
+                onClick={() => setTab(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'earn' ? (
+            <div className={styles.grid}>
+              <article className={`${styles.card} ${styles.span2}`}>
+                <div className={styles.cardHead}>
+                  <h2 className={styles.cardTitle}>Qazanc və paket</h2>
+                  <p className={styles.cardMeta}>{USER_PLAN_LABELS[plan.userPlan]}</p>
+                </div>
+                {error ? <p className={styles.error}>{error}</p> : null}
+                <p className={styles.empty}>
+                  {showAds
+                    ? 'Reklamsız kanal üçün VIP Professional (birdəfəlik 30 AZN).'
+                    : 'VIP Pass aktivdir — reklam yoxdur.'}
+                </p>
+                <ul className={styles.earnList}>
+                  <li>Adi Pano — əsas funksiyalar, reklam var</li>
+                  <li>Adi Professional — öz analitikan</li>
+                  <li>VIP Professional — bütün alətlər, həmişəlik VIP Pass</li>
+                </ul>
+                {allToolsOpen ? (
+                  <p className={styles.empty} style={{ marginTop: 12 }}>
+                    Bütün alətlər açıqdır. Balans: {manat.toLocaleString('az-AZ')} ₼
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.buyBtn}
+                    disabled={busy}
+                    onClick={() => void run(() => purchaseVipProPlan(userId))}
+                  >
+                    {busy ? 'Gözləyin…' : `${VIP_PRO_PRICE_AZN} AZN — VIP Professional al`}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={styles.ghostBtn}
+                  disabled={busy}
+                  onClick={() => void run(() => setProPanelActive(userId, !plan.proPanelActive))}
+                >
+                  {plan.proPanelActive ? 'Sosial rejimi bağla (XP açılacaq)' : 'Sosial rejimi aç (XP sönəcək)'}
+                </button>
+              </article>
+            </div>
+          ) : (
+            <ChannelDashboard data={data} analyticsOpen={analyticsOpen} tab={tab} />
+          )}
+        </main>
+      </div>
       <AppBottomNav activeTab="profile" />
     </div>
   );
