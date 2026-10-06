@@ -21,6 +21,7 @@ import {
   IconVideo,
 } from '@/app/components/messages/MessageHubIcons';
 import { useCall } from '@/context/CallContext';
+import { unlockCallAudio } from '@/app/lib/audioUnlock';
 import CallSettingsSheet from '@/app/components/messages/CallSettingsSheet';
 import {
   listenMessageContacts,
@@ -828,13 +829,15 @@ export default function MessagesPageClient() {
       return;
     }
     ensureAppSocket();
-    void startCall({
-      calleeId: String(selectedChat.id),
-      calleeName: selectedChat.name,
-      calleeAvatar: selectedChat.avatar,
-      chatId: selectedChat.chatId,
-      callType,
-    });
+    void unlockCallAudio().then(() =>
+      startCall({
+        calleeId: String(selectedChat.id),
+        calleeName: selectedChat.name,
+        calleeAvatar: selectedChat.avatar,
+        chatId: selectedChat.chatId,
+        callType,
+      })
+    );
   };
 
   const pendingIds = new Set(messageContacts.filter((c) => c.status === 'pending').map((c) => c.contactId));
@@ -1200,10 +1203,10 @@ export default function MessagesPageClient() {
               </div>
             </AppLink>
             <div className={styles.headerActions}>
-              <button type="button" className={`${styles.msgHubIconBtn} ${styles.msgHubIconBtnAccent}`} onClick={() => void handleStartCall('voice')} aria-label="Səsli zəng">
+              <button type="button" className={`${styles.msgHubIconBtn} ${styles.msgHubIconBtnAccent}`} onClick={() => void handleStartCall('voice')} aria-label={t.messages.voiceCall} title={t.messages.voiceCall}>
                 <IconPhone />
               </button>
-              <button type="button" className={`${styles.msgHubIconBtn} ${styles.msgHubIconBtnAccent}`} onClick={() => void handleStartCall('video')} aria-label="Video zəng">
+              <button type="button" className={`${styles.msgHubIconBtn} ${styles.msgHubIconBtnAccent}`} onClick={() => void handleStartCall('video')} aria-label={t.messages.videoCall} title={t.messages.videoCall}>
                 <IconVideo />
               </button>
               <button type="button" className={styles.msgHubIconBtn} onClick={() => setShowActions(true)} aria-label="Daha çox">

@@ -2,6 +2,7 @@
 
 let audioCtx: AudioContext | null = null;
 let ringTimer: ReturnType<typeof setInterval> | null = null;
+let pulseTimer: ReturnType<typeof setInterval> | null = null;
 let activeOscillators: OscillatorNode[] = [];
 
 function stopOscillators() {
@@ -64,8 +65,22 @@ export function stopRingtone(): void {
     void audioCtx.close().catch(() => undefined);
     audioCtx = null;
   }
+  stopCallPulse();
 }
 
-export function isRingtonePlaying(): boolean {
-  return ringTimer !== null;
+export function startCallPulse(): void {
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  stopCallPulse();
+  navigator.vibrate([400, 180, 400, 180, 400, 1200]);
+  pulseTimer = setInterval(() => {
+    navigator.vibrate?.([400, 180, 400, 180, 400, 1200]);
+  }, 2400);
+}
+
+export function stopCallPulse(): void {
+  if (pulseTimer) {
+    clearInterval(pulseTimer);
+    pulseTimer = null;
+  }
+  navigator.vibrate?.(0);
 }

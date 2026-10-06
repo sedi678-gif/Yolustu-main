@@ -35,6 +35,21 @@ export type AppStrings = {
     micTitle: string;
     voiceCall: string;
     videoCall: string;
+    callIncoming: string;
+    callOutgoing: string;
+    callConnecting: string;
+    callInProgress: string;
+    callDecline: string;
+    callAccept: string;
+    callCancel: string;
+    callEnd: string;
+    callMute: string;
+    callMuted: string;
+    callSpeaker: string;
+    callSpeakerOff: string;
+    callCamera: string;
+    callCameraOff: string;
+    callEncrypt: string;
     viewProfile: string;
     systemHint: string;
     uploadFailed: string;
@@ -180,6 +195,21 @@ const STRINGS: Record<AppLanguage, AppStrings> = {
       micTitle: 'Səs mesajı — basılı saxla',
       voiceCall: 'Səsli zəng',
       videoCall: 'Video zəng',
+      callIncoming: 'Gələn zəng',
+      callOutgoing: 'Zəng edilir…',
+      callConnecting: 'Qoşulur…',
+      callInProgress: 'Danışıq',
+      callDecline: 'Rədd et',
+      callAccept: 'Cavab ver',
+      callCancel: 'Ləğv et',
+      callEnd: 'Bitir',
+      callMute: 'Mikrofon',
+      callMuted: 'Səssiz',
+      callSpeaker: 'Spiker',
+      callSpeakerOff: 'Qulaqlıq',
+      callCamera: 'Kamera',
+      callCameraOff: 'Kamera bağlı',
+      callEncrypt: 'Uçdan-uca şifrəli',
       viewProfile: 'Profilə bax',
       systemHint: 'Mesaj və media məlumatları avtomatik sinxron saxlanılır.',
       uploadFailed: 'Media göndərilmədi. Yenidən cəhd edin.',
@@ -319,6 +349,21 @@ const STRINGS: Record<AppLanguage, AppStrings> = {
       micTitle: 'Voice message — hold',
       voiceCall: 'Voice call',
       videoCall: 'Video call',
+      callIncoming: 'Incoming call',
+      callOutgoing: 'Calling…',
+      callConnecting: 'Connecting…',
+      callInProgress: 'In call',
+      callDecline: 'Decline',
+      callAccept: 'Accept',
+      callCancel: 'Cancel',
+      callEnd: 'End',
+      callMute: 'Mute',
+      callMuted: 'Muted',
+      callSpeaker: 'Speaker',
+      callSpeakerOff: 'Earpiece',
+      callCamera: 'Camera',
+      callCameraOff: 'Camera off',
+      callEncrypt: 'End-to-end encrypted',
       viewProfile: 'View profile',
       systemHint: 'Messages and media sync automatically.',
       uploadFailed: 'Failed to send media. Try again.',
@@ -458,6 +503,21 @@ const STRINGS: Record<AppLanguage, AppStrings> = {
       micTitle: 'Голосовое — удерживайте',
       voiceCall: 'Голосовой звонок',
       videoCall: 'Видеозвонок',
+      callIncoming: 'Входящий вызов',
+      callOutgoing: 'Вызов…',
+      callConnecting: 'Соединение…',
+      callInProgress: 'Разговор',
+      callDecline: 'Отклонить',
+      callAccept: 'Ответить',
+      callCancel: 'Отмена',
+      callEnd: 'Завершить',
+      callMute: 'Микрофон',
+      callMuted: 'Без звука',
+      callSpeaker: 'Динамик',
+      callSpeakerOff: 'Динамик выкл.',
+      callCamera: 'Камера',
+      callCameraOff: 'Камера выкл.',
+      callEncrypt: 'Сквозное шифрование',
       viewProfile: 'Открыть профиль',
       systemHint: 'Сообщения и медиа синхронизируются автоматически.',
       uploadFailed: 'Не удалось отправить медиа.',
@@ -597,6 +657,21 @@ const STRINGS: Record<AppLanguage, AppStrings> = {
       micTitle: 'Sesli mesaj — basılı tut',
       voiceCall: 'Sesli arama',
       videoCall: 'Görüntülü arama',
+      callIncoming: 'Gelen arama',
+      callOutgoing: 'Aranıyor…',
+      callConnecting: 'Bağlanıyor…',
+      callInProgress: 'Görüşme',
+      callDecline: 'Reddet',
+      callAccept: 'Cevapla',
+      callCancel: 'İptal',
+      callEnd: 'Bitir',
+      callMute: 'Mikrofon',
+      callMuted: 'Sessiz',
+      callSpeaker: 'Hoparlör',
+      callSpeakerOff: 'Ahize',
+      callCamera: 'Kamera',
+      callCameraOff: 'Kamera kapalı',
+      callEncrypt: 'Uçtan uca şifreli',
       viewProfile: 'Profile bak',
       systemHint: 'Mesajlar ve medya otomatik senkronize edilir.',
       uploadFailed: 'Medya gönderilemedi.',

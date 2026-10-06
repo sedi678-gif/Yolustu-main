@@ -175,6 +175,10 @@ function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPreb
       optionsRef.current.onCallInvitationEnded?.(String(reason));
     },
     onOutgoingCallAccepted: (_callID: string, callee: { userID: string }) => {
+      const prev = getCallUiState();
+      if (prev) {
+        setCallUiState({ ...prev, mode: 'connecting' });
+      }
       optionsRef.current.onOutgoingAccepted?.(callee.userID);
     },
   };
@@ -305,7 +309,7 @@ export async function sendZegoCallInvitation(
       },
     ],
     callType: invitationType,
-    timeout: params.timeout ?? 90,
+    timeout: params.timeout ?? 60,
   });
 }
 

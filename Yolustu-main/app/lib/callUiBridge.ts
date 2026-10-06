@@ -1,6 +1,6 @@
 import { CallType } from './callService';
 
-export type CallUiMode = 'incoming' | 'outgoing' | 'active';
+export type CallUiMode = 'incoming' | 'outgoing' | 'connecting' | 'active';
 
 export type CallUiState = {
   mode: CallUiMode;
