@@ -296,7 +296,7 @@ export default function CallOverlay({
               label={t.messages.callAccept}
               accept
               large
-              onClick={() => void unlockCallAudio().then(() => onAccept?.())}
+              onClick={() => onAccept?.()}
             >
               {isVideoCall ? <IconCallVideo size={30} /> : <IconCallPhone size={30} />}
             </ControlBtn>

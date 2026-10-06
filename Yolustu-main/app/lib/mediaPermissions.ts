@@ -1,3 +1,5 @@
+import { mapGetUserMediaError } from '@/app/hooks/useMediaDevices';
+
 export type MediaPermissionKind = 'microphone' | 'camera' | 'gallery';
 
 export function getSupportedAudioMimeType(): string {
@@ -10,32 +12,80 @@ export function getSupportedAudioMimeType(): string {
 }
 
 export async function requestMicrophonePermission(): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return false;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach((t) => t.stop());
-    return true;
-  } catch {
-    return false;
-  }
+  const primed = await primeCallMedia(false);
+  releaseMediaStream(primed.stream);
+  return primed.audio;
 }
 
 export async function requestCameraPermission(): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return false;
+  const primed = await primeCallMedia(true);
+  releaseMediaStream(primed.stream);
+  return primed.video;
+}
+
+export function releaseMediaStream(stream: MediaStream | null | undefined): void {
+  stream?.getTracks().forEach((track) => {
+    try {
+      track.stop();
+    } catch {
+      /* already stopped */
+    }
+  });
+}
+
+/** Klik jesti içində çağır — icazə prompt-u itməsin. Track-ləri Zego-dan əvvəl burax. */
+export async function primeCallMedia(wantVideo: boolean): Promise<{
+  stream: MediaStream | null;
+  audio: boolean;
+  video: boolean;
+  error?: string;
+}> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+    return { stream: null, audio: false, video: false, error: 'Bu brauzer zəngi dəstəkləmir.' };
+  }
+
+  const audio = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  } as const;
+
+  const tryGum = async (constraints: MediaStreamConstraints) =>
+    navigator.mediaDevices.getUserMedia(constraints);
+
+  if (wantVideo) {
+    try {
+      const stream = await tryGum({
+        audio,
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      return { stream, audio: true, video: true };
+    } catch (first) {
+      try {
+        const stream = await tryGum({ audio, video: true });
+        return { stream, audio: true, video: true };
+      } catch (second) {
+        try {
+          const stream = await tryGum({ audio, video: false });
+          return { stream, audio: true, video: false, error: mapGetUserMediaError(second) };
+        } catch (third) {
+          return { stream: null, audio: false, video: false, error: mapGetUserMediaError(third) };
+        }
+      }
+    }
+  }
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    stream.getTracks().forEach((t) => t.stop());
-    return true;
-  } catch {
-    return false;
+    const stream = await tryGum({ audio, video: false });
+    return { stream, audio: true, video: false };
+  } catch (err) {
+    return { stream: null, audio: false, video: false, error: mapGetUserMediaError(err) };
   }
 }
 
 export async function requestGalleryPermission(): Promise<boolean> {
   return true;
 }
-
-export { mapGetUserMediaError } from '@/app/hooks/useMediaDevices';
 
 export async function ensureMediaPermission(kind: MediaPermissionKind): Promise<boolean> {
   if (kind === 'microphone') return requestMicrophonePermission();

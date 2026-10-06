@@ -22,6 +22,14 @@ import {
 } from '@/app/components/messages/MessageHubIcons';
 import { useCall } from '@/context/CallContext';
 import { unlockCallAudio } from '@/app/lib/audioUnlock';
+import {
+  primeCallMedia,
+  releaseMediaStream,
+  ensureMediaPermission,
+  validateMediaFile,
+  getSupportedAudioMimeType,
+  getCurrentLocation,
+} from '@/app/lib/mediaPermissions';
 import CallSettingsSheet from '@/app/components/messages/CallSettingsSheet';
 import {
   listenMessageContacts,
@@ -72,12 +80,6 @@ import { AppUserProfile } from '@/app/lib/socialTypes';
 import { useUser } from '@/context/UserContext';
 import { useAppBrain } from '@/app/components/alliance/AllianceBrainContext';
 import { getAppUserId } from '@/app/lib/userId';
-import {
-  ensureMediaPermission,
-  validateMediaFile,
-  getSupportedAudioMimeType,
-  getCurrentLocation,
-} from '@/app/lib/mediaPermissions';
 import { useAppStrings } from '@/app/lib/useAppStrings';
 import AppLink from '@/app/components/AppLink';
 import styles from './social.module.css';
@@ -829,15 +831,21 @@ export default function MessagesPageClient() {
       return;
     }
     ensureAppSocket();
-    void unlockCallAudio().then(() =>
-      startCall({
-        calleeId: String(selectedChat.id),
-        calleeName: selectedChat.name,
-        calleeAvatar: selectedChat.avatar,
-        chatId: selectedChat.chatId,
-        callType,
-      })
-    );
+    void unlockCallAudio();
+    const media = await primeCallMedia(callType === 'video');
+    releaseMediaStream(media.stream);
+    if (!media.audio) {
+      alert(media.error || 'Mikrofon icazəsi verilməyib.');
+      return;
+    }
+    startCall({
+      calleeId: String(selectedChat.id),
+      calleeName: selectedChat.name,
+      calleeAvatar: selectedChat.avatar,
+      chatId: selectedChat.chatId,
+      callType,
+      joinCamera: callType === 'video' && media.video,
+    });
   };
 
   const pendingIds = new Set(messageContacts.filter((c) => c.status === 'pending').map((c) => c.contactId));

@@ -3,12 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { unlockCallAudio } from '@/app/lib/audioUnlock';
 import { startCallPulse, startRingtone, stopCallPulse, stopRingtone } from '@/app/lib/callRingtone';
+import { primeCallMedia, releaseMediaStream } from '@/app/lib/mediaPermissions';
 import {
   getCallUiState,
   listenCallUiState,
   setCallUiState,
 } from '@/app/lib/callUiBridge';
 import {
+  setJoinWithCamera,
   zegoEnableCamera,
   zegoHangUp,
   zegoMuteMicrophone,
@@ -69,7 +71,18 @@ export default function CallUiHost() {
       chromeHidden={videoLive ? chromeHidden : false}
       onToggleChrome={videoLive ? () => setChromeHidden((v) => !v) : undefined}
       onAccept={() => {
-        void unlockCallAudio().then(() => ui.accept?.());
+        void (async () => {
+          void unlockCallAudio();
+          const media = await primeCallMedia(ui.callType === 'video');
+          releaseMediaStream(media.stream);
+          if (!media.audio) {
+            ui.refuse?.();
+            closeUi();
+            return;
+          }
+          setJoinWithCamera(ui.callType === 'video' && media.video);
+          ui.accept?.();
+        })();
       }}
       onReject={() => {
         ui.refuse?.();

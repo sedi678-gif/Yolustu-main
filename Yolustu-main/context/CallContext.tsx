@@ -42,6 +42,7 @@ interface StartCallParams {
   calleeAvatar: string;
   chatId: string;
   callType: CallType;
+  joinCamera?: boolean;
 }
 
 interface CallContextType {
@@ -260,6 +261,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           calleeName: params.calleeName,
           calleeAvatar: params.calleeAvatar,
           callType: params.callType,
+          joinCamera: params.joinCamera,
         });
 
         if (result.errorInvitees?.length) {

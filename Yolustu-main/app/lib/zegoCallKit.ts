@@ -1,5 +1,6 @@
 'use client';
 
+import { primeCallMedia, releaseMediaStream } from '@/app/lib/mediaPermissions';
 import {
   ensureZegoConfig,
   getZegoAppId,
@@ -9,7 +10,6 @@ import {
   requestCallNotificationPermission,
   showIncomingCallNotification,
 } from '@/app/lib/callNotifications';
-import { ensureMediaPermission } from '@/app/lib/mediaPermissions';
 import { toZegoRoomId, toZegoUserId, toZegoUserName } from '@/app/lib/zegoUserId';
 import type { CallType } from '@/app/lib/callService';
 import { getCallUiState, setCallUiState } from '@/app/lib/callUiBridge';
@@ -31,6 +31,7 @@ let activeUserName: string | null = null;
 let initPromise: Promise<ZegoInstance | null> | null = null;
 let lastInitError: string | null = null;
 let tableVoiceActive = false;
+let joinWithCamera = false;
 
 /** Test kit token — Zego default 7200s; 24 saat yenilənmiş müddət. */
 const TEST_TOKEN_TTL_SEC = 24 * 60 * 60;
@@ -83,13 +84,36 @@ function toCallType(
   return invitationType === ZegoUIKitPrebuilt.InvitationTypeVideoCall ? 'video' : 'voice';
 }
 
-function peerLabel(user?: { userName?: string; userID?: string }) {
-  return user?.userName || user?.userID || 'İstifadəçi';
+function peerLabel(user?: { userID?: string; userName?: string }): string {
+  const name = user?.userName?.trim();
+  if (name) return name;
+  return user?.userID || 'İstifadəçi';
+}
+
+function getOrCreateZegoStage(): HTMLElement {
+  let el = document.getElementById('zego-call-stage');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'zego-call-stage';
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+  }
+  el.style.display = 'block';
+  return el;
+}
+
+export function hideZegoStage(): void {
+  const el = document.getElementById('zego-call-stage');
+  if (el) el.style.display = 'none';
+}
+
+export function setJoinWithCamera(on: boolean): void {
+  joinWithCamera = on;
 }
 
 function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPrebuilt']) {
   return {
-    enableNotifyWhenAppRunningInBackgroundOrQuit: true,
+    enableNotifyWhenAppRunningInBackgroundOrQuit: false,
     enableCustomCallInvitationDialog: true,
     enableCustomCallInvitationWaitingPage: true,
     endCallWhenInitiatorLeave: true,
@@ -106,6 +130,7 @@ function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPreb
         peerAvatar: peer?.avatar,
         cancel,
       });
+      return false;
     },
     onConfirmDialogWhenReceiving: (
       callType: number,
@@ -116,7 +141,7 @@ function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPreb
       const mapped = toCallType(ZegoUIKitPrebuilt, callType);
       if (optionsRef.current.canReceiveFrom && !optionsRef.current.canReceiveFrom(caller.userID, mapped)) {
         refuse();
-        return;
+        return false;
       }
       setCallUiState({
         mode: 'incoming',
@@ -126,6 +151,7 @@ function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPreb
         accept,
         refuse,
       });
+      return false;
     },
     onIncomingCallReceived: (
       _callID: string,
@@ -147,12 +173,13 @@ function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPreb
         peerAvatar: prev?.peerAvatar,
       });
       return {
+        container: getOrCreateZegoStage(),
         scenario: {
           mode: ZegoUIKitPrebuilt.OneONoneCall,
           config: { role: ZegoUIKitPrebuilt.Host },
         },
         turnOnMicrophoneWhenJoining: true,
-        turnOnCameraWhenJoining: isVideo,
+        turnOnCameraWhenJoining: isVideo && joinWithCamera,
         showMyCameraToggleButton: false,
         showMyMicrophoneToggleButton: false,
         showAudioVideoSettingsButton: false,
@@ -164,10 +191,12 @@ function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPreb
         showLayoutButton: false,
         showPinButton: false,
         showPreJoinView: false,
+        showLeavingView: false,
         showRoomTimer: false,
       };
     },
     onCallInvitationEnded: (reason: string) => {
+      hideZegoStage();
       const ui = getCallUiState();
       if (!ui || ui.mode !== 'active' || String(reason) === 'LeaveRoom') {
         setCallUiState(null);
@@ -278,20 +307,11 @@ export async function sendZegoCallInvitation(
     calleeAvatar?: string;
     callType: CallType;
     timeout?: number;
+    joinCamera?: boolean;
   }
 ): Promise<{ errorInvitees: { userID: string }[] }> {
   const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
-
-  const mediaOk = await ensureMediaPermission(
-    params.callType === 'video' ? 'camera' : 'microphone'
-  );
-  if (!mediaOk) {
-    throw new Error(
-      params.callType === 'video'
-        ? 'Kamera/mikrofon icazəsi verilməyib.'
-        : 'Mikrofon icazəsi verilməyib.'
-    );
-  }
+  setJoinWithCamera(Boolean(params.joinCamera));
 
   const invitationType =
     params.callType === 'video'
@@ -328,6 +348,7 @@ export function destroyZegoCallKit(): void {
   activeUserId = null;
   activeUserName = null;
   initPromise = null;
+  hideZegoStage();
   if (hadInstance) setCallUiState(null);
 }
 
@@ -349,6 +370,7 @@ export function zegoHangUp() {
   } catch {
     /* ignore */
   }
+  hideZegoStage();
   setCallUiState(null);
 }
 
@@ -393,8 +415,9 @@ export async function joinArenaVoiceRoom(input: {
 }): Promise<boolean> {
   const configured = await ensureZegoConfig();
   if (!configured) return false;
-  const mediaOk = await ensureMediaPermission('microphone');
-  if (!mediaOk) return false;
+  const primed = await primeCallMedia(false);
+  releaseMediaStream(primed.stream);
+  if (!primed.audio) return false;
 
   const roomId = String(arenaVoiceRoomId(input.matchId));
   const zegoUserId = String(toZegoUserId(input.playerId));

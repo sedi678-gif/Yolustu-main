@@ -74,6 +74,19 @@
   isolation: isolate;
 }
 
+#zego-call-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482990;
+  display: none;
+  pointer-events: none;
+  background: transparent;
+}
+
+#zego-call-stage > * {
+  pointer-events: auto;
+}
+
 #call-overlay-root > * {
   pointer-events: auto;
 }
