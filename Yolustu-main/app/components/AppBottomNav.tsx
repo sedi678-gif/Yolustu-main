@@ -47,7 +47,7 @@ export default function AppBottomNav({ activeTab }: AppBottomNavProps) {
   const t = useAppStrings();
 
   return (
-    <nav className={styles.bottomNav} aria-label="Əsas naviqasiya">
+    <nav className={styles.bottomNav} aria-label={t.nav.main}>
       <AppLink href="/profile" className={styles.navItem} title={t.nav.profile}>
         <Icons.Profile active={activeTab === 'profile'} />
         <span className={`${styles.navLabel} ${activeTab === 'profile' ? styles.navLabelActive : ''}`}>{t.nav.profile}</span>

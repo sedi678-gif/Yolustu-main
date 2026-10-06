@@ -1,10 +1,12 @@
 'use client';
 
 import { useChannelStudio, formatStudioCount, formatStudioAge } from './useChannelStudio';
+import { useAppStrings } from '@/app/lib/useAppStrings';
 import styles from './studioDashboard.module.css';
 
 export default function StudioSnapshot({ userId }: { userId?: string | null }) {
   const data = useChannelStudio(userId);
+  const t = useAppStrings();
   const latest = data.latest;
 
   const openStudio = () => {
@@ -12,7 +14,7 @@ export default function StudioSnapshot({ userId }: { userId?: string | null }) {
   };
 
   return (
-    <section className={styles.snapshot} aria-label="Kanal paneli">
+    <section className={styles.snapshot} aria-label={t.studio.panel}>
       <div className={styles.snapshotHead}>
         {data.avatar ? (
           <img className={styles.avatar} src={data.avatar} alt="" />
@@ -24,21 +26,23 @@ export default function StudioSnapshot({ userId }: { userId?: string | null }) {
           </div>
         )}
         <div>
-          <h2>{data.name || 'Kanal paneli'}</h2>
-          <p>Yolüstü Studio · kanalın nəzarət mərkəzi</p>
+          <h2>{data.name || t.studio.channel}</h2>
+          <p>
+            {t.studio.kicker} · {t.studio.control}
+          </p>
         </div>
       </div>
       <div className={styles.snapshotStats}>
         <div>
-          <span>İzləyici</span>
+          <span>{t.studio.followers}</span>
           <b>{formatStudioCount(data.followers)}</b>
         </div>
         <div>
-          <span>Bəyənmə</span>
+          <span>{t.studio.likes}</span>
           <b>{formatStudioCount(data.likesReceived)}</b>
         </div>
         <div>
-          <span>Kontent</span>
+          <span>{t.studio.posts}</span>
           <b>{formatStudioCount(data.posts.length)}</b>
         </div>
       </div>
@@ -50,19 +54,19 @@ export default function StudioSnapshot({ userId }: { userId?: string | null }) {
             <img src={latest.mediaUrl} alt="" />
           )}
           <div>
-            <p>{latest.title || 'Son paylaşım'}</p>
+            <p>{latest.title || t.studio.latestResult}</p>
             <span>
-              {formatStudioCount(latest.likes)} bəyənmə · {formatStudioAge(latest.createdAt)}
+              {formatStudioCount(latest.likes)} {t.studio.likes} · {formatStudioAge(latest.createdAt)}
             </span>
           </div>
         </div>
       ) : (
         <p className={styles.empty} style={{ padding: '0 14px 8px' }}>
-          Hələ paylaşım yoxdur.
+          {t.studio.snapshotEmpty}
         </p>
       )}
       <button type="button" className={styles.snapshotCta} onClick={openStudio}>
-        Kanal panelini aç
+        {t.studio.open}
       </button>
     </section>
   );

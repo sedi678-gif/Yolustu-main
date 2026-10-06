@@ -1,39 +1,26 @@
 "use client";
 
 import AppBottomNav from '@/app/components/AppBottomNav';
+import { useAppStrings } from '@/app/lib/useAppStrings';
 import styles from './shop.module.css';
 
-const SECTIONS = [
-  {
-    id: 'frames',
-    title: 'Çərçivələr',
-    hint: 'Profil çərçivələri',
-    tone: styles.toneFrames,
-  },
-  {
-    id: 'vip',
-    title: 'VIP Pass',
-    hint: 'VIP abunə',
-    tone: styles.toneVip,
-  },
-  {
-    id: 'vip-plus',
-    title: 'VIP Pass Plus',
-    hint: 'VIP Plus abunə',
-    tone: styles.toneVipPlus,
-  },
-] as const;
-
 export default function ShopPageClient() {
+  const t = useAppStrings();
+  const sections = [
+    { id: 'frames', title: t.shop.frames, hint: t.shop.framesHint, tone: styles.toneFrames },
+    { id: 'vip', title: t.shop.vip, hint: t.shop.vipHint, tone: styles.toneVip },
+    { id: 'vip-plus', title: t.shop.vipPlus, hint: t.shop.vipPlusHint, tone: styles.toneVipPlus },
+  ] as const;
+
   return (
     <div className={styles.shopWorld}>
       <header className={styles.shopBar}>
-        <p className={styles.eyebrow}>Neon Bazar</p>
-        <h1 className={styles.shopTitle}>Mağaza</h1>
+        <p className={styles.eyebrow}>{t.shop.eyebrow}</p>
+        <h1 className={styles.shopTitle}>{t.shop.title}</h1>
       </header>
 
       <div className={styles.shopContent}>
-        {SECTIONS.map((section) => (
+        {sections.map((section) => (
           <section key={section.id} className={`${styles.frame} ${section.tone}`} aria-labelledby={`${section.id}-title`}>
             <div className={styles.frameHead}>
               <h2 id={`${section.id}-title`} className={styles.frameTitle}>

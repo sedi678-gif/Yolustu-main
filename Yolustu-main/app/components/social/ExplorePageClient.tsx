@@ -197,9 +197,9 @@ export default function ExplorePageClient() {
       <header className={styles.exploreHeader}>
         <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
           <h1 className={styles.exploreTitle}>✨ {t.explore.title}</h1>
-          <p className={styles.exploreSub}>Swipe · Kəşf et · Bəyən</p>
+          <p className={styles.exploreSub}>{t.explore.emptyHint}</p>
         </div>
-        <button type="button" className={styles.exploreSearchBtn} onClick={() => setShowSearch(true)} aria-label="Axtar">
+        <button type="button" className={styles.exploreSearchBtn} onClick={() => setShowSearch(true)} aria-label={t.explore.searchTitle}>
           🔍
         </button>
       </header>

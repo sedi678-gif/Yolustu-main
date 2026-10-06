@@ -1,8 +1,9 @@
-'use client';
+﻿'use client';
 
 import AppLink from '@/app/components/AppLink';
 import type { ChannelStudioData } from './useChannelStudio';
 import { formatStudioAge, formatStudioCount } from './useChannelStudio';
+import { useAppStrings } from '@/app/lib/useAppStrings';
 import styles from './studioDashboard.module.css';
 
 export type ChannelStudioTab = 'dashboard' | 'content' | 'analytics';
@@ -49,11 +50,12 @@ function Skeleton({ className }: { className: string }) {
 }
 
 function ContentTable({ data }: { data: ChannelStudioData }) {
+  const t = useAppStrings();
   if (!data.ready) {
     return (
       <article className={`${styles.card} ${styles.span2}`}>
         <div className={styles.cardHead}>
-          <h2 className={styles.cardTitle}>Kanal kontenti</h2>
+          <h2 className={styles.cardTitle}>{t.studio.contentTable}</h2>
         </div>
         <Skeleton className={styles.skeletonRow} />
         <Skeleton className={styles.skeletonRow} />
@@ -65,19 +67,19 @@ function ContentTable({ data }: { data: ChannelStudioData }) {
   return (
     <article className={`${styles.card} ${styles.span2}`}>
       <div className={styles.cardHead}>
-        <h2 className={styles.cardTitle}>Kanal kontenti</h2>
-        <p className={styles.cardMeta}>{data.posts.length} paylaşım</p>
+        <h2 className={styles.cardTitle}>{t.studio.contentTable}</h2>
+        <p className={styles.cardMeta}>{data.posts.length} {t.studio.posts}</p>
       </div>
       {data.posts.length === 0 ? (
-        <p className={styles.empty}>Kanalın kontent cədvəli burada görünəcək. Yarat ilə ilk paylaşımı yüklə.</p>
+        <p className={styles.empty}>{t.studio.contentEmpty}</p>
       ) : (
         <div className={styles.tableWrap}>
           <div className={styles.tableHead} aria-hidden>
-            <span>Kontent</span>
-            <span>Tarix</span>
-            <span>Bəyənmə</span>
-            <span>Şərh</span>
-            <span>Hədiyyə</span>
+            <span>{t.studio.posts}</span>
+            <span>{t.studio.date}</span>
+            <span>{t.studio.likes}</span>
+            <span>{t.studio.comments}</span>
+            <span>{t.studio.gifts}</span>
           </div>
           {data.posts.map((post) => (
             <AppLink key={post.id} href="/profile" className={styles.tableRow}>
@@ -89,9 +91,9 @@ function ContentTable({ data }: { data: ChannelStudioData }) {
                   alt={post.title}
                 />
                 <div>
-                  <p className={styles.tableTitle}>{post.title || 'Başlıqsız'}</p>
+                  <p className={styles.tableTitle}>{post.title || t.studio.untitled}</p>
                   <span className={styles.cardMeta}>
-                    {post.mediaType === 'video' ? 'Video' : 'Şəkil'} · {formatStudioCount(post.likes)} bəyənmə
+                    {post.mediaType === 'video' ? t.studio.video : t.studio.photo} · {formatStudioCount(post.likes)} {t.studio.likes}
                   </span>
                 </div>
               </div>
@@ -108,27 +110,28 @@ function ContentTable({ data }: { data: ChannelStudioData }) {
 }
 
 function AnalyticsPanel({ data, analyticsOpen }: { data: ChannelStudioData; analyticsOpen: boolean }) {
+  const t = useAppStrings();
   return (
     <article className={`${styles.card} ${styles.span2}`}>
       <div className={styles.cardHead}>
-        <h2 className={styles.cardTitle}>Kanal analitikası</h2>
-        <p className={styles.cardMeta}>Son 28 gün</p>
+        <h2 className={styles.cardTitle}>{t.studio.analyticsTitle}</h2>
+        <p className={styles.cardMeta}>{t.studio.last28}</p>
       </div>
       <div className={styles.analyticsGrid}>
         <div>
-          <label className={styles.cardMeta}>İzləyicilər</label>
+          <label className={styles.cardMeta}>{t.studio.followers}</label>
           <div className={styles.statBig}>{formatStudioCount(data.followers)}</div>
         </div>
         <div>
-          <label className={styles.cardMeta}>Alınan bəyənmə</label>
+          <label className={styles.cardMeta}>{t.studio.likes}</label>
           <div className={styles.statBig}>{formatStudioCount(data.likesReceived)}</div>
         </div>
         <div>
-          <label className={styles.cardMeta}>Kontent</label>
+          <label className={styles.cardMeta}>{t.studio.posts}</label>
           <div className={styles.statBig}>{formatStudioCount(data.posts.length)}</div>
         </div>
         <div>
-          <label className={styles.cardMeta}>Əlaqə</label>
+          <label className={styles.cardMeta}>{t.studio.engagement}</label>
           <div className={styles.statBig}>
             {analyticsOpen ? formatStudioCount(data.engagement28d) : '—'}
           </div>
@@ -137,16 +140,14 @@ function AnalyticsPanel({ data, analyticsOpen }: { data: ChannelStudioData; anal
       {analyticsOpen ? (
         <>
           <p className={styles.cardMeta} style={{ marginTop: 16 }}>
-            Bəyənmə + şərh (günlük)
+            {t.studio.daily}
           </p>
           <div className={styles.chart}>
             <Sparkline series={data.series} />
           </div>
         </>
       ) : (
-        <p className={styles.lockHint}>
-          Dərin qrafik Professional panoda açılır. İzləyici və bəyənmə hər kəsə görünür.
-        </p>
+        <p className={styles.lockHint}>{t.studio.lock}</p>
       )}
     </article>
   );
@@ -161,6 +162,7 @@ export default function ChannelDashboard({
   analyticsOpen: boolean;
   tab: ChannelStudioTab;
 }) {
+  const t = useAppStrings();
   if (tab === 'content') {
     return (
       <div className={styles.grid}>
@@ -183,8 +185,8 @@ export default function ChannelDashboard({
     <div className={styles.grid}>
       <article className={styles.card}>
         <div className={styles.cardHead}>
-          <h2 className={styles.cardTitle}>Son paylaşımın nəticəsi</h2>
-          <p className={styles.cardMeta}>Canlı göstərici</p>
+          <h2 className={styles.cardTitle}>{t.studio.latestTitle}</h2>
+          <p className={styles.cardMeta}>{t.studio.live}</p>
         </div>
         {!data.ready ? (
           <Skeleton className={styles.skeletonLatest} />
@@ -192,72 +194,72 @@ export default function ChannelDashboard({
           <div className={styles.latest}>
             <div className={styles.thumbWrap}>
               <MediaThumb url={latest.mediaUrl} type={latest.mediaType} alt={latest.title} />
-              <span className={styles.badge}>{latest.mediaType === 'video' ? 'Video' : 'Şəkil'}</span>
+              <span className={styles.badge}>{latest.mediaType === 'video' ? t.studio.video : t.studio.photo}</span>
             </div>
             <div className={styles.latestBody}>
-              <h3>{latest.title || 'Başlıqsız paylaşım'}</h3>
-              <p className={styles.cardMeta}>Yayımlandı · {formatStudioAge(latest.createdAt)}</p>
+              <h3>{latest.title || t.studio.untitled}</h3>
+              <p className={styles.cardMeta}>
+                {t.studio.published} · {formatStudioAge(latest.createdAt)}
+              </p>
               <div className={styles.metrics}>
                 <div className={styles.metric}>
-                  <label>Bəyənmə</label>
+                  <label>{t.studio.likes}</label>
                   <b>{formatStudioCount(latest.likes)}</b>
                 </div>
                 <div className={styles.metric}>
-                  <label>Şərh</label>
+                  <label>{t.studio.comments}</label>
                   <b>{formatStudioCount(latest.commentsCount)}</b>
                 </div>
                 <div className={styles.metric}>
-                  <label>Hədiyyə</label>
+                  <label>{t.studio.gifts}</label>
                   <b>{formatStudioCount(latest.giftCount)}</b>
                 </div>
               </div>
             </div>
           </div>
         ) : (
-          <p className={styles.empty}>Hələ paylaşım yoxdur. Yarat düyməsi ilə ilk kontenti yüklə.</p>
+          <p className={styles.empty}>{t.studio.uploadHint}</p>
         )}
       </article>
 
       <article className={styles.card}>
         <div className={styles.cardHead}>
-          <h2 className={styles.cardTitle}>Kanal analitikası</h2>
-          <p className={styles.cardMeta}>Son 28 gün</p>
+          <h2 className={styles.cardTitle}>{t.studio.analyticsTitle}</h2>
+          <p className={styles.cardMeta}>{t.studio.last28}</p>
         </div>
         <div className={styles.statsRow}>
           <div>
-            <label className={styles.cardMeta}>İzləyicilər</label>
+            <label className={styles.cardMeta}>{t.studio.followers}</label>
             <div className={styles.statBig}>{formatStudioCount(data.followers)}</div>
           </div>
           <div>
-            <label className={styles.cardMeta}>Alınan bəyənmə</label>
+            <label className={styles.cardMeta}>{t.studio.likes}</label>
             <div className={styles.statBig}>{formatStudioCount(data.likesReceived)}</div>
           </div>
         </div>
         {analyticsOpen ? (
           <>
             <p className={styles.cardMeta} style={{ marginTop: 12 }}>
-              Əlaqə (bəyənmə + şərh): {formatStudioCount(data.engagement28d)}
+              {t.studio.engagement}: {formatStudioCount(data.engagement28d)}
             </p>
             <div className={styles.chart}>
               <Sparkline series={data.series} />
             </div>
           </>
         ) : (
-          <p className={styles.lockHint}>
-            Dərin qrafik Professional panoda açılır. İzləyici və bəyənmə hər kəsə görünür.
-          </p>
+          <p className={styles.lockHint}>{t.studio.lock}</p>
         )}
       </article>
 
       <article className={styles.card}>
         <div className={styles.cardHead}>
-          <h2 className={styles.cardTitle}>Son şərhlər</h2>
-          <p className={styles.cardMeta}>{latest ? latest.title : 'Kontent yoxdur'}</p>
+          <h2 className={styles.cardTitle}>{t.studio.comments}</h2>
+          <p className={styles.cardMeta}>{latest ? latest.title : t.studio.noPosts}</p>
         </div>
         {!data.ready ? (
           <Skeleton className={styles.skeletonRow} />
         ) : comments.length === 0 ? (
-          <p className={styles.empty}>Bu paylaşımda hələ şərh yoxdur.</p>
+          <p className={styles.empty}>{t.studio.noComments}</p>
         ) : (
           comments.map((item) => (
             <div key={item.id} className={styles.comment}>
@@ -279,13 +281,15 @@ export default function ChannelDashboard({
 
       <article className={styles.card}>
         <div className={styles.cardHead}>
-          <h2 className={styles.cardTitle}>Kontent</h2>
-          <p className={styles.cardMeta}>{posts.length} paylaşım</p>
+          <h2 className={styles.cardTitle}>{t.studio.content}</h2>
+          <p className={styles.cardMeta}>
+            {posts.length} {t.studio.posts}
+          </p>
         </div>
         {!data.ready ? (
           <Skeleton className={styles.skeletonRow} />
         ) : posts.length === 0 ? (
-          <p className={styles.empty}>Kanalın kontent cədvəli burada görünəcək.</p>
+          <p className={styles.empty}>{t.studio.contentEmpty}</p>
         ) : (
           posts.slice(0, 6).map((post) => (
             <AppLink key={post.id} href="/profile" className={styles.contentRow}>
@@ -296,9 +300,9 @@ export default function ChannelDashboard({
                 alt={post.title}
               />
               <div>
-                <p className={styles.tableTitle}>{post.title || 'Başlıqsız'}</p>
+                <p className={styles.tableTitle}>{post.title || t.studio.untitled}</p>
                 <span className={styles.cardMeta}>
-                  {formatStudioCount(post.likes)} bəyənmə · {formatStudioAge(post.createdAt)}
+                  {formatStudioCount(post.likes)} {t.studio.likes} · {formatStudioAge(post.createdAt)}
                 </span>
               </div>
             </AppLink>

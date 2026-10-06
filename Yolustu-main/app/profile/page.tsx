@@ -271,6 +271,67 @@ const translations = {
     total: "Total",
     noPosts: "You have no active posts",
     noPostsHint: "Tap + to share your first post!"
+  },
+  tr: {
+    registerTitle: "Profil Oluştur & Kayıt",
+    registerSubtitle: "Bilgilerini doldur, şartları kabul et.",
+    name: "Ad",
+    surname: "Soyad",
+    handle: "Kullanıcı adı",
+    gender: "Cinsiyet",
+    male: "Erkek",
+    female: "Kadın",
+    birthDate: "Doğum tarihi",
+    termsOpen: "Kullanıcı sözleşmesini oku 📜",
+    termsClose: "Sözleşmeyi kapat 🔼",
+    termsTitle: "Kullanıcı sözleşmesi (Yolüstü - 2026):",
+    termsText1: "1. Yaş sınırı 13+.",
+    termsText2: "2. Ebeveyn kontrolü.",
+    termsText3: "3. Topluluk kuralları.",
+    termsText4: "4. Taciz yasağı.",
+    termsText5: "5. İçerik filtreleri.",
+    termsText6: "6. GDPR veri koruması.",
+    termsText7: "7. Unutulma hakkı.",
+    termsText8: "8. Hesap silme.",
+    termsText9: "9. Çerezler.",
+    termsText10: "10. Çocuk gizliliği.",
+    termsText11: "11. DMCA.",
+    termsText12: "12. Satın almalar.",
+    termsText13: "13. Üçüncü taraf hizmetler.",
+    termsText14: "14. Şikayet.",
+    termsText15: "15. 24 saatlik paylaşımlar.",
+    termsText16: "16. Sorumluluk sınırı.",
+    termsAccept: "Şartları okudum ve kabul ediyorum.",
+    submitBtn: "Kaydı tamamla ve profil oluştur",
+    wallet: "Cüzdan bakiyesi",
+    newPost: "Yeni paylaşım",
+    hide: "🙈 Gizle",
+    show: "👁️ Göster",
+    followers: "Takipçi",
+    following: "Takip",
+    followersList: "Takipçiler",
+    followingList: "Takip edilenler",
+    emptyFollowers: "Henüz takipçi yok.",
+    emptyFollowing: "Kimseyi takip etmiyor.",
+    gifts: "Hediyeler",
+    likes: "Beğeni",
+    allianceTitle: "İTTİFAK",
+    noAllianceTitle: "Aktif ittifak yok",
+    noAllianceDesc: "Henüz bir ittifaka katılmadın",
+    status: "DURUM",
+    free: "Serbest",
+    rating: "SIRALAMA",
+    joinAlliance: "🛡️ İttifaka katıl",
+    rankTitle: "SIRALAMA VE ROZET",
+    activeSeason: "Aktif sezon",
+    score: "Puan",
+    giftGallery: "Hediye galerisi",
+    noGifts: "Henüz hediye yok.",
+    postsTitle: "Paylaşımlar (24 saat)",
+    postsSubtitle: "Paylaşımlar 24 saat sonra silinir.",
+    total: "Toplam",
+    noPosts: "Aktif paylaşımın yok",
+    noPostsHint: "İlk paylaşım için + düğmesini kullan!"
   }
 };
 
@@ -323,7 +384,8 @@ function ProfilePageContent() {
 
   const { manat, playerProfile, spendManat, userId } = useUser();
   const { language: settingsLang, setLanguage: setSettingsLang } = useSettings();
-  const language = (['az', 'ru', 'en'].includes(settingsLang) ? settingsLang : 'az') as 'az' | 'ru' | 'en';
+  const language = settingsLang;
+  const t = translations[language] ?? translations.az;
   const [stats, setStats] = useState<Stats>({ followers: 0, following: 0, likes: 0, activeSeasonScore: 0 });
   const [followListMode, setFollowListMode] = useState<'followers' | 'following' | null>(null);
 
@@ -343,8 +405,6 @@ function ProfilePageContent() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const mediaSyncPausedRef = useRef(false);
-
-  const t = translations[language];
 
   useEffect(() => {
     const stored = readStoredProfile();
@@ -925,6 +985,7 @@ function ProfilePageContent() {
               <button type="button" onClick={() => setSettingsLang('az')} style={{ ...langBtnStyle, fontWeight: language === 'az' ? 800 : 400, backgroundColor: language === 'az' ? 'rgba(236,72,153,0.3)' : 'rgba(30,41,59,0.8)', color: '#e2e8f0' }}>AZ</button>
               <button type="button" onClick={() => setSettingsLang('ru')} style={{ ...langBtnStyle, fontWeight: language === 'ru' ? 800 : 400, backgroundColor: language === 'ru' ? 'rgba(236,72,153,0.3)' : 'rgba(30,41,59,0.8)', color: '#e2e8f0' }}>RU</button>
               <button type="button" onClick={() => setSettingsLang('en')} style={{ ...langBtnStyle, fontWeight: language === 'en' ? 800 : 400, backgroundColor: language === 'en' ? 'rgba(236,72,153,0.3)' : 'rgba(30,41,59,0.8)', color: '#e2e8f0' }}>EN</button>
+              <button type="button" onClick={() => setSettingsLang('tr')} style={{ ...langBtnStyle, fontWeight: language === 'tr' ? 800 : 400, backgroundColor: language === 'tr' ? 'rgba(236,72,153,0.3)' : 'rgba(30,41,59,0.8)', color: '#e2e8f0' }}>TR</button>
             </div>
           </div>
           <p className={profileStyles.registerSub}>{t.registerSubtitle}</p>

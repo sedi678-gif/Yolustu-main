@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useState } from 'react';
 import { useUser } from '@/context/UserContext';
 import { getLocalProfileUserId } from '@/app/lib/userId';
 import {
@@ -8,6 +8,12 @@ import {
   saveUserSettings,
   getCachedSettings,
 } from '@/app/lib/settingsService';
+import {
+  bootstrapLanguage,
+  persistAppLanguage,
+  readStoredLanguage,
+  subscribeAppLanguage,
+} from '@/app/lib/appLanguage';
 import { AppLanguage, DEFAULT_SETTINGS, UserSettings } from '@/app/lib/settingsTypes';
 
 interface SettingsContextType {
@@ -20,6 +26,11 @@ interface SettingsContextType {
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
+function withLanguage(base: UserSettings, language: AppLanguage): UserSettings {
+  if (base.language === language) return base;
+  return { ...base, language, updatedAt: Date.now() };
+}
+
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const { userId } = useUser();
   const resolvedId =
@@ -28,27 +39,51 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [ready, setReady] = useState(false);
 
+  useLayoutEffect(() => {
+    const lang = bootstrapLanguage();
+    persistAppLanguage(lang);
+    const cached =
+      (resolvedId ? getCachedSettings(resolvedId) : null) || getCachedSettings('guest');
+    const base = cached || DEFAULT_SETTINGS(resolvedId || 'guest');
+    setSettings(withLanguage(base, lang));
+  }, [resolvedId]);
+
   useEffect(() => {
-    const effectiveId = resolvedId || 'guest';
+    return subscribeAppLanguage((lang) => {
+      setSettings((prev) => {
+        const base = prev || DEFAULT_SETTINGS(resolvedId || 'guest');
+        return withLanguage(base, lang);
+      });
+      if (typeof document !== 'undefined') {
+        document.documentElement.lang = lang;
+      }
+    });
+  }, [resolvedId]);
+
+  useEffect(() => {
+    const lang = bootstrapLanguage();
+    persistAppLanguage(lang);
 
     if (!resolvedId) {
-      const guestDefaults = getCachedSettings('guest') || DEFAULT_SETTINGS('guest');
-      setSettings(guestDefaults);
+      const guest = getCachedSettings('guest') || DEFAULT_SETTINGS('guest');
+      setSettings(withLanguage(guest, lang));
       setReady(true);
       return;
     }
 
     const cached = getCachedSettings(resolvedId);
     if (cached) {
-      setSettings(cached);
+      setSettings(withLanguage(cached, lang));
       setReady(true);
     }
 
-    const unsub = listenUserSettings(resolvedId, (s) => {
-      setSettings(s);
+    const unsub = listenUserSettings(resolvedId, (remote) => {
+      const keep = readStoredLanguage() || lang || remote.language;
+      setSettings(withLanguage(remote, keep));
       setReady(true);
-      if (typeof document !== 'undefined') {
-        document.documentElement.lang = s.language;
+      persistAppLanguage(keep);
+      if (remote.language !== keep) {
+        void saveUserSettings(resolvedId, { language: keep });
       }
     });
 
@@ -58,6 +93,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback(
     async (patch: Partial<Omit<UserSettings, 'userId'>>) => {
       const effectiveId = resolvedId || 'guest';
+      if (patch.language) {
+        persistAppLanguage(patch.language);
+      }
+
       setSettings((prev) => {
         const base = prev || getCachedSettings(effectiveId) || DEFAULT_SETTINGS(effectiveId);
         const next = { ...base, ...patch, updatedAt: Date.now() } as UserSettings;
@@ -75,12 +114,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   const setLanguage = useCallback(
     (lang: AppLanguage) => {
+      persistAppLanguage(lang);
       void updateSettings({ language: lang });
     },
     [updateSettings]
   );
 
-  const language = settings?.language ?? DEFAULT_SETTINGS(resolvedId || 'guest').language;
+  const language = settings?.language ?? 'az';
 
   return (
     <SettingsContext.Provider value={{ settings, language, setLanguage, updateSettings, ready }}>

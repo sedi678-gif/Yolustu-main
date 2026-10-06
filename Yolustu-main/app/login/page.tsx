@@ -7,8 +7,11 @@ import { auth } from '../../firebase';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getAccountStatus } from '@/app/lib/accountLifecycleService';
 import { getLocalProfileUserId } from '@/app/lib/userId';
+import { useAppStrings } from '@/app/lib/useAppStrings';
+import LanguageSwitch from '@/app/components/LanguageSwitch';
 
 export default function LoginPage() {
+  const t = useAppStrings();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -29,7 +32,7 @@ export default function LoginPage() {
       if (!user.emailVerified) {
         // Təsdiqlənməyibsə avtomatik yaradılmış sessiyanı bağlayırıq
         await signOut(auth);
-        setError('Zəhmət olmasa daxil olmaq üçün öncə emailinizə göndərilən təsdiq linkinə keçid edin!');
+        setError(t.auth.errors.verifyEmail);
         return;
       }
 
@@ -38,7 +41,7 @@ export default function LoginPage() {
         const status = await getAccountStatus(localId);
         if (status.banned) {
           await signOut(auth);
-          setError('Hesabınız administrator tərəfindən bağlanıb.');
+          setError(t.auth.errors.banned);
           return;
         }
         if (status.frozen) {
@@ -52,11 +55,11 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error('Giriş xətası:', err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setError('Email və ya şifrə yanlışdır!');
+        setError(t.auth.errors.badCreds);
       } else if (err.code === 'auth/invalid-email') {
-        setError('Keçərsiz email formatı!');
+        setError(t.auth.errors.badEmail);
       } else {
-        setError(`Xəta baş verdi: ${err.message || 'Daxil olmaq mümkün olmadı.'}`);
+        setError(`${t.auth.errors.generic} ${err.message || ''}`);
       }
     } finally {
       setLoading(false);
@@ -110,10 +113,13 @@ export default function LoginPage() {
         boxSizing: 'border-box'
       }}>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <div style={{ marginBottom: 12 }}>
+            <LanguageSwitch compact />
+          </div>
           <h2 style={{ fontSize: '30px', fontWeight: '800', background: 'linear-gradient(to right, #22d3ee, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: '0 0 8px 0' }}>
-            Yolüstü - Giriş
+            {t.auth.loginTitle}
           </h2>
-          <p style={{ fontSize: '14px', color: '#93c5fd', margin: 0 }}>Hesabınıza daxil olun</p>
+          <p style={{ fontSize: '14px', color: '#93c5fd', margin: 0 }}>{t.auth.loginSubtitle}</p>
         </div>
 
         {error && (
@@ -124,7 +130,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', color: '#67e8f9', marginBottom: '6px' }}>Email Ünvanı</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', color: '#67e8f9', marginBottom: '6px' }}>{t.auth.email}</label>
             <input 
               type="email" 
               value={email} 
@@ -136,7 +142,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', color: '#67e8f9', marginBottom: '6px' }}>Şifrə</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', color: '#67e8f9', marginBottom: '6px' }}>{t.auth.password}</label>
             <input 
               type="password" 
               value={password} 
@@ -152,16 +158,16 @@ export default function LoginPage() {
             disabled={loading}
             style={{ width: '100%', padding: '14px', background: 'linear-gradient(to right, #06b6d4, #2563eb)', color: '#ffffff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(6, 182, 212, 0.3)', fontSize: '15px', opacity: loading ? 0.7 : 1 }}
           >
-            {loading ? 'Daxil olunur...' : 'Daxil Ol'}
+            {loading ? t.auth.loggingIn : t.auth.login}
           </button>
         </form>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', fontSize: '13px' }}>
           <Link href="/forgot-password" style={{ color: '#93c5fd', textDecoration: 'none' }}>
-            Şifrəmi unutmuşam?
+            {t.auth.forgot}
           </Link>
           <Link href="/register" style={{ color: '#22d3ee', fontWeight: '600', textDecoration: 'underline' }}>
-            Qeydiyyat
+            {t.auth.register}
           </Link>
         </div>
       </div>

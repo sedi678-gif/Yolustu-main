@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useSettings } from '@/context/SettingsContext';
+import { titleForPath } from '@/app/lib/appI18n';
 import { ensureFirebaseAuth } from '@/app/lib/firebaseAuth';
 import AccountAccessGate from '@/app/components/AccountAccessGate';
 import AllianceNotifyToast from '@/app/components/alliance/AllianceNotifyToast';
@@ -44,6 +45,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     document.documentElement.lang = language;
+    const title = titleForPath(language, window.location.pathname);
+    if (title) document.title = title;
   }, [language]);
 
   useEffect(() => {
