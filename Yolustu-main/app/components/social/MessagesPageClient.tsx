@@ -22,6 +22,8 @@ import {
 } from '@/app/components/messages/MessageHubIcons';
 import { useCall } from '@/context/CallContext';
 import { unlockCallAudio } from '@/app/lib/audioUnlock';
+import { setCallUiState } from '@/app/lib/callUiBridge';
+import { zegoHangUp } from '@/app/lib/zegoCallKit';
 import {
   primeCallMedia,
   releaseMediaStream,
@@ -832,9 +834,19 @@ export default function MessagesPageClient() {
     }
     ensureAppSocket();
     void unlockCallAudio();
+    setCallUiState({
+      mode: 'outgoing',
+      callType,
+      peerName: selectedChat.name,
+      peerAvatar: selectedChat.avatar,
+      cancel: () => {
+        zegoHangUp();
+      },
+    });
     const media = await primeCallMedia(callType === 'video');
     releaseMediaStream(media.stream);
     if (!media.audio) {
+      setCallUiState(null);
       alert(media.error || 'Mikrofon icazəsi verilməyib.');
       return;
     }

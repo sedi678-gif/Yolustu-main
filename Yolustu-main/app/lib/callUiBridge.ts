@@ -7,6 +7,7 @@ export type CallUiState = {
   callType: CallType;
   peerName: string;
   peerAvatar?: string;
+  hint?: string;
   accept?: () => void;
   refuse?: () => void;
   cancel?: () => void;
@@ -19,17 +20,14 @@ export function getCallUiState(): CallUiState {
   return current;
 }
 
-let notifyScheduled = false;
-
 export function setCallUiState(next: CallUiState) {
   current = next;
-  if (notifyScheduled) return;
-  notifyScheduled = true;
-  queueMicrotask(() => {
-    notifyScheduled = false;
-    const snapshot = current;
-    listeners.forEach((listen) => listen(snapshot));
-  });
+  listeners.forEach((listen) => listen(current));
+}
+
+export function patchCallUiState(partial: Partial<Exclude<CallUiState, null>>) {
+  if (!current) return;
+  setCallUiState({ ...current, ...partial });
 }
 
 export function listenCallUiState(callback: (state: CallUiState) => void): () => void {

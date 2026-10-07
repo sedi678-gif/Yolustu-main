@@ -12,7 +12,7 @@ import {
 } from '@/app/lib/callNotifications';
 import { toZegoRoomId, toZegoUserId, toZegoUserName } from '@/app/lib/zegoUserId';
 import type { CallType } from '@/app/lib/callService';
-import { getCallUiState, setCallUiState } from '@/app/lib/callUiBridge';
+import { getCallUiState, patchCallUiState, setCallUiState } from '@/app/lib/callUiBridge';
 
 type ZegoUIKitModule = typeof import('@zegocloud/zego-uikit-prebuilt');
 type ZegoInstance = ReturnType<ZegoUIKitModule['ZegoUIKitPrebuilt']['create']>;
@@ -238,14 +238,53 @@ export function setJoinWithCamera(on: boolean): void {
   joinWithCamera = on;
 }
 
+function isZimLike(value: unknown): value is ZimLike {
+  return Boolean(value && typeof (value as ZimLike).callInvite === 'function');
+}
+
+function pickZimFromKit(zp: unknown): ZimLike | null {
+  if (!zp || typeof zp !== 'object') return null;
+  const bag = zp as Record<string, unknown>;
+  const nested = bag.express as Record<string, unknown> | undefined;
+  const candidates = [bag.zim, bag._zim, nested?.zim, nested?._zim];
+  for (const candidate of candidates) {
+    if (isZimLike(candidate)) return candidate;
+  }
+  return null;
+}
+
 function getZim(): ZimLike | null {
   if (zimRef) return zimRef;
+  const fromKit = pickZimFromKit(zpInstance);
+  if (fromKit) {
+    zimRef = fromKit;
+    return fromKit;
+  }
   try {
     const g = globalThis as unknown as { ZIM?: { getInstance?: () => ZimLike } };
-    return g.ZIM?.getInstance?.() ?? null;
+    const zim = g.ZIM?.getInstance?.();
+    if (isZimLike(zim)) {
+      zimRef = zim;
+      return zim;
+    }
   } catch {
-    return null;
+    /* ignore */
   }
+  return null;
+}
+
+async function waitForZim(zp: ZegoInstance, ms = 5000): Promise<ZimLike | null> {
+  const started = Date.now();
+  while (Date.now() - started < ms) {
+    const zim = pickZimFromKit(zp) || getZim();
+    if (zim) {
+      zimRef = zim;
+      bindZimListeners(zim);
+      return zim;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return getZim();
 }
 
 function stopCallUi(reason: string) {
@@ -451,7 +490,10 @@ export async function initZegoCallKit(
       zp.addPlugins({ ZIM });
       patchJoinRoom(zp);
 
-      zimRef = (ZIM as unknown as { getInstance?: () => ZimLike }).getInstance?.() || null;
+      zimRef =
+        (ZIM as unknown as { getInstance?: () => ZimLike }).getInstance?.() ||
+        pickZimFromKit(zp) ||
+        null;
       if (zimRef) bindZimListeners(zimRef);
 
       zpInstance = zp;
@@ -484,13 +526,7 @@ export async function sendZegoCallInvitation(
     callerAvatar?: string;
   }
 ): Promise<{ errorInvitees: { userID: string }[] }> {
-  void zp;
   setJoinWithCamera(Boolean(params.joinCamera));
-
-  const zim = getZim();
-  if (!zim) {
-    throw new Error('Zəng siqnalı hazır deyil. Səhifəni yeniləyib yenidən yoxlayın.');
-  }
 
   const calleeZegoId = toZegoUserId(params.calleeId);
   const roomId = toZegoRoomId(params.roomId || params.calleeId, 'c_');
@@ -505,18 +541,34 @@ export async function sendZegoCallInvitation(
     peerAvatar: params.callerAvatar,
   };
 
-  setCallUiState({
-    mode: 'outgoing',
-    callType: params.callType,
-    peerName: params.calleeName,
-    peerAvatar: params.calleeAvatar,
-    cancel: () => {
-      if (pendingZimCallId) {
-        void zim.callCancel(pendingZimCallId, [calleeZegoId], { extendedData: '' });
-      }
-      stopCallUi('cancelled');
-    },
-  });
+  const hangupOutgoing = () => {
+    const zimNow = getZim();
+    if (zimNow && pendingZimCallId) {
+      void zimNow.callCancel(pendingZimCallId, [calleeZegoId], { extendedData: '' });
+    }
+    stopCallUi('cancelled');
+  };
+
+  const ui = getCallUiState();
+  if (!ui || ui.mode !== 'outgoing') {
+    setCallUiState({
+      mode: 'outgoing',
+      callType: params.callType,
+      peerName: params.calleeName,
+      peerAvatar: params.calleeAvatar,
+      cancel: hangupOutgoing,
+    });
+  } else {
+    patchCallUiState({ cancel: hangupOutgoing, hint: undefined });
+  }
+
+  const zim = await waitForZim(zp);
+  if (!zim) {
+    patchCallUiState({ hint: 'Zəng siqnalı hazır deyil. Səhifəni bağlayıb yenidən yoxlayın.' });
+    return { errorInvitees: [] };
+  }
+
+  bindZimListeners(zim);
 
   const result = await zim.callInvite([calleeZegoId], {
     timeout: params.timeout ?? 60,
@@ -526,8 +578,9 @@ export async function sendZegoCallInvitation(
   pendingZimCallId = result.callID;
   const errors = result.errorUserList?.length ? result.errorUserList : result.errorInvitees || [];
   if (errors.length) {
-    setCallUiState(null);
-    pendingZimCallId = '';
+    patchCallUiState({
+      hint: 'Qarşı tərəf hazırda cavab vermir. Gözləyin və ya zəngi bitirin.',
+    });
   }
   return { errorInvitees: errors.map((u) => ({ userID: u.userID })) };
 }

@@ -14,12 +14,14 @@ import {
 import { getCallSettings } from '@/app/lib/callSettings';
 import { listenFollowingIds, searchUsers } from '@/app/lib/socialService';
 import { ensureZegoConfig, getZegoConfigErrorMessage } from '@/app/lib/zegoConfig';
+import { setCallUiState } from '@/app/lib/callUiBridge';
 import {
   destroyZegoCallKit,
   getZegoCallKitInstance,
   getZegoLastInitError,
   initZegoCallKit,
   sendZegoCallInvitation,
+  zegoHangUp,
 } from '@/app/lib/zegoCallKit';
 import { toZegoUserId } from '@/app/lib/zegoUserId';
 import styles from '@/app/components/social/social.module.css';
@@ -198,16 +200,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      let ready = await ensureZegoConfig();
-      if (!ready) {
-        await new Promise((r) => setTimeout(r, 1200));
-        ready = await ensureZegoConfig();
-      }
-      if (!ready) {
-        setCallError(getZegoConfigErrorMessage());
-        return;
-      }
-
       const calleeId = normalizeUserId(params.calleeId);
       const calleeZegoId = toZegoUserId(calleeId);
       if (!calleeId || calleeId === myId || !calleeZegoId || calleeZegoId === 'user_unknown') {
@@ -235,6 +227,26 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       activeCallRef.current = nextCall;
       setActiveCall(nextCall);
 
+      setCallUiState({
+        mode: 'outgoing',
+        callType: params.callType,
+        peerName: params.calleeName,
+        peerAvatar: params.calleeAvatar,
+        cancel: () => {
+          zegoHangUp();
+        },
+      });
+
+      let ready = await ensureZegoConfig();
+      if (!ready) {
+        await new Promise((r) => setTimeout(r, 1200));
+        ready = await ensureZegoConfig();
+      }
+      if (!ready) {
+        setCallError(getZegoConfigErrorMessage());
+        return;
+      }
+
       void createCallSession({
         callId,
         chatId: params.chatId,
@@ -252,12 +264,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
         if (!zp) {
           setCallError(getZegoLastInitError() || 'Zego Call Kit işə salına bilmədi.');
-          setActiveCall(null);
-          activeCallRef.current = null;
           return;
         }
 
-        const result = await sendZegoCallInvitation(zp, {
+        await sendZegoCallInvitation(zp, {
           calleeId,
           calleeName: params.calleeName,
           calleeAvatar: params.calleeAvatar,
@@ -266,20 +276,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           roomId: callId,
           callerAvatar: myMeta.avatar,
         });
-
-        if (result.errorInvitees?.length) {
-          setCallError(
-            'Qarşı tərəf onlayn deyil. Hər iki istifadəçi tətbiqdə olmalı və profil ID-ləri eyni olmalıdır.'
-          );
-          setActiveCall(null);
-          activeCallRef.current = null;
-        }
       } catch (err) {
         console.error('[Zego] sendCallInvitation failed:', err);
         const msg = err instanceof Error ? err.message : 'Zəng göndərilmədi.';
         setCallError(msg);
-        setActiveCall(null);
-        activeCallRef.current = null;
       }
     },
     [myId, buildKitOptions]
@@ -350,7 +350,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         <CallUiHost />
       </CallErrorBoundary>
 
-      {callError && (
+      {callError && !activeCall && (
         <div className={styles.modalOverlay} onClick={clearCallError}>
           <div className={styles.modalSheet} onClick={(e) => e.stopPropagation()}>
             <h2 className={styles.modalTitle}>Zəng xətası</h2>
