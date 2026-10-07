@@ -451,7 +451,7 @@ export async function initZegoCallKit(
       zp.addPlugins({ ZIM });
       patchJoinRoom(zp);
 
-      zimRef = (ZIM as { getInstance?: () => ZimLike }).getInstance?.() || null;
+      zimRef = (ZIM as unknown as { getInstance?: () => ZimLike }).getInstance?.() || null;
       if (zimRef) bindZimListeners(zimRef);
 
       zpInstance = zp;
