@@ -191,18 +191,19 @@ export function startMediaHarvest(express?: {
   stopMediaHarvest();
   wakeStageMedia();
 
-  if (express?.on) {
+  const playStream = express?.startPlayingStream;
+  if (express?.on && playStream) {
     express.on('roomStreamUpdate', (...args: unknown[]) => {
       const updateType = args[1];
       const list = (args[2] || []) as { streamID?: string; stream_id?: string }[];
       const added = updateType === 'ADD' || updateType === 0 || updateType === 'Added';
-      if (!added || !express.startPlayingStream) return;
+      if (!added) return;
       void Promise.all(
         list.map(async (item) => {
           const id = item.streamID || item.stream_id;
           if (!id) return;
           try {
-            const played = await express.startPlayingStream(id);
+            const played = await playStream(id);
             const ms = asStream(played);
             if (ms) setCallRemoteStream(ms);
           } catch {
