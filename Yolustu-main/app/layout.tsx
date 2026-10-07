@@ -35,11 +35,11 @@ export default function RootLayout({
       <body className="antialiased">
         <ThemeInitScript />
         <UserProvider>
-          <AppBrainProvider>
-            <SettingsProvider>
+          <SettingsProvider>
+            <AppBrainProvider>
               <AppShell>{children}</AppShell>
-            </SettingsProvider>
-          </AppBrainProvider>
+            </AppBrainProvider>
+          </SettingsProvider>
         </UserProvider>
         <div id="call-overlay-root" aria-hidden="true" />
       </body>

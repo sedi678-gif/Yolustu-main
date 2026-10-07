@@ -13,9 +13,10 @@ import {
   IconCallVideoOff,
 } from './CallControlIcons';
 import { unlockCallAudio } from '@/app/lib/audioUnlock';
+import { getAppStrings } from '@/app/lib/appI18n';
+import { readStoredLanguage } from '@/app/lib/appLanguage';
 import { CallType } from '@/app/lib/callService';
 import { watchVideoTrackActivity } from '@/app/lib/callVideoUtils';
-import { useAppStrings } from '@/app/lib/useAppStrings';
 import styles from './callOverlay.module.css';
 
 interface CallOverlayProps {
@@ -144,7 +145,7 @@ export default function CallOverlay({
   chromeHidden = false,
   onToggleChrome,
 }: CallOverlayProps) {
-  const t = useAppStrings();
+  const t = getAppStrings(readStoredLanguage() ?? 'az');
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);

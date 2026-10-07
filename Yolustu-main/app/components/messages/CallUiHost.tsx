@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { unlockCallAudio } from '@/app/lib/audioUnlock';
 import { startCallPulse, startRingtone, stopCallPulse, stopRingtone } from '@/app/lib/callRingtone';
 import { primeCallMedia, releaseMediaStream } from '@/app/lib/mediaPermissions';
@@ -19,30 +18,14 @@ import {
 } from '@/app/lib/zegoCallKit';
 import CallOverlay from './CallOverlay';
 
-function overlayRoot(): HTMLElement | null {
-  if (typeof document === 'undefined') return null;
-  return document.getElementById('call-overlay-root');
-}
-
 export default function CallUiHost() {
   const [ui, setUi] = useState(getCallUiState);
-  const [host, setHost] = useState<HTMLElement | null>(overlayRoot);
   const [micMuted, setMicMuted] = useState(false);
   const [speakerMuted, setSpeakerMuted] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [chromeHidden, setChromeHidden] = useState(false);
 
   useEffect(() => listenCallUiState(setUi), []);
-
-  useEffect(() => {
-    const el = overlayRoot();
-    setHost(el);
-  }, []);
-
-  useEffect(() => {
-    if (!host) return;
-    host.setAttribute('aria-hidden', ui ? 'false' : 'true');
-  }, [host, ui]);
 
   useEffect(() => {
     if (!ui) {
@@ -55,13 +38,17 @@ export default function CallUiHost() {
       return;
     }
 
-    if (ui.mode === 'incoming' || ui.mode === 'outgoing') {
-      void startRingtone();
-      if (ui.mode === 'incoming') startCallPulse();
-      else stopCallPulse();
-    } else {
-      stopRingtone();
-      stopCallPulse();
+    try {
+      if (ui.mode === 'incoming' || ui.mode === 'outgoing') {
+        void startRingtone();
+        if (ui.mode === 'incoming') startCallPulse();
+        else stopCallPulse();
+      } else {
+        stopRingtone();
+        stopCallPulse();
+      }
+    } catch {
+      /* ringtone heç vaxt overlay-i yıxmasın */
     }
 
     if (ui.mode !== 'active') {
@@ -70,12 +57,12 @@ export default function CallUiHost() {
     }
   }, [ui]);
 
-  if (!ui || !host) return null;
+  if (!ui) return null;
 
   const closeUi = () => setCallUiState(null);
   const videoLive = ui.mode === 'active' && (ui.callType === 'video' || cameraOn);
 
-  return createPortal(
+  return (
     <CallOverlay
       mode={ui.mode}
       chrome={videoLive ? 'docked' : 'full'}
@@ -129,7 +116,6 @@ export default function CallUiHost() {
         setCameraOn(next);
         zegoEnableCamera(next);
       }}
-    />,
-    host
+    />
   );
 }
