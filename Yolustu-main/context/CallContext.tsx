@@ -14,7 +14,7 @@ import {
 import { getCallSettings } from '@/app/lib/callSettings';
 import { listenFollowingIds, searchUsers } from '@/app/lib/socialService';
 import { ensureZegoConfig, getZegoConfigErrorMessage } from '@/app/lib/zegoConfig';
-import { setCallUiState } from '@/app/lib/callUiBridge';
+import { setCallInviteHandler, setCallUiState } from '@/app/lib/callUiBridge';
 import {
   destroyZegoCallKit,
   getZegoCallKitInstance,
@@ -190,6 +190,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    setCallInviteHandler(() => setShowInvite(true));
+    return () => setCallInviteHandler(null);
+  }, []);
+
   const clearCallError = useCallback(() => setCallError(null), []);
 
   const startCall = useCallback(
@@ -346,6 +351,44 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     >
       {children}
       <CallUiHost />
+      {showInvite ? (
+        <div className={styles.modalOverlay} onClick={() => setShowInvite(false)}>
+          <div className={styles.modalSheet} onClick={(e) => e.stopPropagation()}>
+            <h2 className={styles.modalTitle}>Zəngə əlavə et</h2>
+            <input
+              value={inviteQuery}
+              onChange={(e) => setInviteQuery(e.target.value)}
+              placeholder="Ad, @nickname..."
+              style={{ width: '100%', margin: '8px 0 12px', padding: '10px 12px', borderRadius: 10, border: '1px solid #334155', background: '#0f172a', color: '#fff' }}
+            />
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              onClick={() => {
+                if (myId) void runInviteSearch(myId);
+              }}
+            >
+              Axtar
+            </button>
+            <div style={{ marginTop: 12, maxHeight: 240, overflow: 'auto' }}>
+              {inviteResults.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  className={styles.primaryBtn}
+                  style={{ width: '100%', marginBottom: 8 }}
+                  onClick={() => void inviteUser(u.id, u.name || u.handle || u.id)}
+                >
+                  {u.name || u.handle || u.id}
+                </button>
+              ))}
+            </div>
+            <button type="button" className={styles.primaryBtn} onClick={() => setShowInvite(false)}>
+              Bağla
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {callError && !activeCall && (
         <div className={styles.modalOverlay} onClick={clearCallError}>

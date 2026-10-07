@@ -12,6 +12,12 @@ import {
 } from '@/app/lib/callNotifications';
 import { toZegoRoomId, toZegoUserId, toZegoUserName } from '@/app/lib/zegoUserId';
 import type { CallType } from '@/app/lib/callService';
+import {
+  releaseCallMedia,
+  startMediaHarvest,
+  muteLocalAudio,
+  muteLocalVideo,
+} from '@/app/lib/callMediaBridge';
 import { getCallUiState, patchCallUiState, setCallUiState } from '@/app/lib/callUiBridge';
 
 type ZegoUIKitModule = typeof import('@zegocloud/zego-uikit-prebuilt');
@@ -131,7 +137,8 @@ function getOrCreateZegoStage(): HTMLElement {
   if (el.parentElement !== document.documentElement) {
     document.documentElement.appendChild(el);
   }
-  el.style.display = 'block';
+  el.style.cssText =
+    'position:fixed;left:0;bottom:0;width:12px;height:12px;opacity:0.02;overflow:hidden;pointer-events:none;z-index:1;display:block;';
   return el;
 }
 
@@ -231,7 +238,9 @@ function loadZegoUIKit(): Promise<ZegoUIKitModule> {
 
 export function hideZegoStage(): void {
   const el = document.getElementById('zego-call-stage');
-  if (el) el.style.display = 'none';
+  if (!el) return;
+  el.style.cssText =
+    'position:fixed;left:0;bottom:0;width:12px;height:12px;opacity:0.02;overflow:hidden;pointer-events:none;z-index:1;display:block;';
 }
 
 export function setJoinWithCamera(on: boolean): void {
@@ -390,7 +399,7 @@ async function joinMediaRoom(roomId: string, callType: CallType): Promise<void> 
   if (!rid || !uid) return;
   if (mediaZp && mediaRoomId === rid) return;
 
-  leaveMediaRoom();
+  leaveMediaRoom(false);
 
   const { ZegoUIKitPrebuilt } = await loadZegoUIKit();
   const kitToken = generateTestKitToken(
@@ -404,6 +413,7 @@ async function joinMediaRoom(roomId: string, callType: CallType): Promise<void> 
   zp.joinRoom(mediaRoomConfig(ZegoUIKitPrebuilt, callType));
   mediaZp = zp;
   mediaRoomId = rid;
+  startMediaHarvest((zp as { express?: { on?: (ev: string, cb: (...args: unknown[]) => void) => void; startPlayingStream?: (id: string) => Promise<unknown> } }).express);
 
   const prev = getCallUiState();
   setCallUiState({
@@ -414,11 +424,12 @@ async function joinMediaRoom(roomId: string, callType: CallType): Promise<void> 
   });
 }
 
-function leaveMediaRoom(): void {
+function leaveMediaRoom(releasePreview = true): void {
   destroyPrebuilt(mediaZp);
   mediaZp = null;
   mediaRoomId = null;
   hideZegoStage();
+  if (releasePreview) releaseCallMedia();
 }
 
 export function getZegoLastInitError(): string | null {
@@ -645,14 +656,24 @@ export function zegoHangUp() {
 }
 
 export function zegoMuteMicrophone(muted: boolean) {
+  muteLocalAudio(muted);
   getExpress()?.muteMicrophone?.(muted);
 }
 
 export function zegoMuteSpeaker(muted: boolean) {
-  getExpress()?.muteSpeaker?.(muted);
+  /* Uzaq səsi overlay <audio> idarə edir; Zego elementlərini də oyat. */
+  const stage = document.getElementById('zego-call-stage');
+  stage?.querySelectorAll('audio').forEach((node) => {
+    const el = node as HTMLAudioElement;
+    el.muted = muted;
+    el.volume = muted ? 0 : 1;
+    if (!muted) void el.play().catch(() => undefined);
+  });
+  if (!muted) getExpress()?.muteSpeaker?.(false);
 }
 
 export function zegoEnableCamera(on: boolean) {
+  muteLocalVideo(!on);
   const express = getExpress();
   if (!express) return;
   if (express.enableCamera) {

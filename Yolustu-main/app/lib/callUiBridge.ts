@@ -37,3 +37,13 @@ export function listenCallUiState(callback: (state: CallUiState) => void): () =>
     listeners.delete(callback);
   };
 }
+
+let inviteHandler: (() => void) | null = null;
+
+export function setCallInviteHandler(handler: (() => void) | null) {
+  inviteHandler = handler;
+}
+
+export function requestCallInvite() {
+  inviteHandler?.();
+}

@@ -22,6 +22,7 @@ import {
 } from '@/app/components/messages/MessageHubIcons';
 import { useCall } from '@/context/CallContext';
 import { unlockCallAudio } from '@/app/lib/audioUnlock';
+import { setCallLocalStream } from '@/app/lib/callMediaBridge';
 import { setCallUiState } from '@/app/lib/callUiBridge';
 import { zegoHangUp } from '@/app/lib/zegoCallKit';
 import {
@@ -844,12 +845,13 @@ export default function MessagesPageClient() {
       },
     });
     const media = await primeCallMedia(callType === 'video');
-    releaseMediaStream(media.stream);
     if (!media.audio) {
+      releaseMediaStream(media.stream);
       setCallUiState(null);
       alert(media.error || 'Mikrofon icazəsi verilməyib.');
       return;
     }
+    setCallLocalStream(media.stream);
     startCall({
       calleeId: String(selectedChat.id),
       calleeName: selectedChat.name,

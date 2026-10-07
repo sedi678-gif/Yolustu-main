@@ -2,11 +2,19 @@
 
 import React, { useEffect, useState } from 'react';
 import { unlockCallAudio } from '@/app/lib/audioUnlock';
+import {
+  ensureLocalPreview,
+  flipLocalCamera,
+  getCallMedia,
+  listenCallMedia,
+  setCallLocalStream,
+} from '@/app/lib/callMediaBridge';
 import { startCallPulse, startRingtone, stopCallPulse, stopRingtone } from '@/app/lib/callRingtone';
 import { primeCallMedia, releaseMediaStream } from '@/app/lib/mediaPermissions';
 import {
   getCallUiState,
   listenCallUiState,
+  requestCallInvite,
   setCallUiState,
 } from '@/app/lib/callUiBridge';
 import {
@@ -20,19 +28,21 @@ import CallOverlay from './CallOverlay';
 
 export default function CallUiHost() {
   const [ui, setUi] = useState(getCallUiState);
+  const [media, setMedia] = useState(getCallMedia);
   const [micMuted, setMicMuted] = useState(false);
-  const [speakerMuted, setSpeakerMuted] = useState(false);
+  const [speakerOn, setSpeakerOn] = useState(true);
   const [cameraOn, setCameraOn] = useState(false);
-  const [chromeHidden, setChromeHidden] = useState(false);
+  const [minimized, setMinimized] = useState(false);
 
   useEffect(() => listenCallUiState(setUi), []);
+  useEffect(() => listenCallMedia(setMedia), []);
 
   useEffect(() => {
     if (!ui) {
       setMicMuted(false);
-      setSpeakerMuted(false);
+      setSpeakerOn(true);
       setCameraOn(false);
-      setChromeHidden(false);
+      setMinimized(false);
       stopRingtone();
       stopCallPulse();
       return;
@@ -48,44 +58,47 @@ export default function CallUiHost() {
         stopCallPulse();
       }
     } catch {
-      /* ringtone heç vaxt overlay-i yıxmasın */
+      /* */
     }
 
     if (ui.mode !== 'active') {
       setCameraOn(ui.callType === 'video');
-      setChromeHidden(false);
+      setMinimized(false);
     }
   }, [ui]);
 
   if (!ui) return null;
 
   const closeUi = () => setCallUiState(null);
-  const videoLive = ui.mode === 'active' && (ui.callType === 'video' || cameraOn);
 
   return (
     <CallOverlay
       mode={ui.mode}
-      chrome={videoLive ? 'docked' : 'full'}
       callType={ui.callType}
       peerName={ui.peerName}
       peerAvatar={ui.peerAvatar}
+      localStream={media.local}
+      remoteStream={media.remote}
       micMuted={micMuted}
-      speakerMuted={speakerMuted}
+      speakerOn={speakerOn}
       cameraOn={cameraOn}
-      chromeHidden={videoLive ? chromeHidden : false}
       errorMessage={ui.hint || null}
-      onToggleChrome={videoLive ? () => setChromeHidden((v) => !v) : undefined}
+      minimized={minimized}
+      onToggleMinimize={() => setMinimized((v) => !v)}
       onAccept={() => {
         void (async () => {
           void unlockCallAudio();
-          const media = await primeCallMedia(ui.callType === 'video');
-          releaseMediaStream(media.stream);
-          if (!media.audio) {
+          const primed = await primeCallMedia(ui.callType === 'video');
+          if (primed.stream) setCallLocalStream(primed.stream);
+          else releaseMediaStream(primed.stream);
+          if (!primed.audio) {
             ui.refuse?.();
             closeUi();
             return;
           }
-          setJoinWithCamera(ui.callType === 'video' && media.video);
+          await ensureLocalPreview(ui.callType === 'video');
+          setJoinWithCamera(ui.callType === 'video' && primed.video);
+          setCameraOn(ui.callType === 'video' && primed.video);
           ui.accept?.();
         })();
       }}
@@ -94,11 +107,8 @@ export default function CallUiHost() {
         closeUi();
       }}
       onEnd={() => {
-        if (ui.mode === 'outgoing') {
-          ui.cancel?.();
-        } else {
-          zegoHangUp();
-        }
+        if (ui.mode === 'outgoing') ui.cancel?.();
+        else zegoHangUp();
         closeUi();
       }}
       onToggleMute={() => {
@@ -107,14 +117,35 @@ export default function CallUiHost() {
         zegoMuteMicrophone(next);
       }}
       onToggleSpeaker={() => {
-        const next = !speakerMuted;
-        setSpeakerMuted(next);
-        zegoMuteSpeaker(next);
+        const next = !speakerOn;
+        setSpeakerOn(next);
+        zegoMuteSpeaker(!next);
+        void unlockCallAudio();
       }}
-      onToggleCamera={() => {
+      onToggleCamera={async () => {
         const next = !cameraOn;
-        setCameraOn(next);
-        zegoEnableCamera(next);
+        if (next) {
+          const stream = await ensureLocalPreview(true);
+          const hasVideo = Boolean(stream?.getVideoTracks().length);
+          setCameraOn(hasVideo);
+          setJoinWithCamera(hasVideo);
+          zegoEnableCamera(hasVideo);
+          return;
+        }
+        setCameraOn(false);
+        zegoEnableCamera(false);
+      }}
+      onOpenInvite={() => requestCallInvite()}
+      onShare={() => {
+        const text = `${ui.peerName} — Yolüstü zəng`;
+        if (navigator.share) {
+          void navigator.share({ title: 'Yolüstü', text }).catch(() => undefined);
+          return;
+        }
+        void navigator.clipboard?.writeText(text);
+      }}
+      onFlipCamera={() => {
+        void flipLocalCamera();
       }}
     />
   );

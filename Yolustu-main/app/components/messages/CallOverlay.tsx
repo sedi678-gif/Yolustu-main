@@ -4,9 +4,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   IconCallHangup,
   IconCallInvite,
+  IconCallLock,
   IconCallMic,
   IconCallMicOff,
+  IconCallMinimize,
+  IconCallMore,
   IconCallPhone,
+  IconCallShare,
   IconCallSpeaker,
   IconCallSpeakerOff,
   IconCallVideo,
@@ -21,59 +25,30 @@ import styles from './callOverlay.module.css';
 
 interface CallOverlayProps {
   mode: 'outgoing' | 'incoming' | 'connecting' | 'active';
-  chrome?: 'full' | 'docked';
   callType: CallType;
   peerName: string;
   peerAvatar?: string;
   localStream?: MediaStream | null;
   remoteStream?: MediaStream | null;
-  participants?: string[];
   onAccept?: () => void;
   onReject?: () => void;
   onEnd?: () => void;
   onToggleMute?: () => void;
   onToggleSpeaker?: () => void;
-  onToggleCamera?: () => void;
+  onToggleCamera?: () => Promise<void> | void;
   onOpenInvite?: () => void;
+  onShare?: () => void;
+  onFlipCamera?: () => void;
   micMuted?: boolean;
-  speakerMuted?: boolean;
+  speakerOn?: boolean;
   cameraOn?: boolean;
-  remoteVideoOn?: boolean;
   errorMessage?: string | null;
-  onDismissError?: () => void;
-  chromeHidden?: boolean;
-  onToggleChrome?: () => void;
+  minimized?: boolean;
+  onToggleMinimize?: () => void;
 }
 
 const DEFAULT_AVATAR =
   'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80';
-
-async function attachAudio(
-  el: HTMLAudioElement | null,
-  stream: MediaStream | null,
-  muted: boolean
-) {
-  if (!el || !stream) return;
-  el.srcObject = stream;
-  el.volume = 1;
-  el.muted = muted;
-  try {
-    await el.play();
-  } catch {
-    /* autoplay */
-  }
-}
-
-async function attachVideo(el: HTMLVideoElement | null, stream: MediaStream | null) {
-  if (!el || !stream) return;
-  el.srcObject = stream;
-  el.muted = true;
-  try {
-    await el.play();
-  } catch {
-    /* autoplay */
-  }
-}
 
 function formatTimer(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -81,54 +56,60 @@ function formatTimer(sec: number): string {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-function ControlBtn({
+async function playMedia(el: HTMLMediaElement | null, stream: MediaStream | null, muted: boolean) {
+  if (!el) return;
+  if (!stream) {
+    el.srcObject = null;
+    return;
+  }
+  if (el.srcObject !== stream) el.srcObject = stream;
+  el.muted = muted;
+  el.volume = 1;
+  try {
+    await el.play();
+  } catch {
+    /* user gesture / autoplay */
+  }
+}
+
+function PadBtn({
   label,
   onClick,
+  on: isOn = false,
   danger = false,
-  accept = false,
-  active = false,
-  large = false,
   children,
 }: {
   label: string;
   onClick?: () => void;
+  on?: boolean;
   danger?: boolean;
-  accept?: boolean;
-  active?: boolean;
-  large?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <button type="button" aria-label={label} onClick={onClick} className={styles.controlBtn}>
+    <button type="button" className={styles.controlBtn} aria-label={label} onClick={onClick}>
       <span
         className={[
-          styles.controlCircle,
-          large ? styles.controlCircleLarge : '',
-          danger ? styles.controlCircleDanger : '',
-          accept ? styles.controlCircleAccept : '',
-          active ? styles.controlCircleActive : '',
+          styles.circle,
+          isOn ? styles.circleOn : '',
+          danger ? styles.circleDanger : '',
         ]
           .filter(Boolean)
           .join(' ')}
       >
         {children}
       </span>
-      <span className={[styles.controlLabel, accept ? styles.controlLabelAccept : ''].filter(Boolean).join(' ')}>
-        {label}
-      </span>
+      <span className={styles.label}>{label}</span>
     </button>
   );
 }
 
 export default function CallOverlay({
   mode,
-  chrome = 'full',
   callType,
   peerName,
   peerAvatar,
   localStream,
   remoteStream,
-  participants = [],
   onAccept,
   onReject,
   onEnd,
@@ -136,14 +117,14 @@ export default function CallOverlay({
   onToggleSpeaker,
   onToggleCamera,
   onOpenInvite,
+  onShare,
+  onFlipCamera,
   micMuted = false,
-  speakerMuted = false,
+  speakerOn = true,
   cameraOn = false,
-  remoteVideoOn = false,
   errorMessage = null,
-  onDismissError,
-  chromeHidden = false,
-  onToggleChrome,
+  minimized = false,
+  onToggleMinimize,
 }: CallOverlayProps) {
   const t = getAppStrings(readStoredLanguage() ?? 'az');
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -151,15 +132,10 @@ export default function CallOverlay({
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [elapsed, setElapsed] = useState(0);
   const [remoteVideoLive, setRemoteVideoLive] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const avatar = peerAvatar || DEFAULT_AVATAR;
-  const isLiveCall = mode === 'active' || mode === 'connecting';
-  const showRipple = mode === 'incoming' || mode === 'outgoing';
-  const remoteHasVideo = remoteVideoOn || remoteVideoLive;
-  const isVideoCall = callType === 'video' || cameraOn || remoteHasVideo;
-  const showVideoStage = isLiveCall && isVideoCall;
-  const isDocked = chrome === 'docked';
-
+  const showVideo = (callType === 'video' || cameraOn || remoteVideoLive) && Boolean(remoteStream || (cameraOn && localStream));
   const statusText =
     mode === 'incoming'
       ? t.messages.callIncoming
@@ -169,50 +145,24 @@ export default function CallOverlay({
           ? t.messages.callConnecting
           : t.messages.callInProgress;
 
-  const kindLabel = isVideoCall ? t.messages.videoCall : t.messages.voiceCall;
-
-  const bindStreams = useCallback(async () => {
-    await attachAudio(remoteAudioRef.current, remoteStream ?? null, speakerMuted);
-
-    if (remoteHasVideo && remoteStream) {
-      await attachVideo(remoteVideoRef.current, remoteStream);
-    } else if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = null;
+  const bind = useCallback(async () => {
+    await unlockCallAudio();
+    const remoteAudio = remoteStream
+      ? new MediaStream(remoteStream.getAudioTracks())
+      : null;
+    await playMedia(remoteAudioRef.current, remoteAudio, false);
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.muted = false;
+      remoteAudioRef.current.volume = speakerOn ? 1 : 0.45;
     }
+    await playMedia(remoteVideoRef.current, remoteStream ?? null, true);
+    await playMedia(localVideoRef.current, cameraOn ? localStream ?? null : null, true);
+  }, [remoteStream, localStream, cameraOn, speakerOn]);
 
-    if (cameraOn && localStream) {
-      await attachVideo(localVideoRef.current, localStream);
-    } else if (localVideoRef.current) {
-      localVideoRef.current.srcObject = null;
-    }
-  }, [remoteStream, localStream, remoteHasVideo, cameraOn, speakerMuted]);
-
+  useEffect(() => watchVideoTrackActivity(remoteStream, setRemoteVideoLive), [remoteStream]);
   useEffect(() => {
-    return watchVideoTrackActivity(remoteStream, setRemoteVideoLive);
-  }, [remoteStream]);
-
-  useEffect(() => {
-    void bindStreams();
-  }, [bindStreams, mode]);
-
-  useEffect(() => {
-    if (isLiveCall) {
-      void unlockCallAudio().then(() => bindStreams());
-    }
-  }, [isLiveCall, bindStreams]);
-
-  useEffect(() => {
-    if (!remoteStream) return;
-    const onTrack = () => void bindStreams();
-    remoteStream.addEventListener('addtrack', onTrack);
-    return () => remoteStream.removeEventListener('addtrack', onTrack);
-  }, [remoteStream, bindStreams]);
-
-  useEffect(() => {
-    if (remoteAudioRef.current) remoteAudioRef.current.muted = speakerMuted;
-    if (remoteVideoRef.current) remoteVideoRef.current.muted = speakerMuted;
-    void bindStreams();
-  }, [speakerMuted, bindStreams]);
+    void bind();
+  }, [bind]);
 
   useEffect(() => {
     if (mode !== 'active') {
@@ -220,149 +170,127 @@ export default function CallOverlay({
       return;
     }
     const startedAt = Date.now();
-    const tick = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
+    const tick = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
     return () => clearInterval(tick);
   }, [mode]);
 
+  if (minimized) {
+    return (
+      <div className={`${styles.overlay} ${styles.minimized}`} role="dialog" aria-label={peerName}>
+        <button type="button" className={styles.chromeHit} onClick={onToggleMinimize} aria-label={statusText} />
+        <div className={styles.miniRow}>
+          <img src={avatar} alt="" className={styles.miniAvatar} />
+          <div className={styles.miniMeta}>
+            <p className={styles.miniName}>{peerName}</p>
+            <p className={styles.miniStatus}>{mode === 'active' ? formatTimer(elapsed) : statusText}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={[
-        styles.overlay,
-        isDocked ? styles.overlayDocked : '',
-        chromeHidden ? styles.overlayHiddenChrome : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      role="dialog"
-      aria-modal={!isDocked}
-      aria-label={`${peerName} — ${statusText}`}
-    >
+    <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={`${peerName} — ${statusText}`}>
       <audio ref={remoteAudioRef} autoPlay playsInline className={styles.srOnly} />
 
-      {isDocked && onToggleChrome ? (
-        <button type="button" className={styles.chromeHit} aria-label={statusText} onClick={onToggleChrome} />
-      ) : null}
-
-      {showVideoStage && remoteStream ? (
+      {showVideo ? (
         <div className={styles.videoStage}>
-          {remoteHasVideo ? (
-            <video ref={remoteVideoRef} autoPlay playsInline className={styles.remoteVideo} />
-          ) : null}
+          {remoteStream ? <video ref={remoteVideoRef} autoPlay playsInline className={styles.remoteVideo} /> : null}
           {cameraOn && localStream ? (
             <video ref={localVideoRef} autoPlay playsInline muted className={styles.localPip} />
           ) : null}
         </div>
+      ) : cameraOn && localStream ? (
+        <div className={styles.videoStage}>
+          <video ref={localVideoRef} autoPlay playsInline muted className={styles.remoteVideo} />
+        </div>
       ) : null}
 
-      <header className={styles.header}>
-        <p className={styles.encrypt}>{t.messages.callEncrypt}</p>
-        <p className={styles.status}>{statusText}</p>
-        {mode === 'active' ? <p className={styles.timer}>{formatTimer(elapsed)}</p> : null}
+      <header className={styles.topBar}>
+        <button type="button" className={styles.roundIcon} aria-label={t.messages.callMinimize} onClick={onToggleMinimize}>
+          <IconCallMinimize />
+        </button>
+        <div className={styles.encryptWrap}>
+          <span className={styles.hearts} aria-hidden>
+            💙❤️💚
+          </span>
+          <p className={styles.encrypt}>
+            <IconCallLock /> {t.messages.callEncrypt}
+          </p>
+        </div>
+        <button type="button" className={styles.roundIcon} aria-label={t.messages.callAdd} onClick={onOpenInvite}>
+          <IconCallInvite size={22} />
+        </button>
       </header>
 
-      <main className={[styles.main, isDocked ? styles.mainDocked : ''].filter(Boolean).join(' ')}>
-        {!isDocked ? (
-          <div className={[styles.avatarGlow, showRipple ? styles.avatarPulse : ''].filter(Boolean).join(' ')}>
-            <img src={avatar} alt="" className={styles.avatar} />
-          </div>
-        ) : null}
-
+      <main className={styles.main}>
+        {!showVideo && !(cameraOn && localStream) ? <img src={avatar} alt="" className={styles.avatar} /> : null}
         <h2 className={styles.peerName}>{peerName}</h2>
-        <p className={styles.callKind}>{kindLabel}</p>
-        {participants.length > 2 ? (
-          <p className={styles.callKind}>👥 {participants.length}</p>
-        ) : null}
-
-        {errorMessage ? (
-          <div className={styles.errorBox} role="alert">
-            <p>{errorMessage}</p>
-            {onDismissError ? (
-              <button type="button" onClick={onDismissError} className={styles.controlBtn}>
-                {t.messages.callCancel}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+        <p className={styles.status}>{statusText}</p>
+        {mode === 'active' ? <p className={styles.timer}>{formatTimer(elapsed)}</p> : null}
+        {errorMessage ? <p className={styles.hint}>{errorMessage}</p> : null}
       </main>
+
+      {moreOpen ? (
+        <div className={styles.moreSheet}>
+          <button
+            type="button"
+            className={styles.moreItem}
+            onClick={() => {
+              setMoreOpen(false);
+              onFlipCamera?.();
+            }}
+          >
+            {t.messages.callFlip}
+          </button>
+        </div>
+      ) : null}
 
       <footer className={styles.footer}>
         {mode === 'incoming' ? (
-          <div className={styles.controlsRow}>
-            <ControlBtn label={t.messages.callDecline} onClick={onReject} danger large>
-              <IconCallHangup size={30} />
-            </ControlBtn>
-            <ControlBtn
-              label={t.messages.callAccept}
-              accept
-              large
-              onClick={() => onAccept?.()}
-            >
-              {isVideoCall ? <IconCallVideo size={30} /> : <IconCallPhone size={30} />}
-            </ControlBtn>
-          </div>
-        ) : mode === 'outgoing' || mode === 'connecting' ? (
-          <div className={styles.controlsStack}>
-            {mode === 'outgoing' ? (
-              <div className={styles.controlsGrid}>
-                <ControlBtn
-                  label={micMuted ? t.messages.callMuted : t.messages.callMute}
-                  onClick={onToggleMute}
-                  active={micMuted}
-                >
-                  {micMuted ? <IconCallMicOff /> : <IconCallMic />}
-                </ControlBtn>
-                <ControlBtn
-                  label={speakerMuted ? t.messages.callSpeakerOff : t.messages.callSpeaker}
-                  onClick={onToggleSpeaker}
-                  active={speakerMuted}
-                >
-                  {speakerMuted ? <IconCallSpeakerOff /> : <IconCallSpeaker />}
-                </ControlBtn>
-              </div>
-            ) : null}
-            <div className={styles.controlsRow}>
-              <ControlBtn label={t.messages.callCancel} onClick={onEnd} danger large>
-                <IconCallHangup size={30} />
-              </ControlBtn>
-            </div>
+          <div className={styles.incomingRow}>
+            <PadBtn label={t.messages.callDecline} danger onClick={onReject}>
+              <IconCallHangup size={26} />
+            </PadBtn>
+            <button type="button" className={styles.controlBtn} onClick={onAccept} aria-label={t.messages.callAccept}>
+              <span className={`${styles.circle} ${styles.circleAccept}`}>
+                {callType === 'video' ? <IconCallVideo size={26} /> : <IconCallPhone size={26} />}
+              </span>
+              <span className={styles.label}>{t.messages.callAccept}</span>
+            </button>
           </div>
         ) : (
-          <div className={styles.controlsStack}>
-            <div className={styles.controlsGrid}>
-              <ControlBtn
-                label={micMuted ? t.messages.callMuted : t.messages.callMute}
-                onClick={onToggleMute}
-                active={micMuted}
-              >
-                {micMuted ? <IconCallMicOff /> : <IconCallMic />}
-              </ControlBtn>
-              <ControlBtn
-                label={speakerMuted ? t.messages.callSpeakerOff : t.messages.callSpeaker}
-                onClick={onToggleSpeaker}
-                active={speakerMuted}
-              >
-                {speakerMuted ? <IconCallSpeakerOff /> : <IconCallSpeaker />}
-              </ControlBtn>
-              <ControlBtn
-                label={cameraOn ? t.messages.callCamera : t.messages.callCameraOff}
-                onClick={() => void onToggleCamera?.()}
-                active={!cameraOn}
-              >
-                {cameraOn ? <IconCallVideo /> : <IconCallVideoOff />}
-              </ControlBtn>
-              {onOpenInvite ? (
-                <ControlBtn label="+" onClick={onOpenInvite}>
-                  <IconCallInvite />
-                </ControlBtn>
-              ) : null}
-            </div>
-            <div className={styles.controlsRow}>
-              <ControlBtn label={t.messages.callEnd} onClick={onEnd} danger large>
-                <IconCallHangup size={30} />
-              </ControlBtn>
-            </div>
+          <div className={styles.pad}>
+            <PadBtn
+              label={speakerOn ? t.messages.callSpeaker : t.messages.callSpeakerOff}
+              on={speakerOn}
+              onClick={onToggleSpeaker}
+            >
+              {speakerOn ? <IconCallSpeaker /> : <IconCallSpeakerOff />}
+            </PadBtn>
+            <PadBtn
+              label={t.messages.callCamera}
+              on={cameraOn}
+              onClick={() => void onToggleCamera?.()}
+            >
+              {cameraOn ? <IconCallVideo /> : <IconCallVideoOff />}
+            </PadBtn>
+            <PadBtn
+              label={micMuted ? t.messages.callMuted : t.messages.callMute}
+              on={micMuted}
+              onClick={onToggleMute}
+            >
+              {micMuted ? <IconCallMicOff /> : <IconCallMic />}
+            </PadBtn>
+            <PadBtn label={t.messages.callMore} onClick={() => setMoreOpen((v) => !v)}>
+              <IconCallMore />
+            </PadBtn>
+            <PadBtn label={t.messages.callShare} onClick={onShare}>
+              <IconCallShare />
+            </PadBtn>
+            <PadBtn label={t.messages.callEnd} danger onClick={onEnd}>
+              <IconCallHangup size={26} />
+            </PadBtn>
           </div>
         )}
       </footer>

@@ -108,6 +108,44 @@ export function IconCallVideoOff({ size = 24 }: { size?: number }) {
   );
 }
 
+export function IconCallMore({ size = 24 }: { size?: number }) {
+  return (
+    <CallSvg size={size}>
+      <circle cx="6" cy="12" r="1.7" />
+      <circle cx="12" cy="12" r="1.7" />
+      <circle cx="18" cy="12" r="1.7" />
+    </CallSvg>
+  );
+}
+
+export function IconCallShare({ size = 24 }: { size?: number }) {
+  return (
+    <CallSvg size={size}>
+      <path d="M12 3.2v10.4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8.2 6.6L12 3.2l3.8 3.4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5.2 12.5v5.3A2 2 0 007.2 20h9.6a2 2 0 002-2.2v-5.3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </CallSvg>
+  );
+}
+
+export function IconCallMinimize({ size = 22 }: { size?: number }) {
+  return (
+    <CallSvg size={size}>
+      <path d="M8 4.5H4.8A1.3 1.3 0 003.5 5.8V9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M16 19.5h3.2a1.3 1.3 0 001.3-1.3V15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M14.5 9.5l6-6M9.5 14.5l-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </CallSvg>
+  );
+}
+
+export function IconCallLock({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M17 9h-1V7A4 4 0 007 7v2H6a2 2 0 00-2 2v8a2 2 0 002 2h11a2 2 0 002-2v-8a2 2 0 00-2-2zm-8-2a2 2 0 114 0v2H9V7z" />
+    </svg>
+  );
+}
+
 export function IconCallInvite({ size = 24 }: { size?: number }) {
   return (
     <CallSvg size={size}>
