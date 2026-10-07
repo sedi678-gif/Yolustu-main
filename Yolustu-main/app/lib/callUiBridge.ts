@@ -19,9 +19,17 @@ export function getCallUiState(): CallUiState {
   return current;
 }
 
+let notifyScheduled = false;
+
 export function setCallUiState(next: CallUiState) {
   current = next;
-  listeners.forEach((listen) => listen(next));
+  if (notifyScheduled) return;
+  notifyScheduled = true;
+  queueMicrotask(() => {
+    notifyScheduled = false;
+    const snapshot = current;
+    listeners.forEach((listen) => listen(snapshot));
+  });
 }
 
 export function listenCallUiState(callback: (state: CallUiState) => void): () => void {

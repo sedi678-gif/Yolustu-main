@@ -26,15 +26,42 @@ export interface ZegoCallKitOptions {
 const optionsRef: { current: ZegoCallKitOptions } = { current: {} };
 
 let zpInstance: ZegoInstance | null = null;
+let mediaZp: ZegoInstance | null = null;
+let mediaRoomId: string | null = null;
 let activeUserId: string | null = null;
 let activeUserName: string | null = null;
 let initPromise: Promise<ZegoInstance | null> | null = null;
 let lastInitError: string | null = null;
 let tableVoiceActive = false;
 let joinWithCamera = false;
+let zimBound = false;
+let zimRef: ZimLike | null = null;
+let pendingZimCallId = '';
+let pendingCalleeZegoId = '';
+let pendingRoomId = '';
+let pendingCallType: CallType = 'voice';
 
-/** Test kit token — Zego default 7200s; 24 saat yenilənmiş müddət. */
 const TEST_TOKEN_TTL_SEC = 24 * 60 * 60;
+
+type ZimUser = { userID: string; userName?: string };
+type ZimLike = {
+  callInvite: (
+    invitees: string[],
+    config: { timeout: number; extendedData: string }
+  ) => Promise<{ callID: string; errorUserList?: ZimUser[]; errorInvitees?: ZimUser[] }>;
+  callCancel: (callID: string, invitees: string[], config: { extendedData: string }) => Promise<unknown>;
+  callAccept: (callID: string, config: { extendedData: string }) => Promise<unknown>;
+  callReject: (callID: string, config: { extendedData: string }) => Promise<unknown>;
+  callEnd?: (callID: string, config?: { extendedData: string }) => Promise<unknown>;
+  on: (event: string, cb: (zim: unknown, info: Record<string, unknown>) => void) => void;
+};
+
+type InvitePayload = {
+  roomId: string;
+  callType: CallType;
+  peerName?: string;
+  peerAvatar?: string;
+};
 
 function generateTestKitToken(
   ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPrebuilt'],
@@ -77,29 +104,129 @@ function destroyPrebuilt(instance: ZegoInstance | null): void {
   }
 }
 
-function toCallType(
-  ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPrebuilt'],
-  invitationType: number
-): CallType {
-  return invitationType === ZegoUIKitPrebuilt.InvitationTypeVideoCall ? 'video' : 'voice';
+function parseInvitePayload(raw: unknown): InvitePayload | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  try {
+    const data = JSON.parse(raw) as InvitePayload;
+    if (!data?.roomId) return null;
+    return {
+      roomId: String(data.roomId),
+      callType: data.callType === 'video' ? 'video' : 'voice',
+      peerName: data.peerName,
+      peerAvatar: data.peerAvatar,
+    };
+  } catch {
+    return null;
+  }
 }
 
-function peerLabel(user?: { userID?: string; userName?: string }): string {
-  const name = user?.userName?.trim();
-  if (name) return name;
-  return user?.userID || 'İstifadəçi';
-}
-
+/** Next.js 16 body-ni React root kimi istifadə edir — Zego-nu html altına, body-dən kənar qoy. */
 function getOrCreateZegoStage(): HTMLElement {
   let el = document.getElementById('zego-call-stage');
   if (!el) {
     el = document.createElement('div');
     el.id = 'zego-call-stage';
     el.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(el);
+  }
+  if (el.parentElement !== document.documentElement) {
+    document.documentElement.appendChild(el);
   }
   el.style.display = 'block';
   return el;
+}
+
+function patchJoinRoom(zp: ZegoInstance): void {
+  const kit = zp as ZegoInstance & { __yolustuJoinPatched?: boolean };
+  if (kit.__yolustuJoinPatched) return;
+  kit.__yolustuJoinPatched = true;
+  const original = zp.joinRoom.bind(zp);
+  zp.joinRoom = ((config: Record<string, unknown> = {}) => {
+    const stage = getOrCreateZegoStage();
+    const given = config.container;
+    const container =
+      given instanceof HTMLElement && given !== document.body && given !== document.documentElement
+        ? given
+        : stage;
+    if (container.parentElement === document.body) {
+      stage.appendChild(container);
+    }
+    return original({
+      ...config,
+      container,
+      showPreJoinView: false,
+      showLeavingView: false,
+      sharedLinks: [],
+    });
+  }) as typeof zp.joinRoom;
+}
+
+let zegoDomGuarded = false;
+let zegoImportGuard = false;
+
+function installZegoBodyGuard(): void {
+  if (zegoDomGuarded || typeof document === 'undefined' || !document.body) return;
+  zegoDomGuarded = true;
+  const body = document.body;
+  const insertBefore = body.insertBefore.bind(body);
+  const appendChild = body.appendChild.bind(body);
+
+  body.insertBefore = function (node, child) {
+    if (
+      zegoImportGuard &&
+      node instanceof HTMLElement &&
+      node.tagName === 'DIV' &&
+      !node.id &&
+      (child === body.firstChild || child === body.firstElementChild)
+    ) {
+      node.id = 'zego-invite-host';
+      return getOrCreateZegoStage().appendChild(node);
+    }
+    return insertBefore(node, child);
+  } as typeof body.insertBefore;
+
+  body.appendChild = function (node) {
+    if (node instanceof HTMLElement && node.id === 'zego-container') {
+      return getOrCreateZegoStage().appendChild(node);
+    }
+    return appendChild(node);
+  } as typeof body.appendChild;
+}
+
+async function patchSharedReactRoot(): Promise<void> {
+  try {
+    const rd = await import('react-dom/client');
+    const patched = rd as typeof rd & { __yolustuCreateRootPatched?: boolean };
+    if (patched.__yolustuCreateRootPatched) return;
+    patched.__yolustuCreateRootPatched = true;
+    const original = rd.createRoot.bind(rd);
+    rd.createRoot = ((container: Element | DocumentFragment, options?: Parameters<typeof rd.createRoot>[1]) => {
+      let host = container;
+      if (host === document.body || host === document.documentElement) {
+        host = getOrCreateZegoStage();
+      }
+      return original(host as Element, options);
+    }) as typeof rd.createRoot;
+  } catch {
+    /* Zego öz React-ını bundle edirsə bu patch toxunmur — ona görə invitation UI-ni çağırmırıq */
+  }
+}
+
+let uikitPromise: Promise<ZegoUIKitModule> | null = null;
+
+function loadZegoUIKit(): Promise<ZegoUIKitModule> {
+  if (!uikitPromise) {
+    uikitPromise = (async () => {
+      installZegoBodyGuard();
+      await patchSharedReactRoot();
+      zegoImportGuard = true;
+      try {
+        return await import('@zegocloud/zego-uikit-prebuilt');
+      } finally {
+        zegoImportGuard = false;
+      }
+    })();
+  }
+  return uikitPromise;
 }
 
 export function hideZegoStage(): void {
@@ -111,106 +238,148 @@ export function setJoinWithCamera(on: boolean): void {
   joinWithCamera = on;
 }
 
-function buildInvitationConfig(ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPrebuilt']) {
+function getZim(): ZimLike | null {
+  if (zimRef) return zimRef;
+  try {
+    const g = globalThis as unknown as { ZIM?: { getInstance?: () => ZimLike } };
+    return g.ZIM?.getInstance?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function stopCallUi(reason: string) {
+  pendingZimCallId = '';
+  pendingCalleeZegoId = '';
+  pendingRoomId = '';
+  leaveMediaRoom();
+  setCallUiState(null);
+  optionsRef.current.onCallInvitationEnded?.(reason);
+}
+
+function bindZimListeners(zim: ZimLike) {
+  if (zimBound) return;
+  zimBound = true;
+
+  zim.on('callInvitationReceived', (_z, info) => {
+    const inviter = (info.inviter || {}) as ZimUser;
+    const callID = String(info.callID || '');
+    const payload = parseInvitePayload(info.extendedData);
+    const callType = payload?.callType || 'voice';
+    if (optionsRef.current.canReceiveFrom && !optionsRef.current.canReceiveFrom(inviter.userID, callType)) {
+      void zim.callReject(callID, { extendedData: '' });
+      return;
+    }
+    pendingZimCallId = callID;
+    pendingRoomId = payload?.roomId || toZegoRoomId(callID, 'c_');
+    pendingCallType = callType;
+    showIncomingCallNotification(inviter.userName || inviter.userID, callType);
+    setCallUiState({
+      mode: 'incoming',
+      callType,
+      peerName: payload?.peerName || inviter.userName || inviter.userID || 'İstifadəçi',
+      peerAvatar: payload?.peerAvatar,
+      accept: () => {
+        void zim
+          .callAccept(callID, { extendedData: '' })
+          .then(() => joinMediaRoom(pendingRoomId, pendingCallType))
+          .catch((err) => {
+            console.error('[ZIM] callAccept', err);
+            stopCallUi('accept_failed');
+          });
+      },
+      refuse: () => {
+        void zim.callReject(callID, { extendedData: '' });
+        stopCallUi('refused');
+      },
+    });
+  });
+
+  zim.on('callUserStateChanged', (_z, info) => {
+    const list = (info.callUserList || []) as { userID?: string; state?: number }[];
+    for (const user of list) {
+      if (!user?.userID || user.userID === activeUserId) continue;
+      if (user.state === 1) {
+        const prev = getCallUiState();
+        if (prev) setCallUiState({ ...prev, mode: 'connecting' });
+        optionsRef.current.onOutgoingAccepted?.(user.userID);
+        if (pendingRoomId) void joinMediaRoom(pendingRoomId, pendingCallType);
+      }
+      if (user.state === 2 || user.state === 4 || user.state === 6 || user.state === 7) {
+        stopCallUi(`user_${user.state}`);
+      }
+    }
+  });
+
+  zim.on('callInvitationCancelled', () => stopCallUi('cancelled'));
+  zim.on('callInvitationTimeout', () => stopCallUi('timeout'));
+  zim.on('callInvitationEnded', () => stopCallUi('ended'));
+}
+
+function mediaRoomConfig(
+  ZegoUIKitPrebuilt: ZegoUIKitModule['ZegoUIKitPrebuilt'],
+  callType: CallType
+) {
   return {
-    enableNotifyWhenAppRunningInBackgroundOrQuit: false,
-    enableCustomCallInvitationDialog: true,
-    enableCustomCallInvitationWaitingPage: true,
-    endCallWhenInitiatorLeave: true,
-    onWaitingPageWhenSending: (
-      callType: number,
-      callees: { userID: string; userName?: string; avatar?: string }[],
-      cancel: () => void
-    ) => {
-      const peer = callees[0];
-      setCallUiState({
-        mode: 'outgoing',
-        callType: toCallType(ZegoUIKitPrebuilt, callType),
-        peerName: peerLabel(peer),
-        peerAvatar: peer?.avatar,
-        cancel,
-      });
-      return false;
+    container: getOrCreateZegoStage(),
+    scenario: {
+      mode: ZegoUIKitPrebuilt.OneONoneCall,
+      config: { role: ZegoUIKitPrebuilt.Host },
     },
-    onConfirmDialogWhenReceiving: (
-      callType: number,
-      caller: { userID: string; userName?: string; avatar?: string },
-      refuse: () => void,
-      accept?: () => void
-    ) => {
-      const mapped = toCallType(ZegoUIKitPrebuilt, callType);
-      if (optionsRef.current.canReceiveFrom && !optionsRef.current.canReceiveFrom(caller.userID, mapped)) {
-        refuse();
-        return false;
-      }
-      setCallUiState({
-        mode: 'incoming',
-        callType: mapped,
-        peerName: peerLabel(caller),
-        peerAvatar: caller.avatar,
-        accept,
-        refuse,
-      });
-      return false;
-    },
-    onIncomingCallReceived: (
-      _callID: string,
-      caller: { userID: string; userName?: string },
-      callType: number
-    ) => {
-      showIncomingCallNotification(
-        caller.userName || caller.userID,
-        toCallType(ZegoUIKitPrebuilt, callType)
-      );
-    },
-    onSetRoomConfigBeforeJoining: (callType: number) => {
-      const isVideo = callType === ZegoUIKitPrebuilt.InvitationTypeVideoCall;
-      const prev = getCallUiState();
-      setCallUiState({
-        mode: 'active',
-        callType: toCallType(ZegoUIKitPrebuilt, callType),
-        peerName: prev?.peerName || 'İstifadəçi',
-        peerAvatar: prev?.peerAvatar,
-      });
-      return {
-        container: getOrCreateZegoStage(),
-        scenario: {
-          mode: ZegoUIKitPrebuilt.OneONoneCall,
-          config: { role: ZegoUIKitPrebuilt.Host },
-        },
-        turnOnMicrophoneWhenJoining: true,
-        turnOnCameraWhenJoining: isVideo && joinWithCamera,
-        showMyCameraToggleButton: false,
-        showMyMicrophoneToggleButton: false,
-        showAudioVideoSettingsButton: false,
-        showLeaveRoomButton: false,
-        showMoreButton: false,
-        showTextChat: false,
-        showUserList: false,
-        showScreenSharingButton: false,
-        showLayoutButton: false,
-        showPinButton: false,
-        showPreJoinView: false,
-        showLeavingView: false,
-        showRoomTimer: false,
-      };
-    },
-    onCallInvitationEnded: (reason: string) => {
-      hideZegoStage();
-      const ui = getCallUiState();
-      if (!ui || ui.mode !== 'active' || String(reason) === 'LeaveRoom') {
-        setCallUiState(null);
-      }
-      optionsRef.current.onCallInvitationEnded?.(String(reason));
-    },
-    onOutgoingCallAccepted: (_callID: string, callee: { userID: string }) => {
-      const prev = getCallUiState();
-      if (prev) {
-        setCallUiState({ ...prev, mode: 'connecting' });
-      }
-      optionsRef.current.onOutgoingAccepted?.(callee.userID);
-    },
+    turnOnMicrophoneWhenJoining: true,
+    turnOnCameraWhenJoining: callType === 'video' && joinWithCamera,
+    showMyCameraToggleButton: false,
+    showMyMicrophoneToggleButton: false,
+    showAudioVideoSettingsButton: false,
+    showLeaveRoomButton: false,
+    showMoreButton: false,
+    showTextChat: false,
+    showUserList: false,
+    showScreenSharingButton: false,
+    showLayoutButton: false,
+    showPinButton: false,
+    showPreJoinView: false,
+    showLeavingView: false,
+    showRoomTimer: false,
+    sharedLinks: [],
   };
+}
+
+async function joinMediaRoom(roomId: string, callType: CallType): Promise<void> {
+  const rid = String(roomId || '');
+  const uid = String(activeUserId || '');
+  if (!rid || !uid) return;
+  if (mediaZp && mediaRoomId === rid) return;
+
+  leaveMediaRoom();
+
+  const { ZegoUIKitPrebuilt } = await loadZegoUIKit();
+  const kitToken = generateTestKitToken(
+    ZegoUIKitPrebuilt,
+    rid,
+    uid,
+    String(activeUserName || uid)
+  );
+  const zp = ZegoUIKitPrebuilt.create(kitToken);
+  patchJoinRoom(zp);
+  zp.joinRoom(mediaRoomConfig(ZegoUIKitPrebuilt, callType));
+  mediaZp = zp;
+  mediaRoomId = rid;
+
+  const prev = getCallUiState();
+  setCallUiState({
+    mode: 'active',
+    callType,
+    peerName: prev?.peerName || 'İstifadəçi',
+    peerAvatar: prev?.peerAvatar,
+  });
+}
+
+function leaveMediaRoom(): void {
+  destroyPrebuilt(mediaZp);
+  mediaZp = null;
+  mediaRoomId = null;
+  hideZegoStage();
 }
 
 export function getZegoLastInitError(): string | null {
@@ -258,7 +427,7 @@ export async function initZegoCallKit(
     lastInitError = null;
     try {
       const [{ ZegoUIKitPrebuilt }, { ZIM }] = await Promise.all([
-        import('@zegocloud/zego-uikit-prebuilt'),
+        loadZegoUIKit(),
         import('zego-zim-web'),
       ]);
 
@@ -280,7 +449,10 @@ export async function initZegoCallKit(
 
       const zp = ZegoUIKitPrebuilt.create(kitToken);
       zp.addPlugins({ ZIM });
-      zp.setCallInvitationConfig(buildInvitationConfig(ZegoUIKitPrebuilt));
+      patchJoinRoom(zp);
+
+      zimRef = (ZIM as { getInstance?: () => ZimLike }).getInstance?.() || null;
+      if (zimRef) bindZimListeners(zimRef);
 
       zpInstance = zp;
       activeUserId = zegoUserId;
@@ -308,29 +480,56 @@ export async function sendZegoCallInvitation(
     callType: CallType;
     timeout?: number;
     joinCamera?: boolean;
+    roomId?: string;
+    callerAvatar?: string;
   }
 ): Promise<{ errorInvitees: { userID: string }[] }> {
-  const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
+  void zp;
   setJoinWithCamera(Boolean(params.joinCamera));
 
-  const invitationType =
-    params.callType === 'video'
-      ? ZegoUIKitPrebuilt.InvitationTypeVideoCall
-      : ZegoUIKitPrebuilt.InvitationTypeVoiceCall;
+  const zim = getZim();
+  if (!zim) {
+    throw new Error('Zəng siqnalı hazır deyil. Səhifəni yeniləyib yenidən yoxlayın.');
+  }
 
   const calleeZegoId = toZegoUserId(params.calleeId);
+  const roomId = toZegoRoomId(params.roomId || params.calleeId, 'c_');
+  pendingCalleeZegoId = calleeZegoId;
+  pendingRoomId = roomId;
+  pendingCallType = params.callType;
 
-  return zp.sendCallInvitation({
-    callees: [
-      {
-        userID: calleeZegoId,
-        userName: toZegoUserName(params.calleeName, params.calleeId),
-        avatar: params.calleeAvatar,
-      },
-    ],
-    callType: invitationType,
-    timeout: params.timeout ?? 60,
+  const payload: InvitePayload = {
+    roomId,
+    callType: params.callType,
+    peerName: activeUserName || undefined,
+    peerAvatar: params.callerAvatar,
+  };
+
+  setCallUiState({
+    mode: 'outgoing',
+    callType: params.callType,
+    peerName: params.calleeName,
+    peerAvatar: params.calleeAvatar,
+    cancel: () => {
+      if (pendingZimCallId) {
+        void zim.callCancel(pendingZimCallId, [calleeZegoId], { extendedData: '' });
+      }
+      stopCallUi('cancelled');
+    },
   });
+
+  const result = await zim.callInvite([calleeZegoId], {
+    timeout: params.timeout ?? 60,
+    extendedData: JSON.stringify(payload),
+  });
+
+  pendingZimCallId = result.callID;
+  const errors = result.errorUserList?.length ? result.errorUserList : result.errorInvitees || [];
+  if (errors.length) {
+    setCallUiState(null);
+    pendingZimCallId = '';
+  }
+  return { errorInvitees: errors.map((u) => ({ userID: u.userID })) };
 }
 
 export function getZegoCallKitInstance(): ZegoInstance | null {
@@ -342,13 +541,16 @@ export function isZegoCallKitReady(): boolean {
 }
 
 export function destroyZegoCallKit(): void {
-  const hadInstance = zpInstance !== null;
+  const hadInstance = zpInstance !== null || mediaZp !== null;
+  leaveMediaRoom();
   destroyPrebuilt(zpInstance);
   zpInstance = null;
+  zimRef = null;
+  zimBound = false;
   activeUserId = null;
   activeUserName = null;
   initPromise = null;
-  hideZegoStage();
+  pendingZimCallId = '';
   if (hadInstance) setCallUiState(null);
 }
 
@@ -360,17 +562,32 @@ type ZegoExpressLike = {
 };
 
 function getExpress(): ZegoExpressLike | null {
-  const express = (zpInstance as { express?: ZegoExpressLike } | null)?.express;
+  const live = mediaZp || zpInstance;
+  const express = (live as { express?: ZegoExpressLike } | null)?.express;
   return express ?? null;
 }
 
 export function zegoHangUp() {
+  const zim = getZim();
+  if (zim && pendingZimCallId) {
+    const id = pendingZimCallId;
+    if (pendingCalleeZegoId) {
+      void zim.callCancel(id, [pendingCalleeZegoId], { extendedData: '' }).catch(() => {
+        void zim.callEnd?.(id, { extendedData: '' });
+      });
+    } else {
+      void zim.callEnd?.(id, { extendedData: '' });
+    }
+  }
   try {
-    zpInstance?.hangUp();
+    mediaZp?.hangUp();
   } catch {
     /* ignore */
   }
-  hideZegoStage();
+  leaveMediaRoom();
+  pendingZimCallId = '';
+  pendingCalleeZegoId = '';
+  pendingRoomId = '';
   setCallUiState(null);
 }
 
@@ -445,7 +662,7 @@ export async function joinArenaVoiceRoom(input: {
   initPromise = null;
 
   try {
-    const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt');
+    const { ZegoUIKitPrebuilt } = await loadZegoUIKit();
     const kitToken = generateTestKitToken(
       ZegoUIKitPrebuilt,
       roomId,
@@ -453,6 +670,7 @@ export async function joinArenaVoiceRoom(input: {
       zegoName
     );
     const zp = ZegoUIKitPrebuilt.create(kitToken);
+    patchJoinRoom(zp);
     zp.joinRoom({
       container: input.container,
       showPreJoinView: false,
