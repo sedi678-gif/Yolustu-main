@@ -1,14 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  MODEL_CARD_DEFS,
-  ModelCardDef,
-  modelCardImageUrl,
-  modelCardInfoUrls,
-  parseModelCardInfo,
-} from './modelCardsCatalog';
+import { MODEL_CARD_DEFS, ModelCardDef, modelCardImageUrl } from './modelCardsCatalog';
 import styles from './alliance.module.css';
 
 interface LoadedCard {
@@ -77,48 +71,18 @@ function ModelCardInfoModal({
   );
 }
 
-function toLoadedCard(def: ModelCardDef, body = def.info): LoadedCard {
+function toLoadedCard(def: ModelCardDef): LoadedCard {
   return {
     def,
     title: def.title,
-    body: body.trim() || def.info,
+    body: def.info,
     image: modelCardImageUrl(def),
   };
 }
 
 export default function ModelCardsGrid() {
-  const baseCards = useMemo(() => MODEL_CARD_DEFS.map((def) => toLoadedCard(def)), []);
-  const [cards, setCards] = useState<LoadedCard[]>(baseCards);
+  const cards = useMemo(() => MODEL_CARD_DEFS.map(toLoadedCard), []);
   const [infoId, setInfoId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void Promise.all(
-      MODEL_CARD_DEFS.map(async (def) => {
-        for (const url of modelCardInfoUrls(def)) {
-          try {
-            const res = await fetch(url, { cache: 'no-store' });
-            if (!res.ok) continue;
-            const parsed = parseModelCardInfo(await res.text());
-            if (parsed.body) {
-              return toLoadedCard(def, parsed.body);
-            }
-          } catch {
-            /* növbəti info yolunu yoxla */
-          }
-        }
-        return toLoadedCard(def);
-      })
-    ).then((loaded) => {
-      if (!cancelled) setCards(loaded);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const infoCard = infoId ? cards.find((card) => card.def.id === infoId) ?? null : null;
 
   return (
