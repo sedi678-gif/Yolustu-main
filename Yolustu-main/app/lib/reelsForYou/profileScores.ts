@@ -52,7 +52,15 @@ function bumpTotal(totals: UserProfileScoreTotals, eventType: ReelSignalEventTyp
   else totals.skipCount += 1;
 }
 
-export function officialScoreDelta(event: Pick<ReelSignalEvent, 'eventType' | 'watchPercentage'>): {
+export function isCompleteWatch(
+  event: Pick<ReelSignalEvent, 'watchPercentage' | 'loopCount'>
+): boolean {
+  return event.watchPercentage >= REEL_COMPLETE_WATCH_PERCENT || event.loopCount > 1;
+}
+
+export function officialScoreDelta(
+  event: Pick<ReelSignalEvent, 'eventType' | 'watchPercentage' | 'loopCount'>
+): {
   category: number;
   hashtag: number;
 } {
@@ -67,13 +75,8 @@ export function officialScoreDelta(event: Pick<ReelSignalEvent, 'eventType' | 'w
     case 'share':
       return { category: w.shareCategory, hashtag: w.shareHashtag };
     case 'watch': {
-      let category = event.watchPercentage * w.watchCategoryPerPercent;
-      let hashtag = event.watchPercentage * w.watchHashtagPerPercent;
-      if (event.watchPercentage >= REEL_COMPLETE_WATCH_PERCENT) {
-        category += w.completeCategory;
-        hashtag += w.completeHashtag;
-      }
-      return { category: clampScore(category), hashtag: clampScore(hashtag) };
+      if (!isCompleteWatch(event)) return { category: 0, hashtag: 0 };
+      return { category: w.completeWatchCategory, hashtag: w.completeWatchHashtag };
     }
     default:
       return { category: 0, hashtag: 0 };

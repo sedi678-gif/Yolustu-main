@@ -64,6 +64,7 @@ function mapEvent(id: string, raw: Record<string, unknown>): ReelSignalEvent | n
     eventType: eventType as ReelSignalEventType,
     watchDurationSeconds: Number(raw.watchDurationSeconds) || 0,
     watchPercentage: Number(raw.watchPercentage) || 0,
+    loopCount: Number(raw.loopCount) || 0,
     categoryId: sanitizeReelCategoryId(raw.categoryId),
     hashtags: sanitizeReelHashtags(raw.hashtags),
     requestId: String(raw.requestId || ''),

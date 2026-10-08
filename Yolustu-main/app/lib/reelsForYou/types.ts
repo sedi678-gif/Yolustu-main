@@ -28,6 +28,7 @@ export type ReelSignalEvent = {
   eventType: ReelSignalEventType;
   watchDurationSeconds: number;
   watchPercentage: number;
+  loopCount: number;
   categoryId: string;
   hashtags: string[];
   requestId: string;

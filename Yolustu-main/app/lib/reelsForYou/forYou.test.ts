@@ -29,6 +29,7 @@ function event(partial: Partial<ReelSignalEvent> & { videoId: string; eventType:
     userId: 'viewer',
     watchDurationSeconds: 8,
     watchPercentage: 40,
+    loopCount: 0,
     categoryId: 'music',
     hashtags: ['baku'],
     requestId: 'r',
@@ -78,7 +79,7 @@ describe('reels For You ranking', () => {
     assert.ok(liked.score > other.score);
   });
 
-  it('uses freshness and engagement from official weights, not client score', () => {
+  it('uses Score = W_match*affinity + W_eng*rate + W_fresh/(hours+2)', () => {
     const interests = buildUserInterests(null, []);
     const newer = officialForYouScore(video({ videoId: 'n', createdAt: now, likes: 0, views: 0 }), interests, now);
     const older = officialForYouScore(
@@ -90,6 +91,7 @@ describe('reels For You ranking', () => {
     const hot = officialForYouScore(video({ videoId: 'h', likes: 40, commentsCount: 8, views: 50 }), interests, now);
     const cold = officialForYouScore(video({ videoId: 'c', likes: 0, commentsCount: 0, views: 50 }), interests, now);
     assert.ok(hot.engagement > cold.engagement);
+    assert.equal(newer.freshness, Math.round((24 / 2) * 100) / 100);
   });
 
   it('cold-starts by mixing categories from trending clips', () => {

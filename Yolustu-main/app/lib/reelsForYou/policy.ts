@@ -67,6 +67,16 @@ export function officialWatchPercentage(
   return Math.min(100, Math.round(pct * 10) / 10);
 }
 
+/** Müştəri loop count-una etibar yoxdur — rəsmi müddətdən hesablanır. */
+export function officialLoopCount(
+  watchDurationSeconds: number,
+  officialDurationSeconds: number
+): number {
+  if (!Number.isFinite(officialDurationSeconds) || officialDurationSeconds <= 0) return 0;
+  if (!Number.isFinite(watchDurationSeconds) || watchDurationSeconds <= 0) return 0;
+  return Math.floor(watchDurationSeconds / officialDurationSeconds);
+}
+
 export function isReelSkipWatch(watchDurationSeconds: number): boolean {
   return watchDurationSeconds < REEL_SKIP_WATCH_SECONDS;
 }

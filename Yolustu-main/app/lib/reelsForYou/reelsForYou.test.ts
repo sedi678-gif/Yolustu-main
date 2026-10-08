@@ -42,7 +42,6 @@ describe('reels For You signals', () => {
     assert.ok(res.event.watchDurationSeconds < REEL_SKIP_WATCH_SECONDS);
     assert.equal(res.profile.totals.skipCount, 1);
     assert.equal(res.profile.categoryScores.music, REEL_SIGNAL_WEIGHTS.skipCategory);
-    assert.equal(res.profile.hashtagScores.baku, REEL_SIGNAL_WEIGHTS.skipHashtag);
   });
 
   it('computes watch_percentage from official duration, not client percent', () => {
@@ -121,10 +120,40 @@ describe('reels For You signals', () => {
     assert.equal(bad.ok, false);
   });
 
+  it('adds +5 category for 100% watch or loopCount > 1', () => {
+    const full = handleReelSignal({
+      authUserId: 'user_a',
+      serverNow: 1_700_000_000_000,
+      video,
+      profile: null,
+      alreadyTracked: false,
+      body: { videoId: 'vid_1', eventType: 'watch', watchDurationSeconds: 20 },
+    });
+    assert.equal(full.ok, true);
+    if (!full.ok) return;
+    assert.equal(full.event.watchPercentage, 100);
+    assert.equal(full.event.loopCount, 1);
+    assert.equal(full.profile.categoryScores.music, REEL_SIGNAL_WEIGHTS.completeWatchCategory);
+
+    const looped = handleReelSignal({
+      authUserId: 'user_a',
+      serverNow: 1_700_000_000_000,
+      video,
+      profile: null,
+      alreadyTracked: false,
+      body: { videoId: 'vid_1', eventType: 'watch', watchDurationSeconds: 41 },
+    });
+    assert.equal(looped.ok, true);
+    if (!looped.ok) return;
+    assert.ok(looped.event.loopCount > 1);
+    assert.equal(looped.profile.categoryScores.music, REEL_SIGNAL_WEIGHTS.completeWatchCategory);
+  });
+
   it('uses official like delta only', () => {
-    const event: Pick<ReelSignalEvent, 'eventType' | 'watchPercentage'> = {
+    const event: Pick<ReelSignalEvent, 'eventType' | 'watchPercentage' | 'loopCount'> = {
       eventType: 'like',
       watchPercentage: 100,
+      loopCount: 0,
     };
     assert.deepEqual(officialScoreDelta(event), {
       category: REEL_SIGNAL_WEIGHTS.likeCategory,
@@ -137,6 +166,7 @@ describe('reels For You signals', () => {
       eventType: 'like',
       watchDurationSeconds: 5,
       watchPercentage: 25,
+      loopCount: 0,
       categoryId: 'food',
       hashtags: ['doner'],
       requestId: 'r',

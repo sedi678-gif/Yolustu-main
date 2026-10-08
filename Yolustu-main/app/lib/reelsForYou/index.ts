@@ -25,6 +25,7 @@ export type {
 export {
   officialReelEventType,
   officialWatchPercentage,
+  officialLoopCount,
   isReelSkipWatch,
   sanitizeReelHashtags,
 } from './policy';

@@ -2,6 +2,7 @@ import { REEL_SIGNAL_SCHEMA_VERSION } from './config';
 import { applyReelSignalToProfileScores, emptyUserProfileScores } from './profileScores';
 import {
   clampWatchDurationSeconds,
+  officialLoopCount,
   officialReelEventType,
   officialWatchPercentage,
   reelEventDocId,
@@ -35,6 +36,7 @@ export function handleReelSignal(input: ReelSignalHandlerInput): ReelSignalHandl
   const eventType = officialReelEventType(input.body.eventType, watchDurationSeconds);
   const meta = resolveReelVideoMeta(videoId, input.video, input.body);
   const watchPercentage = officialWatchPercentage(watchDurationSeconds, meta.durationSeconds);
+  const loopCount = officialLoopCount(watchDurationSeconds, meta.durationSeconds);
   const requestId = sanitizeReelRequestId(
     input.body.requestId,
     `${eventType}_${input.serverNow}`
@@ -48,6 +50,7 @@ export function handleReelSignal(input: ReelSignalHandlerInput): ReelSignalHandl
     eventType,
     watchDurationSeconds,
     watchPercentage,
+    loopCount,
     categoryId: meta.categoryId,
     hashtags: meta.hashtags,
     requestId,

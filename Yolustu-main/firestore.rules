@@ -2604,9 +2604,11 @@ service cloud.firestore {
         && request.resource.data.watchPercentage is number
         && request.resource.data.watchPercentage >= 0
         && request.resource.data.watchPercentage <= 100
+        && request.resource.data.loopCount is number
+        && request.resource.data.loopCount >= 0
         && request.resource.data.keys().hasOnly([
           'id', 'userId', 'videoId', 'eventType', 'watchDurationSeconds',
-          'watchPercentage', 'categoryId', 'hashtags', 'requestId', 'createdAt', 'schemaVersion'
+          'watchPercentage', 'loopCount', 'categoryId', 'hashtags', 'requestId', 'createdAt', 'schemaVersion'
         ]);
       allow update, delete: if false;
     }

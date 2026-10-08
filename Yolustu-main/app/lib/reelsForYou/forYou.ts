@@ -1,6 +1,5 @@
 import {
   FOR_YOU_COLD_START_MIN_EVENTS,
-  FOR_YOU_FRESHNESS_HALF_LIFE_MS,
   FOR_YOU_INTEREST_TOP_N,
   FOR_YOU_SCORE_WEIGHTS,
   FOR_YOU_SHOWN_WINDOW_MS,
@@ -66,42 +65,46 @@ export function recentlyShownVideoIds(
   return ids;
 }
 
-export function officialFreshnessScore(createdAt: number, serverNow: number): number {
-  const age = Math.max(0, serverNow - createdAt);
-  const freshness = Math.exp(-age / FOR_YOU_FRESHNESS_HALF_LIFE_MS);
-  return Math.round(freshness * FOR_YOU_SCORE_WEIGHTS.freshness * 100) / 100;
+export function officialHoursOld(createdAt: number, serverNow: number): number {
+  return Math.max(0, (serverNow - createdAt) / (60 * 60 * 1000));
 }
 
-export function officialEngagementScore(video: ForYouVideoCandidate): number {
-  const views = Math.max(0, video.views);
-  const likes = Math.max(0, video.likes);
-  const comments = Math.max(0, video.commentsCount);
-  const denom = Math.max(views, likes + comments, 1);
-  const ratio = (likes * 2 + comments * 3) / (denom + 4);
-  return Math.round(Math.min(1, ratio) * FOR_YOU_SCORE_WEIGHTS.engagement * 100) / 100;
-}
-
-export function officialAffinityScore(video: ForYouVideoCandidate, interests: UserInterests): number {
+export function officialCategoryAffinity(video: ForYouVideoCandidate, interests: UserInterests): number {
   if (interests.coldStart) return 0;
   const cat = sanitizeReelCategoryId(video.categoryId);
-  const tags = sanitizeReelHashtags(video.hashtags);
-  const catW = cat ? Math.max(0, interests.categoryWeights[cat] ?? 0) : 0;
-  const tagW = tags.reduce((sum, tag) => sum + Math.max(0, interests.hashtagWeights[tag] ?? 0), 0);
-  const raw = catW * 2 + tagW;
-  const norm = Math.min(1, raw / 16);
-  return Math.round(norm * FOR_YOU_SCORE_WEIGHTS.affinity * 100) / 100;
+  if (!cat) return 0;
+  const peak = Math.max(0, ...Object.values(interests.categoryWeights));
+  if (peak <= 0) return 0;
+  const own = Math.max(0, interests.categoryWeights[cat] ?? 0);
+  return Math.min(1, own / peak);
 }
 
+export function officialEngagementRate(video: ForYouVideoCandidate): number {
+  const views = Math.max(0, video.views);
+  const likes = Math.max(0, video.likes);
+  if (views <= 0) return likes > 0 ? 1 : 0;
+  return Math.min(1, likes / views);
+}
+
+/** Score = (W_user_match × CategoryAffinity) + (W_engagement × EngagementRate) + W_freshness / (HoursOld + 2) */
 export function officialForYouScore(
   video: ForYouVideoCandidate,
   interests: UserInterests,
   serverNow: number
 ): { score: number; freshness: number; engagement: number; affinity: number } {
-  const freshness = officialFreshnessScore(video.createdAt, serverNow);
-  const engagement = officialEngagementScore(video);
-  const affinity = officialAffinityScore(video, interests);
-  const score = Math.round((freshness + engagement + affinity) * 100) / 100;
-  return { score, freshness, engagement, affinity };
+  const w = FOR_YOU_SCORE_WEIGHTS;
+  const affinity = officialCategoryAffinity(video, interests);
+  const engagementRate = officialEngagementRate(video);
+  const hoursOld = officialHoursOld(video.createdAt, serverNow);
+  const freshness = w.freshness / (hoursOld + 2);
+  const score =
+    w.userMatch * affinity + w.engagement * engagementRate + freshness;
+  return {
+    score: Math.round(score * 100) / 100,
+    freshness: Math.round(freshness * 100) / 100,
+    engagement: Math.round(w.engagement * engagementRate * 100) / 100,
+    affinity: Math.round(w.userMatch * affinity * 100) / 100,
+  };
 }
 
 function compareRanked(a: ForYouFeedItem, b: ForYouFeedItem): number {
