@@ -104,12 +104,9 @@ export default function CallUiHost() {
       }}
       onReject={() => {
         ui.refuse?.();
-        closeUi();
       }}
       onEnd={() => {
-        if (ui.mode === 'outgoing') ui.cancel?.();
-        else zegoHangUp();
-        closeUi();
+        zegoHangUp();
       }}
       onToggleMute={() => {
         const next = !micMuted;

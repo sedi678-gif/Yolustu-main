@@ -1,5 +1,6 @@
 'use client';
 
+import { unlockCallAudio } from '@/app/lib/audioUnlock';
 import { primeCallMedia, releaseMediaStream } from '@/app/lib/mediaPermissions';
 import {
   ensureZegoConfig,
@@ -12,8 +13,10 @@ import {
 } from '@/app/lib/callNotifications';
 import { toZegoRoomId, toZegoUserId, toZegoUserName } from '@/app/lib/zegoUserId';
 import type { CallType } from '@/app/lib/callService';
+import { listenCallSession, updateCallSession } from '@/app/lib/callService';
 import {
   releaseCallMedia,
+  releaseMicForZego,
   startMediaHarvest,
   muteLocalAudio,
   muteLocalVideo,
@@ -45,7 +48,12 @@ let zimRef: ZimLike | null = null;
 let pendingZimCallId = '';
 let pendingCalleeZegoId = '';
 let pendingRoomId = '';
+let pendingSessionId = '';
 let pendingCallType: CallType = 'voice';
+let sessionUnsub: (() => void) | null = null;
+let hangupInFlight = false;
+let remoteZimUsers = new Set<string>();
+let remoteRoomPeers = 0;
 
 const TEST_TOKEN_TTL_SEC = 24 * 60 * 60;
 
@@ -53,17 +61,24 @@ type ZimUser = { userID: string; userName?: string };
 type ZimLike = {
   callInvite: (
     invitees: string[],
-    config: { timeout: number; extendedData: string }
+    config: { timeout: number; extendedData: string; mode?: number }
   ) => Promise<{ callID: string; errorUserList?: ZimUser[]; errorInvitees?: ZimUser[] }>;
   callCancel: (callID: string, invitees: string[], config: { extendedData: string }) => Promise<unknown>;
   callAccept: (callID: string, config: { extendedData: string }) => Promise<unknown>;
   callReject: (callID: string, config: { extendedData: string }) => Promise<unknown>;
   callEnd?: (callID: string, config?: { extendedData: string }) => Promise<unknown>;
+  callQuit?: (callID: string, config?: { extendedData: string }) => Promise<unknown>;
+  callingInvite?: (
+    invitees: string[],
+    callID: string | { callID?: string; extendedData?: string; timeout?: number },
+    config?: { extendedData: string }
+  ) => Promise<{ errorUserList?: ZimUser[] }>;
   on: (event: string, cb: (zim: unknown, info: Record<string, unknown>) => void) => void;
 };
 
 type InvitePayload = {
   roomId: string;
+  sessionId?: string;
   callType: CallType;
   peerName?: string;
   peerAvatar?: string;
@@ -117,6 +132,7 @@ function parseInvitePayload(raw: unknown): InvitePayload | null {
     if (!data?.roomId) return null;
     return {
       roomId: String(data.roomId),
+      sessionId: data.sessionId ? String(data.sessionId) : undefined,
       callType: data.callType === 'video' ? 'video' : 'voice',
       peerName: data.peerName,
       peerAvatar: data.peerAvatar,
@@ -296,13 +312,44 @@ async function waitForZim(zp: ZegoInstance, ms = 5000): Promise<ZimLike | null> 
   return getZim();
 }
 
+function unwatchSession() {
+  sessionUnsub?.();
+  sessionUnsub = null;
+}
+
+function watchSession(sessionId: string) {
+  unwatchSession();
+  if (!sessionId) return;
+  pendingSessionId = sessionId;
+  sessionUnsub = listenCallSession(sessionId, (session) => {
+    if (!session) return;
+    if (session.status === 'ended' || session.status === 'rejected' || session.status === 'missed') {
+      stopCallUi('session_' + session.status);
+    }
+  });
+}
+
+function markSessionEnded() {
+  const id = pendingSessionId;
+  if (!id) return;
+  void updateCallSession(id, { status: 'ended', endedAt: Date.now() }).catch(() => undefined);
+}
+
 function stopCallUi(reason: string) {
+  if (hangupInFlight) return;
+  hangupInFlight = true;
+  markSessionEnded();
   pendingZimCallId = '';
   pendingCalleeZegoId = '';
   pendingRoomId = '';
+  pendingSessionId = '';
+  remoteZimUsers = new Set();
+  remoteRoomPeers = 0;
+  unwatchSession();
   leaveMediaRoom();
   setCallUiState(null);
   optionsRef.current.onCallInvitationEnded?.(reason);
+  hangupInFlight = false;
 }
 
 function bindZimListeners(zim: ZimLike) {
@@ -320,7 +367,9 @@ function bindZimListeners(zim: ZimLike) {
     }
     pendingZimCallId = callID;
     pendingRoomId = payload?.roomId || toZegoRoomId(callID, 'c_');
+    pendingSessionId = payload?.sessionId || '';
     pendingCallType = callType;
+    if (pendingSessionId) watchSession(pendingSessionId);
     showIncomingCallNotification(inviter.userName || inviter.userID, callType);
     setCallUiState({
       mode: 'incoming',
@@ -345,16 +394,26 @@ function bindZimListeners(zim: ZimLike) {
 
   zim.on('callUserStateChanged', (_z, info) => {
     const list = (info.callUserList || []) as { userID?: string; state?: number }[];
+    const uiMode = getCallUiState()?.mode;
+    const inLive = uiMode === 'active' || uiMode === 'connecting';
     for (const user of list) {
       if (!user?.userID || user.userID === activeUserId) continue;
       if (user.state === 1) {
+        remoteZimUsers.add(user.userID);
         const prev = getCallUiState();
-        if (prev) setCallUiState({ ...prev, mode: 'connecting' });
+        if (prev && prev.mode !== 'active') setCallUiState({ ...prev, mode: 'connecting' });
         optionsRef.current.onOutgoingAccepted?.(user.userID);
         if (pendingRoomId) void joinMediaRoom(pendingRoomId, pendingCallType);
       }
-      if (user.state === 2 || user.state === 4 || user.state === 6 || user.state === 7) {
-        stopCallUi(`user_${user.state}`);
+      if (user.state === 2 || user.state === 4 || user.state === 6) {
+        remoteZimUsers.delete(user.userID);
+        if (!inLive) stopCallUi(`user_${user.state}`);
+      }
+      if (user.state === 3 || user.state === 7 || user.state === 8) {
+        remoteZimUsers.delete(user.userID);
+        if (inLive && remoteZimUsers.size === 0 && remoteRoomPeers <= 1) {
+          stopCallUi('peer_quit');
+        }
       }
     }
   });
@@ -370,8 +429,9 @@ function mediaRoomConfig(
 ) {
   return {
     container: getOrCreateZegoStage(),
+    maxUsers: 9,
     scenario: {
-      mode: ZegoUIKitPrebuilt.OneONoneCall,
+      mode: ZegoUIKitPrebuilt.GroupCall,
       config: { role: ZegoUIKitPrebuilt.Host },
     },
     turnOnMicrophoneWhenJoining: true,
@@ -400,6 +460,8 @@ async function joinMediaRoom(roomId: string, callType: CallType): Promise<void> 
   if (mediaZp && mediaRoomId === rid) return;
 
   leaveMediaRoom(false);
+  releaseMicForZego();
+  void unlockCallAudio();
 
   const { ZegoUIKitPrebuilt } = await loadZegoUIKit();
   const kitToken = generateTestKitToken(
@@ -413,7 +475,27 @@ async function joinMediaRoom(roomId: string, callType: CallType): Promise<void> 
   zp.joinRoom(mediaRoomConfig(ZegoUIKitPrebuilt, callType));
   mediaZp = zp;
   mediaRoomId = rid;
-  startMediaHarvest((zp as { express?: { on?: (ev: string, cb: (...args: unknown[]) => void) => void; startPlayingStream?: (id: string) => Promise<unknown> } }).express);
+  const express = (zp as { express?: { on?: (ev: string, cb: (...args: unknown[]) => void) => void; startPlayingStream?: (id: string) => Promise<unknown> } }).express;
+  startMediaHarvest(express);
+  remoteRoomPeers = 0;
+  express?.on?.('roomUserUpdate', (...args: unknown[]) => {
+    const updateType = args[1];
+    const users = (Array.isArray(args[2]) ? args[2] : []) as { userID?: string }[];
+    const n = users.filter((u) => u.userID && u.userID !== activeUserId).length;
+    const left = updateType === 1 || String(updateType).toUpperCase() === 'DELETE';
+    const added = updateType === 0 || String(updateType).toUpperCase() === 'ADD';
+    if (added) remoteRoomPeers += n;
+    if (left) remoteRoomPeers = Math.max(0, remoteRoomPeers - n);
+    if (
+      left &&
+      remoteRoomPeers === 0 &&
+      getCallUiState()?.mode === 'active' &&
+      !hangupInFlight
+    ) {
+      stopCallUi('peer_left');
+    }
+  });
+  if (pendingSessionId) watchSession(pendingSessionId);
 
   const prev = getCallUiState();
   setCallUiState({
@@ -543,10 +625,13 @@ export async function sendZegoCallInvitation(
   const roomId = toZegoRoomId(params.roomId || params.calleeId, 'c_');
   pendingCalleeZegoId = calleeZegoId;
   pendingRoomId = roomId;
+  pendingSessionId = params.roomId || '';
   pendingCallType = params.callType;
+  if (pendingSessionId) watchSession(pendingSessionId);
 
   const payload: InvitePayload = {
     roomId,
+    sessionId: pendingSessionId || undefined,
     callType: params.callType,
     peerName: activeUserName || undefined,
     peerAvatar: params.callerAvatar,
@@ -583,6 +668,7 @@ export async function sendZegoCallInvitation(
 
   const result = await zim.callInvite([calleeZegoId], {
     timeout: params.timeout ?? 60,
+    mode: 1,
     extendedData: JSON.stringify(payload),
   });
 
@@ -615,6 +701,8 @@ export function destroyZegoCallKit(): void {
   activeUserName = null;
   initPromise = null;
   pendingZimCallId = '';
+  pendingSessionId = '';
+  unwatchSession();
   if (hadInstance) setCallUiState(null);
 }
 
@@ -633,14 +721,24 @@ function getExpress(): ZegoExpressLike | null {
 
 export function zegoHangUp() {
   const zim = getZim();
-  if (zim && pendingZimCallId) {
-    const id = pendingZimCallId;
-    if (pendingCalleeZegoId) {
-      void zim.callCancel(id, [pendingCalleeZegoId], { extendedData: '' }).catch(() => {
-        void zim.callEnd?.(id, { extendedData: '' });
-      });
+  const id = pendingZimCallId;
+  const callee = pendingCalleeZegoId;
+  const ringing = getCallUiState()?.mode === 'outgoing' || getCallUiState()?.mode === 'incoming';
+  if (zim && id) {
+    const cfg = { extendedData: '' };
+    if (ringing) {
+      const isIncoming = getCallUiState()?.mode === 'incoming';
+      if (isIncoming) void zim.callReject(id, cfg).catch(() => undefined);
+      else void zim.callCancel(id, callee ? [callee] : [], cfg).catch(() => undefined);
     } else {
-      void zim.callEnd?.(id, { extendedData: '' });
+      const ender = zim.callEnd
+        ? zim.callEnd(id, cfg)
+        : zim.callQuit
+          ? zim.callQuit(id, cfg)
+          : Promise.resolve();
+      void Promise.resolve(ender)
+        .catch(() => zim.callQuit?.(id, cfg))
+        .catch(() => undefined);
     }
   }
   try {
@@ -648,11 +746,51 @@ export function zegoHangUp() {
   } catch {
     /* ignore */
   }
-  leaveMediaRoom();
-  pendingZimCallId = '';
-  pendingCalleeZegoId = '';
-  pendingRoomId = '';
-  setCallUiState(null);
+  stopCallUi('hangup');
+}
+
+export function getActiveCallSessionId(): string {
+  return pendingSessionId;
+}
+
+export async function inviteUserToActiveCall(appUserId: string, displayName: string): Promise<void> {
+  const zim = getZim();
+  if (!zim) throw new Error('Zəng siqnalı hazır deyil.');
+  const roomId = pendingRoomId || mediaRoomId;
+  if (!roomId) throw new Error('Aktiv zəng otağı yoxdur.');
+  const zegoId = toZegoUserId(appUserId);
+  if (!zegoId) throw new Error('İstifadəçi ID-si etibarsızdır.');
+  const payload: InvitePayload = {
+    roomId,
+    sessionId: pendingSessionId || undefined,
+    callType: pendingCallType,
+    peerName: activeUserName || displayName,
+  };
+  const extra = JSON.stringify(payload);
+  const callId = pendingZimCallId;
+  if (callId && zim.callingInvite) {
+    let res: { errorUserList?: ZimUser[] } | undefined;
+    try {
+      res = await zim.callingInvite([zegoId], callId, { extendedData: extra });
+    } catch {
+      res = await zim.callingInvite([zegoId], {
+        callID: callId,
+        extendedData: extra,
+        timeout: 60,
+      });
+    }
+    if (res?.errorUserList?.length) {
+      throw new Error('İstifadəçi onlayn deyil və ya dəvəti ala bilmədi.');
+    }
+    return;
+  }
+  const res = await zim.callInvite([zegoId], {
+    timeout: 60,
+    mode: 1,
+    extendedData: extra,
+  });
+  const errors = res.errorUserList?.length ? res.errorUserList : res.errorInvitees || [];
+  if (errors.length) throw new Error('İstifadəçi onlayn deyil və ya dəvəti ala bilmədi.');
 }
 
 export function zegoMuteMicrophone(muted: boolean) {
@@ -661,15 +799,13 @@ export function zegoMuteMicrophone(muted: boolean) {
 }
 
 export function zegoMuteSpeaker(muted: boolean) {
-  /* Uzaq səsi overlay <audio> idarə edir; Zego elementlərini də oyat. */
-  const stage = document.getElementById('zego-call-stage');
-  stage?.querySelectorAll('audio').forEach((node) => {
-    const el = node as HTMLAudioElement;
-    el.muted = muted;
-    el.volume = muted ? 0 : 1;
+  const el = document.getElementById('yolustu-remote-audio') as HTMLAudioElement | null;
+  if (el) {
+    el.muted = false;
+    el.volume = muted ? 0.4 : 1;
     if (!muted) void el.play().catch(() => undefined);
-  });
-  if (!muted) getExpress()?.muteSpeaker?.(false);
+  }
+  getExpress()?.muteSpeaker?.(false);
 }
 
 export function zegoEnableCamera(on: boolean) {

@@ -147,10 +147,7 @@ export default function CallOverlay({
 
   const bind = useCallback(async () => {
     await unlockCallAudio();
-    const remoteAudio = remoteStream
-      ? new MediaStream(remoteStream.getAudioTracks())
-      : null;
-    await playMedia(remoteAudioRef.current, remoteAudio, false);
+    await playMedia(remoteAudioRef.current, remoteStream ?? null, false);
     if (remoteAudioRef.current) {
       remoteAudioRef.current.muted = false;
       remoteAudioRef.current.volume = speakerOn ? 1 : 0.45;
@@ -191,7 +188,12 @@ export default function CallOverlay({
 
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={`${peerName} — ${statusText}`}>
-      <audio ref={remoteAudioRef} autoPlay playsInline className={styles.srOnly} />
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        style={{ position: 'fixed', width: 1, height: 1, opacity: 0.01, pointerEvents: 'none' }}
+      />
 
       {showVideo ? (
         <div className={styles.videoStage}>

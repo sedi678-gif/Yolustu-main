@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useUser } from '@/context/UserContext';
 import { getAppUserId, getLocalProfileDisplayName } from '@/app/lib/userId';
 import { sendCallLogMessage } from '@/app/lib/messageService';
@@ -14,12 +15,14 @@ import {
 import { getCallSettings } from '@/app/lib/callSettings';
 import { listenFollowingIds, searchUsers } from '@/app/lib/socialService';
 import { ensureZegoConfig, getZegoConfigErrorMessage } from '@/app/lib/zegoConfig';
-import { setCallInviteHandler, setCallUiState } from '@/app/lib/callUiBridge';
+import { patchCallUiState, setCallInviteHandler, setCallUiState } from '@/app/lib/callUiBridge';
 import {
   destroyZegoCallKit,
+  getActiveCallSessionId,
   getZegoCallKitInstance,
   getZegoLastInitError,
   initZegoCallKit,
+  inviteUserToActiveCall,
   sendZegoCallInvitation,
   zegoHangUp,
 } from '@/app/lib/zegoCallKit';
@@ -290,11 +293,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   );
 
   const endCall = useCallback(async () => {
-    try {
-      getZegoCallKitInstance()?.hangUp();
-    } catch {
-      /* ignore */
-    }
+    zegoHangUp();
     setActiveCall(null);
     activeCallRef.current = null;
   }, []);
@@ -308,16 +307,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   );
 
   const inviteUser = useCallback(async (userId: string, userName: string) => {
-    const call = activeCallRef.current;
-    if (!call) return;
     try {
-      await inviteParticipantToCall(call.callId, userId);
+      await inviteUserToActiveCall(userId, userName);
+      const sessionId = activeCallRef.current?.callId || getActiveCallSessionId();
+      if (sessionId) {
+        await inviteParticipantToCall(sessionId, userId).catch(() => undefined);
+      }
       setCallError(null);
-      alert(`${userName} zəngə dəvət olundu.`);
+      patchCallUiState({ hint: undefined });
       setShowInvite(false);
     } catch (err) {
       console.error(err);
-      setCallError('Dəvət göndərilmədi.');
+      const msg = err instanceof Error ? err.message : 'Dəvət göndərilmədi.';
+      setCallError(msg);
+      patchCallUiState({ hint: msg });
     }
   }, []);
 
@@ -351,56 +354,62 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     >
       {children}
       <CallUiHost />
-      {showInvite ? (
-        <div className={styles.modalOverlay} onClick={() => setShowInvite(false)}>
-          <div className={styles.modalSheet} onClick={(e) => e.stopPropagation()}>
-            <h2 className={styles.modalTitle}>Zəngə əlavə et</h2>
-            <input
-              value={inviteQuery}
-              onChange={(e) => setInviteQuery(e.target.value)}
-              placeholder="Ad, @nickname..."
-              style={{ width: '100%', margin: '8px 0 12px', padding: '10px 12px', borderRadius: 10, border: '1px solid #334155', background: '#0f172a', color: '#fff' }}
-            />
-            <button
-              type="button"
-              className={styles.primaryBtn}
-              onClick={() => {
-                if (myId) void runInviteSearch(myId);
-              }}
-            >
-              Axtar
-            </button>
-            <div style={{ marginTop: 12, maxHeight: 240, overflow: 'auto' }}>
-              {inviteResults.map((u) => (
+      {showInvite && typeof document !== 'undefined'
+        ? createPortal(
+            <div className={styles.modalOverlay} style={{ zIndex: 2147483647 }} onClick={() => setShowInvite(false)}>
+              <div className={styles.modalSheet} onClick={(e) => e.stopPropagation()}>
+                <h2 className={styles.modalTitle}>Zəngə əlavə et</h2>
+                <input
+                  value={inviteQuery}
+                  onChange={(e) => setInviteQuery(e.target.value)}
+                  placeholder="Ad, @nickname..."
+                  style={{ width: '100%', margin: '8px 0 12px', padding: '10px 12px', borderRadius: 10, border: '1px solid #334155', background: '#0f172a', color: '#fff' }}
+                />
                 <button
-                  key={u.id}
                   type="button"
                   className={styles.primaryBtn}
-                  style={{ width: '100%', marginBottom: 8 }}
-                  onClick={() => void inviteUser(u.id, u.name || u.handle || u.id)}
+                  onClick={() => {
+                    if (myId) void runInviteSearch(myId);
+                  }}
                 >
-                  {u.name || u.handle || u.id}
+                  Axtar
                 </button>
-              ))}
-            </div>
-            <button type="button" className={styles.primaryBtn} onClick={() => setShowInvite(false)}>
-              Bağla
-            </button>
-          </div>
-        </div>
-      ) : null}
+                <div style={{ marginTop: 12, maxHeight: 240, overflow: 'auto' }}>
+                  {inviteResults.map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      className={styles.primaryBtn}
+                      style={{ width: '100%', marginBottom: 8 }}
+                      onClick={() => void inviteUser(u.id, u.name || u.handle || u.id)}
+                    >
+                      {u.name || u.handle || u.id}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" className={styles.primaryBtn} onClick={() => setShowInvite(false)}>
+                  Bağla
+                </button>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
 
-      {callError && !activeCall && (
-        <div className={styles.modalOverlay} onClick={clearCallError}>
-          <div className={styles.modalSheet} onClick={(e) => e.stopPropagation()}>
-            <h2 className={styles.modalTitle}>Zəng xətası</h2>
-            <p style={{ marginBottom: 16 }}>{callError}</p>
-            <button type="button" className={styles.primaryBtn} onClick={clearCallError}>
-              Bağla
-            </button>
-          </div>
-        </div>
-      )}
+      {callError && typeof document !== 'undefined'
+        ? createPortal(
+            <div className={styles.modalOverlay} style={{ zIndex: 2147483647 }} onClick={clearCallError}>
+              <div className={styles.modalSheet} onClick={(e) => e.stopPropagation()}>
+                <h2 className={styles.modalTitle}>Zəng xətası</h2>
+                <p style={{ marginBottom: 16 }}>{callError}</p>
+                <button type="button" className={styles.primaryBtn} onClick={clearCallError}>
+                  Bağla
+                </button>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </CallContext.Provider>
   );
 }

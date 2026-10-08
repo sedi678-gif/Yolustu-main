@@ -9,6 +9,46 @@ let local: MediaStream | null = null;
 let remote: MediaStream | null = null;
 const listeners = new Set<(state: CallMediaState) => void>();
 let harvestTimer: ReturnType<typeof setInterval> | null = null;
+let remoteAudioEl: HTMLAudioElement | null = null;
+let pipedAudioKey = '';
+
+function audioTrackKey(stream: MediaStream | null): string {
+  if (!stream) return '';
+  return stream
+    .getAudioTracks()
+    .filter((t) => t.readyState === 'live')
+    .map((t) => t.id)
+    .sort()
+    .join(',');
+}
+
+function ensureRemoteAudioEl(): HTMLAudioElement | null {
+  if (typeof document === 'undefined') return null;
+  if (remoteAudioEl && remoteAudioEl.isConnected) return remoteAudioEl;
+  const el = document.createElement('audio');
+  el.id = 'yolustu-remote-audio';
+  el.autoplay = true;
+  el.setAttribute('playsinline', 'true');
+  el.muted = false;
+  el.volume = 1;
+  el.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:1;';
+  document.documentElement.appendChild(el);
+  remoteAudioEl = el;
+  return el;
+}
+
+function pipeRemoteAudio(stream: MediaStream | null) {
+  const el = ensureRemoteAudioEl();
+  if (!el) return;
+  const key = audioTrackKey(stream);
+  if (key !== pipedAudioKey) {
+    pipedAudioKey = key;
+    el.srcObject = stream && key ? stream : null;
+  }
+  el.muted = false;
+  el.volume = 1;
+  void el.play().catch(() => undefined);
+}
 
 function emit() {
   const snapshot = { local, remote };
@@ -36,6 +76,7 @@ export function setCallLocalStream(stream: MediaStream | null | undefined) {
 export function setCallRemoteStream(stream: MediaStream | null | undefined) {
   if (remote === stream) return;
   remote = stream ?? null;
+  pipeRemoteAudio(remote);
   emit();
 }
 
@@ -49,6 +90,20 @@ export function muteLocalVideo(muted: boolean) {
   local?.getVideoTracks().forEach((t) => {
     t.enabled = !muted;
   });
+}
+
+/** Zego özü mikrofonu açıb yayımlamalıdır — overlay preview mic-i burax. */
+export function releaseMicForZego(): void {
+  if (!local) return;
+  local.getAudioTracks().forEach((track) => {
+    try {
+      track.stop();
+    } catch {
+      /* */
+    }
+    local?.removeTrack(track);
+  });
+  emit();
 }
 
 export async function ensureLocalPreview(wantVideo: boolean): Promise<MediaStream | null> {
@@ -136,6 +191,12 @@ export function releaseCallMedia() {
   });
   local = null;
   remote = null;
+  pipedAudioKey = '';
+  if (remoteAudioEl) {
+    remoteAudioEl.srcObject = null;
+    remoteAudioEl.remove();
+    remoteAudioEl = null;
+  }
   emit();
 }
 
@@ -152,18 +213,25 @@ function asStream(value: unknown): MediaStream | null {
 function collectFromStage(): { local: MediaStream | null; remote: MediaStream | null } {
   const stage = document.getElementById('zego-call-stage');
   if (!stage) return { local: null, remote: null };
+
   let foundLocal: MediaStream | null = null;
   let foundRemote: MediaStream | null = null;
 
   stage.querySelectorAll('video, audio').forEach((node) => {
     const el = node as HTMLMediaElement;
+    if (el.id === 'yolustu-remote-audio') return;
     const stream = asStream(el.srcObject);
     if (!stream) return;
-    const hasVideo = stream.getVideoTracks().length > 0;
-    const looksLocal = el.muted || (el as HTMLVideoElement).playsInline && hasVideo && (el as HTMLVideoElement).className.includes('local');
-    if (el.muted && hasVideo) foundLocal = stream;
-    else if (!el.muted && stream.getAudioTracks().length > 0) foundRemote = stream;
-    else if (hasVideo && !looksLocal) foundRemote = stream;
+    const liveAudio = stream.getAudioTracks().some((t) => t.readyState === 'live');
+    const liveVideo = stream.getVideoTracks().some((t) => t.readyState === 'live');
+    if (!liveAudio && !liveVideo) return;
+    /* Zego lokal preview adətən muted-dir — onu remote sayma. */
+    if (el.muted) {
+      foundLocal = stream;
+      return;
+    }
+    if (liveAudio) foundRemote = stream;
+    else if (liveVideo && !foundRemote) foundRemote = stream;
   });
 
   return { local: foundLocal, remote: foundRemote };
@@ -219,7 +287,8 @@ export function startMediaHarvest(express?: {
     const found = collectFromStage();
     if (found.local && found.local !== local) setCallLocalStream(found.local);
     if (found.remote && found.remote !== remote) setCallRemoteStream(found.remote);
-  }, 600);
+    else if (remote) pipeRemoteAudio(remote);
+  }, 400);
 }
 
 export function stopMediaHarvest() {
