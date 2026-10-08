@@ -63,7 +63,18 @@ body {
 .platform-ios .waCallCtrlBtn,
 .platform-ios .waCallEndBtn,
 .platform-ios .waCallAcceptCircle,
-.platform-ios .waCallRejectCircle {
+.platform-ios .waCallRejectCircle,
+.platform-capacitor .iconBtn,
+.platform-capacitor .msgHubIconBtn,
+.platform-capacitor .exploreSearchBtn,
+.platform-capacitor .actionBtnPremium,
+.platform-capacitor .navItem,
+.platform-capacitor .navItemCenter,
+.platform-capacitor .uploadFabPremium,
+.platform-capacitor .waCallCtrlBtn,
+.platform-capacitor .waCallEndBtn,
+.platform-capacitor .waCallAcceptCircle,
+.platform-capacitor .waCallRejectCircle {
   min-width: var(--app-touch-min);
   min-height: var(--app-touch-min);
 }

@@ -14,20 +14,48 @@ function resolveTheme(theme: 'dark' | 'light' | 'system'): 'dark' | 'light' {
   return theme === 'light' ? 'light' : 'dark';
 }
 
+function isNativeShell() {
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  return typeof cap?.isNativePlatform === 'function' ? cap.isNativePlatform() : !!cap;
+}
+
 function detectPlatform() {
   if (typeof window === 'undefined') return;
   const ua = navigator.userAgent;
   const isIOS =
     /iPad|iPhone|iPod/.test(ua) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const isCapacitor = !!(window as unknown as { Capacitor?: unknown }).Capacitor;
+  const isAndroid = /Android/i.test(ua);
+  const isCapacitor = isNativeShell();
 
   document.documentElement.classList.toggle('platform-ios', isIOS);
+  document.documentElement.classList.toggle('platform-android', isAndroid);
   document.documentElement.classList.toggle('platform-capacitor', isCapacitor);
 
-  if (isIOS) {
+  if (isIOS || isCapacitor) {
     document.documentElement.style.setProperty('--app-touch-min', '44px');
   }
+}
+
+function listenNativeKeyboard() {
+  const viewport = window.visualViewport;
+  if (!viewport) return () => {};
+
+  const sync = () => {
+    const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+    const open = inset > 80;
+    document.documentElement.classList.toggle('keyboard-open', open);
+    document.documentElement.style.setProperty('--keyboard-inset', `${open ? inset : 0}px`);
+    document.documentElement.style.setProperty('--vv-height', `${viewport.height}px`);
+  };
+
+  sync();
+  viewport.addEventListener('resize', sync);
+  viewport.addEventListener('scroll', sync);
+  return () => {
+    viewport.removeEventListener('resize', sync);
+    viewport.removeEventListener('scroll', sync);
+  };
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -35,11 +63,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     detectPlatform();
+    const stopKeyboard = listenNativeKeyboard();
     void ensureFirebaseAuth().then((user) => {
       if (!user) {
         console.warn('Firebase Anonymous Auth aktiv deyil — Console-da yandırın.');
       }
     });
+    return stopKeyboard;
   }, []);
 
   useEffect(() => {

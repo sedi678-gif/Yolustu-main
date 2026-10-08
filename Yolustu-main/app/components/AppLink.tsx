@@ -23,6 +23,9 @@ export default function AppLink({ href, children, onClick, ...rest }: AppLinkPro
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     onClick?.(e);
     if (e.defaultPrevented) return;
+    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('mailto:') || path.startsWith('tel:')) {
+      return;
+    }
     e.preventDefault();
     window.location.href = path;
   };
