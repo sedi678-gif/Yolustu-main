@@ -72,7 +72,7 @@ export const BATTLE_CARD_ASSETS: Record<BattleCardId, BattleCardAsset> = {
 
     tag: 'Zərərverici',
 
-    desc: 'Mutant hədəf qala ətrafında peyda olub hücum edir. Vaxtında kliklə öldürməsən, ittifaq xalları üzv sayına mütənasib azalır.',
+    desc: 'Mutant hədəf qala ətrafında peyda olub hücum edir. Müdafiəçilər 7 kliklə (50 üzv) dayandıra bilər; uğursuz olarsa 1500 xal zərər.',
 
   },
 

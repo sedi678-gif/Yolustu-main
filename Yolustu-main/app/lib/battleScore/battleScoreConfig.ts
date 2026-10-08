@@ -11,7 +11,7 @@ export const BATTLE_PLAY_EVENT_COUNT = 6;
 /** 2^31-1-dən aşağı — wrap/overflow yoxdur. */
 export const BATTLE_SCORE_MAX = 1_000_000;
 export const BATTLE_SCORE_MIN = 0;
-export const BATTLE_DAMAGE_MAX = 3500;
+export const BATTLE_DAMAGE_MAX = 500;
 export const BATTLE_PLAYER_DELTA_MAX = 10;
 export const BATTLE_ALLIANCE_DELTA_MAX = 8;
 export const BATTLE_STEAL_MAX = 6;

@@ -1,4 +1,4 @@
-export const EFFECT_DAMAGE_MAX = 3500;
+export const EFFECT_DAMAGE_MAX = 500;
 export const EFFECT_PLAYER_DELTA_MAX = 10;
 export const EFFECT_ALLIANCE_DELTA_MAX = 8;
 export const EFFECT_STEAL_MAX = 6;
