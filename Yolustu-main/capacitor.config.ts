@@ -4,7 +4,7 @@ const config: CapacitorConfig = {
   appId: 'com.example.app',
   appName: 'Yolüstü',
   webDir: 'out',
-  loggingBehavior: 'error',
+  loggingBehavior: 'production',
   server: {
     androidScheme: 'https',
     iosScheme: 'https',
