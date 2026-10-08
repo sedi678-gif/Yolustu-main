@@ -10,23 +10,22 @@ interface AllianceFlagPreviewProps {
   wave?: boolean;
 }
 
-export default function AllianceFlagPreview({ flag, size = 'md', wave = false }: AllianceFlagPreviewProps) {
-  const sizeClass =
-    size === 'lg'
-      ? styles.allianceFlagPreviewLg
-      : size === 'sm'
-        ? styles.allianceFlagPreviewSm
-        : size === 'hub'
-          ? styles.allianceFlagPreviewHub
-          : '';
+const WAVE_STRIPS = 16;
+
+function FlagFace({
+  flag,
+  sizeClass,
+  extraClass,
+}: {
+  flag: AllianceFlagConfig;
+  sizeClass: string;
+  extraClass?: string;
+}) {
   const hasImage = Boolean(flag.imageUrl);
   const shape = flag.shape ?? 'rect';
-
-  const flagEl = (
+  return (
     <div
-      className={`${styles.allianceFlagPreview} ${sizeClass} ${hasImage ? styles.allianceFlagPreviewImage : ''} ${
-        wave ? styles.allianceFlagPreviewWaving : ''
-      }`}
+      className={`${styles.allianceFlagPreview} ${sizeClass} ${hasImage ? styles.allianceFlagPreviewImage : ''} ${extraClass ?? ''}`}
       style={
         {
           '--flag-bg': flag.backgroundColor,
@@ -43,11 +42,43 @@ export default function AllianceFlagPreview({ flag, size = 'md', wave = false }:
       ) : (
         <span className={styles.allianceFlagPreviewEmblem}>{flag.emblem}</span>
       )}
-      {wave ? <span className={styles.allianceFlagWaveSheen} /> : null}
     </div>
   );
+}
 
-  if (!wave) return flagEl;
+export default function AllianceFlagPreview({ flag, size = 'md', wave = false }: AllianceFlagPreviewProps) {
+  const sizeClass =
+    size === 'lg'
+      ? styles.allianceFlagPreviewLg
+      : size === 'sm'
+        ? styles.allianceFlagPreviewSm
+        : size === 'hub'
+          ? styles.allianceFlagPreviewHub
+          : '';
 
-  return <div className={styles.allianceFlagWave}>{flagEl}</div>;
+  if (!wave) {
+    return <FlagFace flag={flag} sizeClass={sizeClass} />;
+  }
+
+  const shape = flag.shape ?? 'rect';
+
+  return (
+    <div className={`${styles.allianceFlagWaveMount} ${sizeClass}`} data-shape={shape}>
+      <span className={styles.allianceFlagPole} aria-hidden />
+      <div className={styles.allianceFlagCloth} data-shape={shape} style={{ '--n': WAVE_STRIPS } as React.CSSProperties}>
+        {Array.from({ length: WAVE_STRIPS }, (_, i) => (
+          <div
+            key={i}
+            className={styles.allianceFlagStrip}
+            style={{ '--i': i, '--n': WAVE_STRIPS } as React.CSSProperties}
+          >
+            <div className={styles.allianceFlagStripFace}>
+              <FlagFace flag={flag} sizeClass={sizeClass} extraClass={styles.allianceFlagStripFlag} />
+            </div>
+            <span className={styles.allianceFlagStripShade} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

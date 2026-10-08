@@ -1165,55 +1165,145 @@
   border-width: 3px;
 }
 
-.allianceFlagWave {
+.allianceFlagWaveMount {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
   transform-origin: left center;
-  animation: allianceFlagSway 3.8s ease-in-out infinite;
-  filter: drop-shadow(2px 4px 8px rgba(0, 0, 0, 0.45));
+  filter: drop-shadow(6px 10px 12px rgba(0, 0, 0, 0.55));
+  perspective: 420px;
+}
+
+.allianceFlagPole {
+  width: 5px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #f4f4f5 0%, #a8a29e 38%, #57534e 100%);
+  box-shadow: 1px 0 2px rgba(0, 0, 0, 0.45), inset -1px 0 1px rgba(255, 255, 255, 0.35);
+  z-index: 3;
+}
+
+.allianceFlagPreviewSm.allianceFlagWaveMount .allianceFlagPole,
+.allianceFlagPreview.allianceFlagWaveMount .allianceFlagPole {
+  width: 3px;
+}
+
+.allianceFlagPreviewHub.allianceFlagWaveMount .allianceFlagPole {
+  width: 4px;
+}
+
+.allianceFlagCloth {
+  position: relative;
+  display: flex;
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+  transform-style: preserve-3d;
+  transform-origin: left center;
+  overflow: visible;
+}
+
+.allianceFlagCloth[data-shape='swallowtail'] {
+  clip-path: polygon(0 0, 100% 0, 78% 50%, 100% 100%, 0 100%);
+}
+
+.allianceFlagCloth[data-shape='banner'] {
+  clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%);
+}
+
+.allianceFlagCloth[data-shape='shield'] {
+  clip-path: polygon(8% 0, 92% 0, 100% 18%, 100% 62%, 50% 100%, 0 62%, 0 18%);
+}
+
+.allianceFlagStrip {
+  position: relative;
+  flex: 1 0 0;
+  height: 118%;
+  margin-top: -4%;
+  overflow: hidden;
+  transform-origin: left center;
+  animation: allianceFlagRipple 2.35s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.09s);
   will-change: transform;
 }
 
-.allianceFlagPreviewWaving {
+.allianceFlagStripFace {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: calc(var(--n) * 100%);
+  left: calc(var(--i) * -100%);
+}
+
+.allianceFlagStripFlag {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
   overflow: hidden;
 }
 
-.allianceFlagWaveSheen {
+.allianceFlagStripShade {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(
-    108deg,
-    transparent 32%,
-    rgba(255, 255, 255, 0.22) 48%,
-    transparent 64%
-  );
-  background-size: 220% 100%;
-  animation: allianceFlagSheen 3.8s ease-in-out infinite;
   z-index: 2;
+  mix-blend-mode: overlay;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.42) 0%,
+    rgba(255, 255, 255, 0.38) 42%,
+    rgba(0, 0, 0, 0.28) 100%
+  );
+  opacity: 0.72;
+  animation: allianceFlagFold 2.35s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.09s);
 }
 
-@keyframes allianceFlagSway {
+@keyframes allianceFlagRipple {
   0%,
   100% {
-    transform: perspective(260px) rotateY(-14deg) skewY(1.2deg);
+    transform: translateY(0) rotateY(-11deg) skewY(0.4deg) scaleY(1);
   }
-  50% {
-    transform: perspective(260px) rotateY(9deg) skewY(-1.6deg);
+  20% {
+    transform: translateY(-11%) rotateY(10deg) skewY(3.2deg) scaleY(1.045);
+  }
+  42% {
+    transform: translateY(6%) rotateY(-7deg) skewY(-2.4deg) scaleY(0.965);
+  }
+  64% {
+    transform: translateY(-7%) rotateY(8deg) skewY(2.1deg) scaleY(1.025);
+  }
+  82% {
+    transform: translateY(4%) rotateY(-5deg) skewY(-1.4deg) scaleY(0.98);
   }
 }
 
-@keyframes allianceFlagSheen {
+@keyframes allianceFlagFold {
   0%,
   100% {
-    background-position: 120% 0;
+    opacity: 0.45;
+    filter: brightness(0.92);
+  }
+  25% {
+    opacity: 0.85;
+    filter: brightness(1.18);
   }
   50% {
-    background-position: -20% 0;
+    opacity: 0.38;
+    filter: brightness(0.82);
+  }
+  75% {
+    opacity: 0.7;
+    filter: brightness(1.08);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .allianceFlagWave,
-  .allianceFlagWaveSheen {
+  .allianceFlagStrip,
+  .allianceFlagStripShade {
     animation: none;
   }
 }
@@ -1412,7 +1502,8 @@
 .allianceFlagEditorPreviewRow {
   display: flex;
   justify-content: center;
-  padding: 4px 0 2px;
+  padding: 10px 0 12px;
+  overflow: visible;
 }
 
 .allianceFlagToolGroup {

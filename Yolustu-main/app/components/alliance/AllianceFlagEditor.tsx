@@ -130,7 +130,7 @@ export default function AllianceFlagEditor() {
       </div>
 
       <div className={styles.allianceFlagEditorPreviewRow}>
-        <AllianceFlagPreview flag={draft} size="lg" />
+        <AllianceFlagPreview flag={draft} size="lg" wave />
       </div>
 
       <div className={styles.allianceFlagTabs} role="tablist" aria-label="Bayraq alətləri">
