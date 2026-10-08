@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { unlockCallAudio } from '@/app/lib/audioUnlock';
 import {
-  ensureLocalPreview,
   flipLocalCamera,
   getCallMedia,
   listenCallMedia,
@@ -89,14 +88,14 @@ export default function CallUiHost() {
         void (async () => {
           void unlockCallAudio();
           const primed = await primeCallMedia(ui.callType === 'video');
-          if (primed.stream) setCallLocalStream(primed.stream);
-          else releaseMediaStream(primed.stream);
+          /* İcazə alındı — track-ləri Zego tutsun, overlay mic-i saxlamasın. */
+          releaseMediaStream(primed.stream);
+          setCallLocalStream(null);
           if (!primed.audio) {
             ui.refuse?.();
             closeUi();
             return;
           }
-          await ensureLocalPreview(ui.callType === 'video');
           setJoinWithCamera(ui.callType === 'video' && primed.video);
           setCameraOn(ui.callType === 'video' && primed.video);
           ui.accept?.();
@@ -121,16 +120,9 @@ export default function CallUiHost() {
       }}
       onToggleCamera={async () => {
         const next = !cameraOn;
-        if (next) {
-          const stream = await ensureLocalPreview(true);
-          const hasVideo = Boolean(stream?.getVideoTracks().length);
-          setCameraOn(hasVideo);
-          setJoinWithCamera(hasVideo);
-          zegoEnableCamera(hasVideo);
-          return;
-        }
-        setCameraOn(false);
-        zegoEnableCamera(false);
+        setCameraOn(next);
+        setJoinWithCamera(next);
+        zegoEnableCamera(next);
       }}
       onOpenInvite={() => requestCallInvite()}
       onShare={() => {

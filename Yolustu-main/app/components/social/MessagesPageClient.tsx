@@ -851,7 +851,9 @@ export default function MessagesPageClient() {
       alert(media.error || 'Mikrofon icazəsi verilməyib.');
       return;
     }
-    setCallLocalStream(media.stream);
+    /* İcazə verildi — mikrofonu Zego-ya burax, əks halda publish olmur. */
+    releaseMediaStream(media.stream);
+    setCallLocalStream(null);
     startCall({
       calleeId: String(selectedChat.id),
       calleeName: selectedChat.name,

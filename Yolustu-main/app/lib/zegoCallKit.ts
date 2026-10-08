@@ -21,6 +21,7 @@ import {
   muteLocalAudio,
   muteLocalVideo,
 } from '@/app/lib/callMediaBridge';
+import { stopRingtone } from '@/app/lib/callRingtone';
 import { getCallUiState, patchCallUiState, setCallUiState } from '@/app/lib/callUiBridge';
 
 type ZegoUIKitModule = typeof import('@zegocloud/zego-uikit-prebuilt');
@@ -153,9 +154,13 @@ function getOrCreateZegoStage(): HTMLElement {
   if (el.parentElement !== document.documentElement) {
     document.documentElement.appendChild(el);
   }
-  el.style.cssText =
-    'position:fixed;left:0;bottom:0;width:12px;height:12px;opacity:0.02;overflow:hidden;pointer-events:none;z-index:1;display:block;';
+  applyLiveStageStyle(el);
   return el;
+}
+
+function applyLiveStageStyle(el: HTMLElement): void {
+  el.style.cssText =
+    'position:fixed;inset:0;width:100vw;height:100dvh;opacity:0;overflow:visible;pointer-events:none;z-index:2;display:block;';
 }
 
 function patchJoinRoom(zp: ZegoInstance): void {
@@ -346,7 +351,7 @@ function stopCallUi(reason: string) {
   remoteZimUsers = new Set();
   remoteRoomPeers = 0;
   unwatchSession();
-  leaveMediaRoom();
+  leaveMediaRoom(true, true);
   setCallUiState(null);
   optionsRef.current.onCallInvitationEnded?.(reason);
   hangupInFlight = false;
@@ -450,6 +455,10 @@ function mediaRoomConfig(
     showLeavingView: false,
     showRoomTimer: false,
     sharedLinks: [],
+    onJoinRoom: () => {
+      unmuteKit(mediaZp);
+      void unlockCallAudio();
+    },
   };
 }
 
@@ -457,11 +466,22 @@ async function joinMediaRoom(roomId: string, callType: CallType): Promise<void> 
   const rid = String(roomId || '');
   const uid = String(activeUserId || '');
   if (!rid || !uid) return;
-  if (mediaZp && mediaRoomId === rid) return;
+  if (mediaZp && mediaRoomId === rid) {
+    unmuteKit(mediaZp);
+    return;
+  }
 
-  leaveMediaRoom(false);
+  stopRingtone();
+  leaveMediaRoom(false, false);
   releaseMicForZego();
   void unlockCallAudio();
+  await new Promise((r) => setTimeout(r, 120));
+
+  /* Eyni user iki Express-ə login ola bilməz — siqnal instance-ı bağla, ZIM qalsın. */
+  if (zpInstance) {
+    destroyPrebuilt(zpInstance);
+    zpInstance = null;
+  }
 
   const { ZegoUIKitPrebuilt } = await loadZegoUIKit();
   const kitToken = generateTestKitToken(
@@ -472,29 +492,44 @@ async function joinMediaRoom(roomId: string, callType: CallType): Promise<void> 
   );
   const zp = ZegoUIKitPrebuilt.create(kitToken);
   patchJoinRoom(zp);
-  zp.joinRoom(mediaRoomConfig(ZegoUIKitPrebuilt, callType));
+  applyLiveStageStyle(getOrCreateZegoStage());
   mediaZp = zp;
+  zpInstance = zp;
   mediaRoomId = rid;
-  const express = (zp as { express?: { on?: (ev: string, cb: (...args: unknown[]) => void) => void; startPlayingStream?: (id: string) => Promise<unknown> } }).express;
-  startMediaHarvest(express);
+  zp.joinRoom(mediaRoomConfig(ZegoUIKitPrebuilt, callType));
+  unmuteKit(zp);
+  startMediaHarvest(pickExpress(zp));
   remoteRoomPeers = 0;
-  express?.on?.('roomUserUpdate', (...args: unknown[]) => {
-    const updateType = args[1];
-    const users = (Array.isArray(args[2]) ? args[2] : []) as { userID?: string }[];
-    const n = users.filter((u) => u.userID && u.userID !== activeUserId).length;
-    const left = updateType === 1 || String(updateType).toUpperCase() === 'DELETE';
-    const added = updateType === 0 || String(updateType).toUpperCase() === 'ADD';
-    if (added) remoteRoomPeers += n;
-    if (left) remoteRoomPeers = Math.max(0, remoteRoomPeers - n);
-    if (
-      left &&
-      remoteRoomPeers === 0 &&
-      getCallUiState()?.mode === 'active' &&
-      !hangupInFlight
-    ) {
-      stopCallUi('peer_left');
+
+  void (async () => {
+    for (let i = 0; i < 20; i += 1) {
+      unmuteKit(zp);
+      const express = pickExpress(zp);
+      if (express) {
+        startMediaHarvest(express);
+        express.on?.('roomUserUpdate', (...args: unknown[]) => {
+          const updateType = args[1];
+          const users = (Array.isArray(args[2]) ? args[2] : []) as { userID?: string }[];
+          const n = users.filter((u) => u.userID && u.userID !== activeUserId).length;
+          const left = updateType === 1 || String(updateType).toUpperCase() === 'DELETE';
+          const added = updateType === 0 || String(updateType).toUpperCase() === 'ADD';
+          if (added) remoteRoomPeers += n;
+          if (left) remoteRoomPeers = Math.max(0, remoteRoomPeers - n);
+          if (
+            left &&
+            remoteRoomPeers === 0 &&
+            getCallUiState()?.mode === 'active' &&
+            !hangupInFlight
+          ) {
+            stopCallUi('peer_left');
+          }
+        });
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 200));
     }
-  });
+  })();
+
   if (pendingSessionId) watchSession(pendingSessionId);
 
   const prev = getCallUiState();
@@ -506,12 +541,23 @@ async function joinMediaRoom(roomId: string, callType: CallType): Promise<void> 
   });
 }
 
-function leaveMediaRoom(releasePreview = true): void {
+function leaveMediaRoom(releasePreview = true, restoreKit = false): void {
+  const shared = Boolean(mediaZp && mediaZp === zpInstance);
   destroyPrebuilt(mediaZp);
   mediaZp = null;
   mediaRoomId = null;
+  if (shared) zpInstance = null;
   hideZegoStage();
   if (releasePreview) releaseCallMedia();
+  if (restoreKit && activeUserId && !mediaZp && !zpInstance) {
+    const uid = activeUserId;
+    const name = activeUserName || uid;
+    window.setTimeout(() => {
+      if (!zpInstance && !mediaZp && activeUserId === uid) {
+        void initZegoCallKit(uid, name, optionsRef.current);
+      }
+    }, 200);
+  }
 }
 
 export function getZegoLastInitError(): string | null {
@@ -692,7 +738,7 @@ export function isZegoCallKitReady(): boolean {
 
 export function destroyZegoCallKit(): void {
   const hadInstance = zpInstance !== null || mediaZp !== null;
-  leaveMediaRoom();
+  leaveMediaRoom(true, false);
   destroyPrebuilt(zpInstance);
   zpInstance = null;
   zimRef = null;
@@ -711,12 +757,54 @@ type ZegoExpressLike = {
   muteSpeaker?: (mute: boolean) => void;
   enableCamera?: (enable: boolean) => void;
   mutePublishStreamVideo?: (mute: boolean) => void;
+  on?: (ev: string, cb: (...args: unknown[]) => void) => void;
+  startPlayingStream?: (id: string, opts?: Record<string, unknown>) => Promise<unknown>;
 };
 
+type ZegoKitAudio = ZegoInstance & {
+  muteMicrophone?: (mute: boolean) => void;
+  muteSpeaker?: (mute: boolean) => void;
+};
+
+function pickExpress(zp: unknown): ZegoExpressLike | null {
+  if (!zp || typeof zp !== 'object') return null;
+  const bag = zp as Record<string, unknown>;
+  const nested = bag.core as Record<string, unknown> | undefined;
+  const candidates = [bag.express, bag._express, bag.zg, bag.zego, nested?.express, nested?.zg];
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object') return candidate as ZegoExpressLike;
+  }
+  return null;
+}
+
 function getExpress(): ZegoExpressLike | null {
-  const live = mediaZp || zpInstance;
-  const express = (live as { express?: ZegoExpressLike } | null)?.express;
-  return express ?? null;
+  return pickExpress(mediaZp) || pickExpress(zpInstance);
+}
+
+function unmuteKit(zp: ZegoInstance | null): void {
+  if (!zp) return;
+  const kit = zp as ZegoKitAudio;
+  try {
+    kit.muteMicrophone?.(false);
+  } catch {
+    /* */
+  }
+  try {
+    kit.muteSpeaker?.(false);
+  } catch {
+    /* */
+  }
+  const express = pickExpress(zp);
+  try {
+    express?.muteMicrophone?.(false);
+  } catch {
+    /* */
+  }
+  try {
+    express?.muteSpeaker?.(false);
+  } catch {
+    /* */
+  }
 }
 
 export function zegoHangUp() {

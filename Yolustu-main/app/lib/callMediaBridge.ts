@@ -1,5 +1,7 @@
 /** Overlay üçün lokal/remote MediaStream — Zego DOM-dan və getUserMedia-dan. */
 
+import { releaseCallAudioUnlock, unlockCallAudio } from '@/app/lib/audioUnlock';
+
 export type CallMediaState = {
   local: MediaStream | null;
   remote: MediaStream | null;
@@ -16,7 +18,7 @@ function audioTrackKey(stream: MediaStream | null): string {
   if (!stream) return '';
   return stream
     .getAudioTracks()
-    .filter((t) => t.readyState === 'live')
+    .filter((t) => t.readyState === 'live' && t.enabled)
     .map((t) => t.id)
     .sort()
     .join(',');
@@ -24,14 +26,20 @@ function audioTrackKey(stream: MediaStream | null): string {
 
 function ensureRemoteAudioEl(): HTMLAudioElement | null {
   if (typeof document === 'undefined') return null;
+  const existing = document.getElementById('yolustu-remote-audio') as HTMLAudioElement | null;
+  if (existing) {
+    remoteAudioEl = existing;
+    return existing;
+  }
   if (remoteAudioEl && remoteAudioEl.isConnected) return remoteAudioEl;
   const el = document.createElement('audio');
   el.id = 'yolustu-remote-audio';
   el.autoplay = true;
   el.setAttribute('playsinline', 'true');
+  el.setAttribute('webkit-playsinline', 'true');
   el.muted = false;
   el.volume = 1;
-  el.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:1;';
+  el.style.cssText = 'position:fixed;width:2px;height:2px;opacity:0.02;pointer-events:none;z-index:3;';
   document.documentElement.appendChild(el);
   remoteAudioEl = el;
   return el;
@@ -43,6 +51,7 @@ function pipeRemoteAudio(stream: MediaStream | null) {
   const key = audioTrackKey(stream);
   if (key !== pipedAudioKey) {
     pipedAudioKey = key;
+    el.removeAttribute('src');
     el.srcObject = stream && key ? stream : null;
   }
   el.muted = false;
@@ -94,15 +103,17 @@ export function muteLocalVideo(muted: boolean) {
 
 /** Zego özü mikrofonu açıb yayımlamalıdır — overlay preview mic-i burax. */
 export function releaseMicForZego(): void {
-  if (!local) return;
-  local.getAudioTracks().forEach((track) => {
-    try {
-      track.stop();
-    } catch {
-      /* */
-    }
-    local?.removeTrack(track);
-  });
+  const stopTracks = (stream: MediaStream | null) => {
+    stream?.getAudioTracks().forEach((track) => {
+      try {
+        track.stop();
+      } catch {
+        /* */
+      }
+      stream.removeTrack(track);
+    });
+  };
+  stopTracks(local);
   emit();
 }
 
@@ -194,9 +205,13 @@ export function releaseCallMedia() {
   pipedAudioKey = '';
   if (remoteAudioEl) {
     remoteAudioEl.srcObject = null;
+    remoteAudioEl.removeAttribute('src');
     remoteAudioEl.remove();
     remoteAudioEl = null;
   }
+  const leftover = document.getElementById('yolustu-remote-audio');
+  leftover?.remove();
+  releaseCallAudioUnlock();
   emit();
 }
 
@@ -210,31 +225,58 @@ function asStream(value: unknown): MediaStream | null {
   return null;
 }
 
+function looksLocalMedia(el: HTMLMediaElement): boolean {
+  const s = `${el.id} ${el.className} ${el.getAttribute('data-local') || ''}`.toLowerCase();
+  if (s.includes('remote')) return false;
+  return s.includes('local') || s.includes('preview') || s.includes('self');
+}
+
 function collectFromStage(): { local: MediaStream | null; remote: MediaStream | null } {
   const stage = document.getElementById('zego-call-stage');
   if (!stage) return { local: null, remote: null };
 
   let foundLocal: MediaStream | null = null;
-  let foundRemote: MediaStream | null = null;
+  const remoteTracks: MediaStreamTrack[] = [];
+  const seen = new Set<string>();
+
+  const addRemote = (stream: MediaStream | null) => {
+    stream?.getAudioTracks().forEach((t) => {
+      if (t.readyState !== 'live' || seen.has(t.id)) return;
+      seen.add(t.id);
+      remoteTracks.push(t);
+    });
+  };
 
   stage.querySelectorAll('video, audio').forEach((node) => {
     const el = node as HTMLMediaElement;
     if (el.id === 'yolustu-remote-audio') return;
     const stream = asStream(el.srcObject);
     if (!stream) return;
-    const liveAudio = stream.getAudioTracks().some((t) => t.readyState === 'live');
-    const liveVideo = stream.getVideoTracks().some((t) => t.readyState === 'live');
-    if (!liveAudio && !liveVideo) return;
-    /* Zego lokal preview adətən muted-dir — onu remote sayma. */
-    if (el.muted) {
+    if (looksLocalMedia(el)) {
       foundLocal = stream;
       return;
     }
-    if (liveAudio) foundRemote = stream;
-    else if (liveVideo && !foundRemote) foundRemote = stream;
+    addRemote(stream);
+    try {
+      const cap = (el as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.();
+      addRemote(asStream(cap));
+    } catch {
+      /* captureStream yalnız oynayan media üçün */
+    }
   });
 
-  return { local: foundLocal, remote: foundRemote };
+  if (!remoteTracks.length) {
+    stage.querySelectorAll('video, audio').forEach((node) => {
+      const el = node as HTMLMediaElement;
+      if (el.id === 'yolustu-remote-audio' || looksLocalMedia(el)) return;
+      addRemote(asStream(el.srcObject));
+    });
+  }
+
+  return {
+    local: foundLocal,
+    remote: remoteTracks.length ? new MediaStream(remoteTracks) : null,
+  };
 }
 
 function wakeStageMedia() {
@@ -242,9 +284,10 @@ function wakeStageMedia() {
   if (!stage) return;
   stage.querySelectorAll('audio, video').forEach((node) => {
     const el = node as HTMLMediaElement;
-    const stream = asStream(el.srcObject);
-    const isLocalVideo = el.tagName === 'VIDEO' && el.muted;
-    if (!isLocalVideo && stream?.getAudioTracks().length) {
+    el.setAttribute('playsinline', 'true');
+    el.setAttribute('webkit-playsinline', 'true');
+    const localish = looksLocalMedia(el);
+    if (!localish) {
       el.muted = false;
       el.volume = 1;
     }
@@ -254,9 +297,10 @@ function wakeStageMedia() {
 
 export function startMediaHarvest(express?: {
   on?: (ev: string, cb: (...args: unknown[]) => void) => void;
-  startPlayingStream?: (id: string) => Promise<unknown>;
+  startPlayingStream?: (id: string, opts?: Record<string, unknown>) => Promise<unknown>;
 } | null): void {
   stopMediaHarvest();
+  void unlockCallAudio();
   wakeStageMedia();
 
   const playStream = express?.startPlayingStream;
@@ -271,11 +315,11 @@ export function startMediaHarvest(express?: {
           const id = item.streamID || item.stream_id;
           if (!id) return;
           try {
-            const played = await playStream(id);
+            const played = await playStream(id, { audio: true, video: true });
             const ms = asStream(played);
-            if (ms) setCallRemoteStream(ms);
+            if (ms?.getAudioTracks().length) setCallRemoteStream(ms);
           } catch {
-            /* play later via DOM harvest */
+            /* Prebuilt artıq oxuyursa DOM harvest kifayətdir */
           }
         })
       );
@@ -286,8 +330,13 @@ export function startMediaHarvest(express?: {
     wakeStageMedia();
     const found = collectFromStage();
     if (found.local && found.local !== local) setCallLocalStream(found.local);
-    if (found.remote && found.remote !== remote) setCallRemoteStream(found.remote);
-    else if (remote) pipeRemoteAudio(remote);
+    if (found.remote) {
+      const nextKey = audioTrackKey(found.remote);
+      if (nextKey && nextKey !== pipedAudioKey) setCallRemoteStream(found.remote);
+      else pipeRemoteAudio(remote || found.remote);
+    } else if (remote) {
+      pipeRemoteAudio(remote);
+    }
   }, 400);
 }
 
