@@ -16,7 +16,9 @@ service cloud.firestore {
         path[0] == 'alliances' ||
         path[0] == 'arena_matches' ||
         path[0] == 'arena_rewards' ||
-        path[0] == 'arena_reward_settlements'
+        path[0] == 'arena_reward_settlements' ||
+        path[0] == 'reel_signal_events' ||
+        path[0] == 'user_profile_scores'
       );
     }
 
@@ -2588,6 +2590,37 @@ service cloud.firestore {
           ]);
         allow update, delete: if false;
       }
+    }
+
+    match /reel_signal_events/{eventId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.eventType in ['watch', 'like', 'comment', 'share', 'skip']
+        && request.resource.data.watchDurationSeconds is number
+        && request.resource.data.watchDurationSeconds >= 0
+        && request.resource.data.watchDurationSeconds <= 3600
+        && request.resource.data.watchPercentage is number
+        && request.resource.data.watchPercentage >= 0
+        && request.resource.data.watchPercentage <= 100
+        && request.resource.data.keys().hasOnly([
+          'id', 'userId', 'videoId', 'eventType', 'watchDurationSeconds',
+          'watchPercentage', 'categoryId', 'hashtags', 'requestId', 'createdAt', 'schemaVersion'
+        ]);
+      allow update, delete: if false;
+    }
+
+    match /user_profile_scores/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.keys().hasOnly([
+          'userId', 'schemaVersion', 'categoryScores', 'hashtagScores', 'totals', 'updatedAt'
+        ]);
+      allow delete: if false;
     }
 
     match /{document=**} {
